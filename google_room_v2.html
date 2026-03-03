@@ -1,0 +1,2454 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Google Room - Final Clean</title>
+  <meta name="theme-color" content="#0b0f17">
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Cdefs%3E%3CradialGradient id='blueGrad' cx='30%25' cy='30%25' r='70%25'%3E%3Cstop offset='0%25' stop-color='%23fff'/%3E%3Cstop offset='100%25' stop-color='%234285F4'/%3E%3C/radialGradient%3E%3CradialGradient id='redGrad' cx='30%25' cy='30%25' r='70%25'%3E%3Cstop offset='0%25' stop-color='%23fff'/%3E%3Cstop offset='100%25' stop-color='%23EA4335'/%3E%3C/radialGradient%3E%3CradialGradient id='yellowGrad' cx='30%25' cy='30%25' r='70%25'%3E%3Cstop offset='0%25' stop-color='%23fff'/%3E%3Cstop offset='100%25' stop-color='%23FBBC05'/%3E%3C/radialGradient%3E%3C/defs%3E%3Ccircle cx='50' cy='45' r='40' fill='url(%23blueGrad)'/%3E%3Ccircle cx='72' cy='68' r='26' fill='url(%23redGrad)'/%3E%3Ccircle cx='38' cy='72' r='20' fill='url(%23yellowGrad)'/%3E%3C/svg%3E" type="image/svg+xml">
+  <style>
+
+    :root { 
+      --neon-blue: #00f3ff; 
+      --glass-bg: rgba(10, 20, 30, 0.40); 
+      --border-color: rgba(0, 243, 255, 0.3); 
+
+      --tex-reticle: url("data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAEAAAABACAYAAACqaXHeAAAAGXRFWHRTb2Z0d2FyZQBBZG9YmUgSW1hZ2VSZWFkeXHJZTwAAAGASURBVHja7NrNSsNAEAdwN01rUfTkoQf15AfoKfoK3jwVFa8FvXjxVdDoxU8gghQvXgQv3kQQldpK2n/4D2xaQ2jSpi3ZgYVkIkv2N7OZ3S0551QjIqW1i+gO+oEeYAC8AivguU7/E70DDTQEPYd9r3sOa+x7BwNBD4E+dM/hHvs+gIGgZ2AfuufwA/Y9gIGg92Afuedwj32vYCDodbgduufwgX2vYCDoe9gduc9wj30/wEDQL3A/dJ/hHvt+gYGgX2Ff5J7DPfb9BANBv8OB0D2H99j3GwwE/QH3Ru453GPfbzCQbV/k3sM99v0BA0HvwV9D9x7use8tGAh6D+5G7hXcY9+fYCDol9gXuldwj33fwEDQd7Cj/u9wnX0/wUDQN7D7h9xzuMe+n2Eg6B3YF7rncI9978FA0G9wL3Tv4R77foOBoN/h/si9h3vs+wkGgn6F/aF7DvfY9wsMBP0C90duMdxj3y8wEPRz+AfoF3kH+AswAO/eG93N/Ld3AAAAAElFTkSuQmCC");
+
+    }
+
+    body { margin: 0; overflow: hidden; font-family: 'Segoe UI', sans-serif; background: #0b0f17; user-select: none; cursor: default; }
+    
+    #hud-controls, #hud-controls *, 
+    #holo-wrapper, #holo-wrapper * { cursor: pointer !important; }
+    #word-input { cursor: text !important; }
+
+    body.is-dragging, body.is-dragging * { cursor: grabbing !important; }
+
+    /* Привязка курсоров магнита */
+    body.tool-mag-0, body.tool-mag-0 canvas { cursor: var(--cur-mag-0) !important; }
+    body.tool-mag-1, body.tool-mag-1 canvas { cursor: var(--cur-mag-1) !important; }
+    body.tool-mag-2, body.tool-mag-2 canvas { cursor: var(--cur-mag-2) !important; }
+    body.tool-mag-3, body.tool-mag-3 canvas { cursor: var(--cur-mag-3) !important; }
+    
+    /* Привязка курсоров краски */
+    body.tool-paint-0, body.tool-paint-0 canvas { cursor: var(--cur-paint-0) !important; }
+    body.tool-paint-1, body.tool-paint-1 canvas { cursor: var(--cur-paint-1) !important; }
+    body.tool-paint-2, body.tool-paint-2 canvas { cursor: var(--cur-paint-2) !important; }
+    body.tool-paint-3, body.tool-paint-3 canvas { cursor: var(--cur-paint-3) !important; }
+    
+    #loader { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); color: #333; font-size: 18px; font-weight: bold; background: rgba(255,255,255,0.9); padding: 20px; border-radius: 10px; box-shadow: 0 10px 30px rgba(0,0,0,0.1); text-align: center; z-index: 100; pointer-events: none; }
+    #hud-controls { position: absolute; top: 20px; right: 20px; display: flex; gap: 12px; z-index: 1000; transition: opacity 0.3s; align-items: center; }
+    
+    .hud-btn { position: relative; width: 44px; height: 44px; border-radius: 50%; background: var(--glass-bg); backdrop-filter: blur(10px); border: 1px solid var(--border-color); color: var(--neon-blue); display: flex; align-items: center; justify-content: center; transition: all 0.2s; box-shadow: 0 5px 15px rgba(0,0,0,0.3); }
+    .hud-btn:hover { background: rgba(0, 243, 255, 0.15); box-shadow: 0 0 15px var(--neon-blue); transform: scale(1.05); }
+    .hud-btn:active { transform: scale(0.95); }
+    .hud-btn svg { width: 20px; height: 20px; fill: currentColor; }
+    
+    #btn-reset { color: #ff4444; border-color: rgba(255, 68, 68, 0.5); background: var(--glass-bg); width: auto; padding: 0 14px; border-radius: 22px; font-size: 11px; font-weight: bold; letter-spacing: 1px; }
+    #btn-reset:hover { background: rgba(255, 68, 68, 0.25); box-shadow: 0 0 15px #ff4444; border-color: #ff4444; transform: scale(1.05); color: #fff; }
+    
+    /* ВОССТАНОВЛЕННЫЕ СТИЛИ ДЛЯ ПОДСКАЗОК КНОПОК */
+    .ghost-hint {
+      position: absolute;
+      bottom: -25px;
+      left: 50%;
+      transform: translateX(-50%) translateY(5px);
+      font-size: 9px;
+      color: rgba(0, 243, 255, 0.6);
+      opacity: 0;
+      pointer-events: none;
+      transition: all 0.2s ease;
+      white-space: nowrap;
+      letter-spacing: 1px;
+    }
+    .hud-btn:hover .ghost-hint { opacity: 1; transform: translateX(-50%) translateY(0); }
+
+    #holo-wrapper { position: absolute; top: 50%; right: 0; display: flex; align-items: center; z-index: 1000; transition: transform 0.4s cubic-bezier(0.25, 0.8, 0.25, 1); transform: translateY(-50%) translateX(calc(100% - 40px)); }
+    #holo-wrapper.open, #holo-wrapper:hover { transform: translateY(-50%) translateX(0); }
+    #terminal-handle { width: 40px; height: 140px; background: var(--glass-bg); backdrop-filter: blur(10px); border: 1px solid var(--border-color); border-right: none; border-radius: 10px 0 0 10px; display: flex; align-items: center; justify-content: center; box-shadow: -2px 0 15px rgba(0,0,0,0.5); }
+    #handle-icon { writing-mode: vertical-rl; text-orientation: mixed; color: var(--neon-blue); font-weight: bold; font-size: 12px; letter-spacing: 3px; text-shadow: 0 0 5px var(--neon-blue); animation: pulse 3s infinite; transform: rotate(180deg); }
+    
+    #holo-panel { width: 300px; background: rgba(10, 20, 30, 0.25); backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px); border: 1px solid var(--border-color); border-right: none; padding: 25px; box-sizing: border-box; box-shadow: -10px 10px 40px rgba(0,0,0,0.6); border-radius: 0 0 0 20px; position: relative; overflow: hidden; }
+    #holo-panel::before { content: ''; position: absolute; top: 0; left: 0; width: 100%; height: 100%; background-image: linear-gradient(rgba(0, 243, 255, 0.03) 1px, transparent 1px), linear-gradient(90deg, rgba(0, 243, 255, 0.03) 1px, transparent 1px); background-size: 30px 30px; pointer-events: none; z-index: -1; }
+    
+    .section-title { color: rgba(255,255,255,0.5); font-size: 10px; text-transform: uppercase; letter-spacing: 2px; margin-bottom: 10px; border-bottom: 1px solid rgba(255,255,255,0.1); padding-bottom: 4px; margin-top: 15px; }
+    .section-title:first-child { margin-top: 0; }
+    .word-control { display: flex; gap: 8px; margin-bottom: 20px; align-items: center; }
+    #word-input { flex: 1; background: rgba(0,0,0,0.3); border: 1px solid rgba(0,243,255,0.2); color: var(--neon-blue); font-family: monospace; font-size: 16px; text-align: center; padding: 8px 0; border-radius: 4px; letter-spacing: 2px; outline: none; text-transform: uppercase; width: 100%; box-sizing: border-box; transition: all 0.2s; }
+    #word-input:hover { background: rgba(0, 243, 255, 0.1); border-color: rgba(0, 243, 255, 0.5); }
+    #word-input:focus { border-color: var(--neon-blue); box-shadow: 0 0 10px rgba(0, 243, 255, 0.3); background: rgba(0,0,0,0.5); }
+    .icon-btn { width: 36px; height: 36px; background: rgba(0, 243, 255, 0.1); border: 1px solid var(--border-color); color: #fff; border-radius: 4px; display: flex; align-items: center; justify-content: center; transition: all 0.2s; font-size: 16px; }
+    .icon-btn:hover { background: var(--neon-blue); color: #000; box-shadow: 0 0 10px var(--neon-blue); }
+    .icon-btn:active { transform: scale(0.92); }
+    .mode-switch-container { display: flex; background: rgba(0,0,0,0.4); border-radius: 8px; padding: 4px; margin-bottom: 25px; border: 1px solid rgba(255,255,255,0.05); }
+    .mode-btn { flex: 1; background: transparent; border: none; color: #888; padding: 10px 0; font-size: 11px; font-weight: bold; border-radius: 6px; transition: all 0.3s; }
+    .mode-btn.active { background: var(--neon-blue); color: #000; box-shadow: 0 0 15px var(--neon-blue); }
+    .mode-btn:hover:not(.active) { color: #fff; background: rgba(255,255,255,0.1); }
+    .actions-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 25px; }
+    .holo-btn { background: rgba(0, 243, 255, 0.02); border: 1px solid rgba(0, 243, 255, 0.2); color: var(--neon-blue); padding: 15px 5px; font-size: 11px; font-weight: bold; text-transform: uppercase; transition: all 0.2s; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px; border-radius: 6px; position: relative; overflow: hidden; }
+    .holo-btn:hover { background: rgba(0, 243, 255, 0.1); border-color: var(--neon-blue); box-shadow: inset 0 0 15px rgba(0, 243, 255, 0.15); }
+    .holo-btn:active { transform: scale(0.96); }
+    
+    .holo-btn.active-state { background: rgba(0, 243, 255, 0.25); color: var(--neon-blue); border-color: var(--neon-blue); box-shadow: 0 0 15px rgba(0, 243, 255, 0.3); }
+    #btn-fans.active-state { background: rgba(0, 243, 255, 0.02); }  
+    
+    .bead-counter { font-size: 9px; opacity: 0.7; letter-spacing: 1px; }
+    .holo-btn span, .holo-btn .btn-icon { position: relative; z-index: 10; display: flex; align-items: center; justify-content: center; }
+    .btn-icon svg { width: 22px; height: 22px; fill: currentColor; }
+    .btn-icon svg.stroked { fill: none; stroke: currentColor; stroke-width: 2.5px; stroke-linecap: round; stroke-linejoin: round; }
+    #btn-fans::after { content: ''; position: absolute; top: 0; left: 0; bottom: 0; width: var(--prog, 0%); background: rgba(0, 243, 255, 0.3); z-index: 1; transition: width 0.1s linear; }
+    @keyframes pulse { 0% { opacity: 0.4; } 50% { opacity: 1; text-shadow: 0 0 10px var(--neon-blue); } 100% { opacity: 0.4; } }
+    .ui-hidden #holo-wrapper { opacity: 0; pointer-events: none; }
+    .ui-hidden #hud-controls .hud-btn:not(#btn-hide) { opacity: 0; pointer-events: none; }
+    .ui-hidden #btn-hide { opacity: 0.15; }
+    .ui-hidden #btn-hide:hover { opacity: 1.0; }
+    button:focus, input:focus { outline: none; }
+    body.loading #hud-controls, body.loading #holo-wrapper { opacity: 0 !important; pointer-events: none; }
+
+    .btn-icon { width: 24px; height: 24px; font-size: 22px; display: flex; align-items: center; justify-content: center; }
+    
+    .combo-wrapper { position: relative; height: 110px; background: transparent; transition: all 0.3s; }
+    .combo-wrapper.locked { opacity: 0.3; pointer-events: none; filter: grayscale(100%); }
+    .combo-main-btn {
+      position: absolute; inset: 0;  background: rgba(0, 243, 255, 0.02); color: var(--neon-blue); border: 1px solid rgba(0, 243, 255, 0.2); border-radius: 6px;
+      clip-path: polygon( 0% 0%,  calc(100% - 70px) 0%,  calc(100% - 70px) 30px,  100% 30px,  100% 100%,  0% 100% );
+      display: flex; flex-direction: column; align-items: center; justify-content: center; padding-top: 15px;  gap: 8px; cursor: pointer; transition: all 0.2s;
+    }
+    .combo-main-btn.active-state { background: rgba(0, 243, 255, 0.25); }
+    .combo-main-btn:hover { background: rgba(0, 243, 255, 0.1); }
+
+    .combo-reset-btn {
+      position: absolute; top: 0; right: 0; width: 65px;  height: 25px; background: rgba(0, 243, 255, 0.05); border: 1px solid rgba(0, 243, 255, 0.2);
+      border-radius: 4px; color: var(--neon-blue); font-size: 9px; font-weight: bold; display: flex; align-items: center; justify-content: center; cursor: pointer; transition: all 0.2s;
+    }
+    .combo-main-btn.active-state + .combo-reset-btn { background: rgba(0, 243, 255, 0.25); box-shadow: inset 0 0 10px rgba(0, 243, 255, 0.15); }
+    .combo-reset-btn:hover { background: rgba(255, 68, 68, 0.2); border-color: #ff4444; color: #ff4444; }
+    #btn-balls:active { transform: scale(0.96); }
+
+/* === ПАНЕЛЬ ИНСТРУМЕНТОВ === */
+    .equipment-rack { 
+      width: 100%; 
+      height: 80px; 
+      display: flex; 
+      align-items: center; 
+      justify-content: center;
+      gap: 45px; /* Кнопки сближены, крайние баллончики не улетают за экран */
+      margin-top: 15px; 
+      margin-bottom: 25px; 
+    }
+
+    .tool-wrapper {
+      position: relative; 
+      display: flex;
+      justify-content: center;
+      padding-bottom: 20px; 
+      margin-bottom: -20px;
+    }
+
+    /* === СТИЛИ ГЛАВНЫХ КНОПОК (Уменьшены) === */
+    .mag-main-btn { 
+      position: relative; 
+      width: 60px; height: 60px; /* Было 80px */
+      border-radius: 50%; 
+      border: 1px solid var(--border-color); 
+      z-index: 10; 
+      cursor: pointer; 
+      transition: all 0.2s cubic-bezier(0.25, 0.8, 0.25, 1); 
+      box-shadow: 0 0 15px rgba(0,243,255,0.1); 
+      background: var(--glass-bg) var(--btn-mag-off) center/42px no-repeat; /* Иконка уменьшена до 42px */
+      overflow: hidden;
+    }
+
+    .mag-main-btn:hover { box-shadow: 0 0 20px var(--neon-blue); transform: scale(1.03); }
+    .mag-main-btn:active { transform: scale(0.92) !important; filter: brightness(0.8); }
+
+    /* Переключаемые цвета магнита */
+    .mag-main-btn.mag-color-0 { border-color: #34A853; box-shadow: 0 0 25px rgba(52, 168, 83, 0.6); background-color: rgba(52, 168, 83, 0.2); background-image: var(--btn-mag-0); }
+    .mag-main-btn.mag-color-1 { border-color: #FBBC05; box-shadow: 0 0 25px rgba(251, 188, 5, 0.6); background-color: rgba(251, 188, 5, 0.2); background-image: var(--btn-mag-1); }
+    .mag-main-btn.mag-color-2 { border-color: #EA4335; box-shadow: 0 0 25px rgba(234, 67, 53, 0.6); background-color: rgba(234, 67, 53, 0.2); background-image: var(--btn-mag-2); }
+    .mag-main-btn.mag-color-3 { border-color: #4285F4; box-shadow: 0 0 25px rgba(66, 133, 244, 0.6); background-color: rgba(66, 133, 244, 0.2); background-image: var(--btn-mag-3); } 
+ 
+    /* Цвета краски (Иконка баллончика тоже уменьшена) */
+    .paint-btn { 
+      background-image: var(--btn-paint-off); 
+      background-size: 34px; /* Было 46px */
+      border-color: var(--border-color); 
+    }
+
+    /* ЭТИХ КЛАССОВ НЕ ХВАТАЛО: Динамическая подсветка кнопки краски */
+.paint-btn.paint-color-0 { border-color: #34A853; box-shadow: 0 0 25px rgba(52, 168, 83, 0.6); background-color: rgba(52, 168, 83, 0.2); background-image: var(--btn-paint-0); }
+.paint-btn.paint-color-1 { border-color: #FBBC05; box-shadow: 0 0 25px rgba(251, 188, 5, 0.6); background-color: rgba(251, 188, 5, 0.2); background-image: var(--btn-paint-1); }
+.paint-btn.paint-color-2 { border-color: #EA4335; box-shadow: 0 0 25px rgba(234, 67, 53, 0.6); background-color: rgba(234, 67, 53, 0.2); background-image: var(--btn-paint-2); }
+.paint-btn.paint-color-3 { border-color: #4285F4; box-shadow: 0 0 25px rgba(66, 133, 244, 0.6); background-color: rgba(66, 133, 244, 0.2); background-image: var(--btn-paint-3); }
+
+/* #region RADIAL PALETTE UX (Компактный веер) */
+    .palette-container {
+      position: absolute;
+      bottom: 50px; 
+      left: 50%;
+      transform: translateX(-50%) scale(0.1); 
+      transform-origin: bottom center;
+      
+      width: 220px;  /* Широкий и удобный размах */
+      height: 110px; 
+      
+      display: flex;
+      justify-content: center;
+      align-items: flex-end;
+      pointer-events: none;
+      opacity: 0;
+      z-index: 5;
+      transition: transform 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.15), opacity 0.2s;
+    }
+
+    /* ЭТОТ КЛАСС ОТВЕЧАЕТ ЗА ПОЯВЛЕНИЕ ВЕЕРА */
+    .palette-container.open {
+      transform: translateX(-50%) scale(1);
+      opacity: 1;
+      pointer-events: auto;
+    }
+    /* Опционально: чтобы сама кнопка казалась "вдавленной", пока открыт ее веер */
+    .mag-main-btn.is-selecting {
+      transform: scale(0.92);
+      border-color: #fff;
+      box-shadow: 0 0 25px rgba(0, 243, 255, 0.5);
+    }
+
+   /* #region RADIAL PALETTE UX (Компактный веер) */
+    .palette-container {
+      position: absolute;
+      bottom: 50px; /* Чуть приподняли веер над кнопкой */
+      left: 50%;
+      transform: translateX(-50%) scale(0.1);
+      transform-origin: bottom center;
+      
+      width: 140px;  /* ЕЩЕ СУЗИЛИ: Было 190px. Контейнер стал компактнее */
+      height: 95px;  
+      
+      display: flex;
+      justify-content: center;
+      align-items: flex-end;
+      pointer-events: none;
+      opacity: 0;
+      z-index: 5;
+      transition: transform 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.15), opacity 0.2s;
+    }
+
+    /* ЭТОТ КЛАСС ОТВЕЧАЕТ ЗА ПОЯВЛЕНИЕ ВЕЕРА */
+    .palette-container.open {
+      transform: translateX(-50%) scale(1);
+      opacity: 1;
+      pointer-events: auto;
+    }
+
+  .palette-item {
+      position: absolute;
+      bottom: 0px; 
+      width: 65px;  /* Широкая, удобная для прицеливания кнопка */
+      height: 90px; 
+      transform-origin: bottom center;
+      cursor: pointer;
+      display: flex;
+      justify-content: center;
+      align-items: flex-start;
+      transition: transform 0.2s cubic-bezier(0.25, 0.8, 0.25, 1), filter 0.2s;
+      
+      /* Возвращаем старую геометрию */
+      border-radius: 50% 50% 0 0;
+      clip-path: polygon(50% 100%, 0 0, 100% 0);
+    
+      
+      /* НОВЫЙ ГЛАДКИЙ КОНТУР (Больше точек = плавнее дуга) */
+      clip-path: polygon(
+        50% 100%, /* Низ центр */
+        0% 25%,   /* Начало дуги слева */
+        3% 15%, 8% 8%, 18% 3%, 30% 0.5%, /* Плавный подъем */
+        50% 0%,   /* Верхушка центр */
+        70% 0.5%, 82% 3%, 92% 8%, 97% 15%, /* Плавный спуск */
+        100% 25%  /* Конец дуги справа */
+      );
+    }
+
+   /* УГЛЫ: Немного раздвинули (на 2-3 градуса), чтобы убрать плотное наложение */
+    .palette-item.item-0 { --rot: -50deg; --clr: #34A853; transform: rotate(var(--rot)); }
+    .palette-item.item-1 { --rot: -17deg; --clr: #FBBC05; transform: rotate(var(--rot)); }
+    .palette-item.item-2 { --rot:  17deg; --clr: #EA4335; transform: rotate(var(--rot)); }
+    .palette-item.item-3 { --rot:  50deg; --clr: #4285F4; transform: rotate(var(--rot)); }
+    /* === ИСПРАВЛЕННЫЕ ИКОНКИ НА ВЕЕРЕ ЧЕРЕЗ ::AFTER === */
+    
+    /* Базовый градиент лепестков без иконок (очистили background-image) */
+    .mag-palette .item-0 { background: linear-gradient(to top, rgba(52, 168, 83, 0.05), rgba(52, 168, 83, 0.4)); }
+    .mag-palette .item-1 { background: linear-gradient(to top, rgba(251, 188, 5, 0.05), rgba(251, 188, 5, 0.4)); }
+    .mag-palette .item-2 { background: linear-gradient(to top, rgba(234, 67, 53, 0.05), rgba(234, 67, 53, 0.4)); }
+    .mag-palette .item-3 { background: linear-gradient(to top, rgba(66, 133, 244, 0.05), rgba(66, 133, 244, 0.4)); }
+
+    .paint-palette .item-0 { background: linear-gradient(to top, rgba(52, 168, 83, 0.05), rgba(52, 168, 83, 0.4)); }
+    .paint-palette .item-1 { background: linear-gradient(to top, rgba(251, 188, 5, 0.05), rgba(251, 188, 5, 0.4)); }
+    .paint-palette .item-2 { background: linear-gradient(to top, rgba(234, 67, 53, 0.05), rgba(234, 67, 53, 0.4)); }
+    .paint-palette .item-3 { background: linear-gradient(to top, rgba(66, 133, 244, 0.05), rgba(66, 133, 244, 0.4)); }
+
+    /* Контейнер для иконки внутри лепестка */
+    .palette-item::after {
+      content: '';
+      position: absolute;
+      top: 10px; /* Чуть ближе к краю */
+      left: 50%;
+      width: 24px; /* Было 32px */
+      height: 24px; /* Было 32px */
+      margin-left: -12px; /* Половина от 24 */
+      background-position: center;
+      background-size: contain;
+      background-repeat: no-repeat;
+    }
+
+    /* Назначаем сами иконки */
+    /* Магниты оставляем вращаться вместе с лепестком (ты сказал, они смотрятся нормально) */
+    .mag-palette .item-0::after { background-image: var(--btn-mag-0); }
+    .mag-palette .item-1::after { background-image: var(--btn-mag-1); }
+    .mag-palette .item-2::after { background-image: var(--btn-mag-2); }
+    .mag-palette .item-3::after { background-image: var(--btn-mag-3); }
+
+  /* Баллончикам внутри веера тоже нужно уменьшить ширину */
+    .paint-palette .item-0::after { background-image: var(--btn-paint-0); transform: rotate(calc(var(--rot) * -1)); width: 20px; }
+    .paint-palette .item-1::after { background-image: var(--btn-paint-1); transform: rotate(calc(var(--rot) * -1)); width: 20px; }
+    .paint-palette .item-2::after { background-image: var(--btn-paint-2); transform: rotate(calc(var(--rot) * -1)); width: 20px; }
+    .paint-palette .item-3::after { background-image: var(--btn-paint-3); transform: rotate(calc(var(--rot) * -1)); width: 20px; }
+
+    /* Увеличение при наведении (hover effect) для уверенности нажатия */
+    .palette-item:not(.palette-off-btn):hover {
+      transform: rotate(var(--rot)) translateY(-15px) scale(1.15);
+      z-index: 10;
+      filter: drop-shadow(0 0 12px var(--clr)) brightness(1.5);
+    }
+    /* #endregion */
+
+    /* === СТАТИЧНАЯ ПОДСКАЗКА ВНИЗУ ПАНЕЛИ === */
+    #tool-hint {
+      margin-top: 15px;
+      text-align: center;
+      color: rgba(0, 243, 255, 0.6);
+      font-size: 10px;
+      font-weight: bold;
+      letter-spacing: 2px;
+      text-transform: uppercase;
+      opacity: 0;
+      transition: opacity 0.3s;
+      min-height: 15px; /* Чтобы интерфейс не прыгал при появлении/исчезновении */
+    }
+
+    #tool-hint.visible {
+      opacity: 1;
+    }
+
+/* Эффект электрической вспышки (как на видео) */
+@keyframes flash-pulse {
+  0%, 100% {
+    /* Спокойное состояние: тусклый синий */
+    background-color: rgba(0, 243, 255, 0.05);
+    border-color: rgba(0, 243, 255, 0.3);
+    color: var(--neon-blue);
+    
+    /* Нет свечения */
+    box-shadow: 0 0 0 rgba(0, 243, 255, 0), inset 0 0 0 rgba(255, 255, 255, 0);
+    text-shadow: none;
+  }
+  50% {
+    /* Пик вспышки: */
+    background-color: rgba(0, 243, 255, 0.4); /* Насыщенная подложка */
+    border-color: #ffffff; /* Белая рамка */
+    color: #ffffff; /* Белый текст */
+    
+    /* МАГИЯ ТУТ: */
+    /* 1. Внешнее свечение (outer glow) */
+    /* 2. Внутреннее свечение (inner inset) - оно создает эффект белого центра! */
+    box-shadow: 
+      0 0 25px rgba(0, 243, 255, 0.6), 
+      inset 0 0 20px rgba(255, 255, 255, 0.6); 
+      
+    text-shadow: 0 0 8px rgba(255, 255, 255, 1); /* Текст тоже горит */
+  }
+}
+
+.needs-attention {
+  /* Ускоряем до 0.9s - ритм "сердцебиения" */
+  animation: flash-pulse 0.9s infinite ease-in-out !important;
+  z-index: 20;
+}
+
+/* Дополнительно: заставляем иконку внутри тоже вспыхивать белым */
+.needs-attention .btn-icon {
+  color: #fff !important;
+  filter: drop-shadow(0 0 5px rgba(255, 255, 255, 0.8));
+  transition: all 0.2s;
+}
+  </style>
+</head>
+<body class="loading">
+
+<div id="loader">System Loading...<br><span style="font-size: 14px; font-weight: normal; color: #666">Initializing Physics</span></div>
+
+<div id="hud-controls">
+  <button id="btn-sound" class="hud-btn" data-action="toggleMute">
+    <svg viewBox="0 0 24 24"><path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02zM14 3.23v2.06c2.89.86 5 3.54 5 6.71s-2.11 5.85-5 6.71v2.06c4.01-.91 7-4.49 7-8.77s-2.99-7.86-7-8.77z"/></svg>
+    <span class="ghost-hint">[M]</span>
+  </button>
+  <button id="btn-pause" class="hud-btn" data-action="togglePause">
+    <svg viewBox="0 0 24 24"><path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/></svg>
+    <span class="ghost-hint">[SPACE]</span>
+  </button>
+  <button id="btn-reset" class="hud-btn" data-action="reset">
+    RESET
+    <span class="ghost-hint">[ESC]</span>
+  </button>
+  <button id="btn-hide" class="hud-btn" data-action="toggleUI">
+    <svg viewBox="0 0 24 24"><path d="M12 4.5 C7 4.5 2.73 7.61 1 12 c1.73 4.39 6 7.5 11 7.5 s9.27 -3.11 11 -7.5 c-1.73 -4.39 -6 -7.5 -11 -7.5 z M12 17 c-2.76 0 -5 -2.24 -5 -5 s2.24 -5 5 -5 s5 2.24 5 5 s-5 5 -5 5 z M12 9 c-1.66 0 -3 1.34 -3 3 s1.34 3 3 3 s3 -1.34 3 -3 s-1.34 -3 -3 -3 z"/></svg>
+    <span class="ghost-hint">[H]</span>
+  </button>
+  <button id="btn-fullscreen" class="hud-btn" data-action="toggleFullscreen">
+    <svg viewBox="0 0 24 24"><path d="M5 5h5V3H3v7h2V5zm5 14H5v-5H3v7h7v-2zm11-5h-2v5h-5v2h7v-7zm-2-9V5h-5V3h7v7h-2z"/></svg>
+    <span class="ghost-hint">FULLSCREEN</span>
+  </button>
+</div>
+
+<div id="holo-wrapper">
+  <div id="terminal-handle"> <div id="handle-icon">SYSTEM</div> </div>
+  <div id="holo-panel">
+    
+    <div class="section-title">WORD SELECTOR</div>
+    <div class="word-control">
+       <input type="text" id="word-input" value="GOOGLE" maxlength="8" autocomplete="off" spellcheck="false" placeholder="TYPE..." />
+       <button id="btn-apply-word" class="icon-btn" data-action="applyWord">✔️</button>
+    </div>
+    
+    <div class="section-title">ATMOSPHERE MODE</div>
+    <div class="mode-switch-container">
+      <button id="mode-lab" class="mode-btn active" data-action="setModeLab">LAB</button>
+      <button id="mode-disco" class="mode-btn" data-action="setModeDisco">DISCO</button>
+    </div>
+    
+    <div class="section-title">PHYSICS CONTROL</div>
+    <div class="actions-grid">
+      
+      <div class="combo-wrapper">
+        <button id="btn-letters" class="combo-main-btn active-state" data-action="toggleLetters"><span class="btn-icon">Ab</span>Letters</button>
+        <button id="btn-reset-letters" class="combo-reset-btn" data-action="returnLetters">RETURN</button>
+      </div>
+      
+      <div class="combo-wrapper">
+        <button id="btn-balls" class="combo-main-btn" data-action="spawnBalls">
+          <span class="btn-icon"><svg viewBox="0 0 24 24"><circle cx="6" cy="15" r="4" /><circle cx="18" cy="15" r="4" /><circle cx="12" cy="7" r="4" /></svg></span>Beads
+          <div id="bead-count" class="bead-counter">0/200</div>
+        </button>
+        <button id="btn-clear-balls" class="combo-reset-btn" title="Clear Beads" data-action="clearBalls">CLEAR</button>
+      </div>
+      
+      <button id="btn-slow" class="holo-btn" data-action="toggleSlowMo"><span class="btn-icon">🐢</span>Slo-Mo</button>
+      <button id="btn-fans" class="holo-btn" data-action="toggleFans"><span class="btn-icon"><svg class="stroked" viewBox="0 0 24 24"><path d="M6 20 Q4 16 6 12 T6 4" /><path d="M12 20 Q10 16 12 12 T12 4" /><path d="M18 20 Q16 16 18 12 T18 4" /></svg></span>Air Floor</button>
+      
+    </div>
+
+   <div class="section-title">EQUIPMENT</div>
+  
+  <div class="equipment-rack">
+    
+    <div class="tool-wrapper">
+      <button id="btn-mag-main" class="mag-main-btn" data-action="togglePaletteMag"></button>
+      
+      <div class="palette-container mag-palette">
+        <div id="mag-btn-0" class="palette-item item-0" data-color="0" data-action="selectPaletteColor" title="Green"></div>
+        <div id="mag-btn-1" class="palette-item item-1" data-color="1" data-action="selectPaletteColor" title="Yellow"></div>
+        <div id="mag-btn-2" class="palette-item item-2" data-color="2" data-action="selectPaletteColor" title="Red"></div>
+        <div id="mag-btn-3" class="palette-item item-3" data-color="3" data-action="selectPaletteColor" title="Blue"></div>
+      </div>
+    </div>
+
+    <div class="tool-wrapper">
+      <button id="btn-paint-main" class="mag-main-btn paint-btn" data-action="togglePalettePaint"></button>
+      
+      <div class="palette-container paint-palette">
+        <div id="paint-btn-0" class="palette-item item-0" data-color="0" data-action="selectPaletteColor" title="Green"></div>
+        <div id="paint-btn-1" class="palette-item item-1" data-color="1" data-action="selectPaletteColor" title="Yellow"></div>
+        <div id="paint-btn-2" class="palette-item item-2" data-color="2" data-action="selectPaletteColor" title="Red"></div>
+        <div id="paint-btn-3" class="palette-item item-3" data-color="3" data-action="selectPaletteColor" title="Blue"></div>
+      </div>
+    </div>
+
+  </div>
+  
+  <div id="tool-hint">[ПКМ] — СБРОСИТЬ ИНСТРУМЕНТ</div>
+
+  </div>
+</div>
+
+<script type="importmap">
+  {
+    "imports": {
+      "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+      "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/",
+      "cannon-es": "https://unpkg.com/cannon-es@0.20.0/dist/cannon-es.js"
+    }
+  }
+</script>
+<script type="module">
+import * as THREE from 'three';
+import { FontLoader } from 'three/addons/loaders/FontLoader.js';
+import { TextGeometry } from 'three/addons/geometries/TextGeometry.js';
+import * as CANNON from 'cannon-es';
+import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
+import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
+import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
+import { RectAreaLightUniformsLib } from 'three/addons/lights/RectAreaLightUniformsLib.js';
+
+RectAreaLightUniformsLib.init();
+
+const CONFIG = {
+  WORLD: { ROOM_SIZE: 50, FLOOR_LEVEL: -5, CEILING_HEIGHT: 10, GRAVITY: -5.0 },
+ COLORS: {
+    BG_DAY: 0xd8d8d8, BG_DISCO: 0x0b0f17,
+    GOOGLE_PALETTE: [0x4285F4, 0xEA4335, 0xFBBC05, 0x4285F4, 0x34A853, 0xEA4335],
+    GOOGLE_UNIQUE: [0x34A853, 0xFBBC05, 0xEA4335, 0x4285F4] 
+  },
+  PHYSICS: {
+    MAX_BALLS: 200, BALL_RADIUS: 0.2, BALL_MASS: 0.02, LETTER_MASS: 0.002,
+    REPULSOR: { MAGNET_OUTER_RADIUS_SQ: 120, MAGNET_INNER_RADIUS_SQ: 9, MAGNET_PULL_FORCE: 0.04, CORE_RADIUS_SQ: 20, CORE_UP_FORCE: 55, CORE_SCATTER: 8 },
+    PAINT_STREAM: { PARTICLES_PER_SECOND: 100, SIZE: 0.35, DECAY: 0.1, EMISSION_RADIUS: 0.2 },
+    GROUPS: { SCENE: 1, OBJECTS: 2, TINY: 4 }
+  }
+};
+
+class StateManager {
+  constructor() { this.state = { mode: 'lab', isSlowMo: false, currentTool: -1, paintToolColor: -1 }; this.listeners = []; }
+  get() { return this.state; }
+  update(updates) {
+    let changed = false;
+    for (let key in updates) { if (this.state[key] !== updates[key]) { this.state[key] = updates[key]; changed = true; } }
+    if (changed) this.notify();
+  }
+  subscribe(listener) { this.listeners.push(listener); listener(this.state); }
+  notify() { this.listeners.forEach(listener => listener(this.state)); }
+}
+const store = new StateManager();
+const isNight = () => store.get().mode === 'disco';
+const isSlowMo = () => store.get().isSlowMo;
+
+function createTileTexture() {
+  const size = 512; const canvas = document.createElement('canvas'); canvas.width = size; canvas.height = size; const ctx = canvas.getContext('2d');
+  ctx.fillStyle='#f0f0f0'; ctx.fillRect(0,0,size,size); ctx.strokeStyle='#d0d0d0'; ctx.lineWidth=2; const st=size/8; ctx.beginPath(); 
+  for(let i=0;i<=8;i++){ctx.moveTo(i*st,0);ctx.lineTo(i*st,size);ctx.moveTo(0,i*st);ctx.lineTo(size,i*st);} ctx.stroke();
+  const tex = new THREE.CanvasTexture(canvas); tex.wrapS = THREE.RepeatWrapping; tex.wrapT = THREE.RepeatWrapping; return tex;
+}
+const tileTex = createTileTexture();
+const heatTex = (() => { const c = document.createElement('canvas'); c.width = 256; c.height = 256; const ctx = c.getContext('2d'); const g = ctx.createRadialGradient(128,128,0, 128,128,120); g.addColorStop(0.0, 'rgba(255,220,170,0.65)'); g.addColorStop(0.35,'rgba(255,180,120,0.22)'); g.addColorStop(1.0, 'rgba(255,160,90,0)'); ctx.fillStyle = g; ctx.fillRect(0,0,256,256); return new THREE.CanvasTexture(c); })();
+const ventGridTex = (() => { const c = document.createElement('canvas'); c.width = 1024; c.height = 1024; const ctx = c.getContext('2d'); ctx.clearRect(0,0,1024,1024); ctx.fillStyle = 'rgba(255, 170, 120, 0.05)'; ctx.fillRect(0,0,1024,1024); ctx.strokeStyle = 'rgba(255, 195, 150, 0.35)'; ctx.lineWidth = 5; const step = 64; for (let x=0; x<=1024; x+=step) { ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, 1024); ctx.stroke(); } for (let y=0; y<=1024; y+=step) { ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(1024, y); ctx.stroke(); } const g = ctx.createRadialGradient(512,512,280, 512,512,720); g.addColorStop(0,'rgba(255, 190, 140, 0.0)'); g.addColorStop(1,'rgba(255, 140, 90, 0.18)'); ctx.fillStyle = g; ctx.fillRect(0,0,1024,1024); const tex = new THREE.CanvasTexture(c); tex.wrapS = THREE.RepeatWrapping; tex.wrapT = THREE.RepeatWrapping; tex.repeat.set(1,1); return tex; })();
+
+const base64ReturnSound = "data:audio/mp3;base64,ТВОЙ_ОЧЕНЬ_ДЛИННЫЙ_КОД";
+
+class AudioManager {
+  constructor() {
+    this.ctx = null;
+    this.noiseBuffer = null;
+    this.isMuted = true;
+    this.lastHitTime = 0;
+  }
+
+  init() {
+    if (this.ctx) return; 
+    this.ctx = new (window.AudioContext || window.webkitAudioContext)();
+    
+    const bs = this.ctx.sampleRate * 2;
+    this.noiseBuffer = this.ctx.createBuffer(1, bs, this.ctx.sampleRate);
+    const d = this.noiseBuffer.getChannelData(0);
+    for (let i = 0; i < bs; i++) d[i] = Math.random() * 2 - 1;
+  }
+
+  toggleMute() {
+    if (!this.ctx) this.init();
+    this.isMuted = !this.isMuted;
+    
+    if (this.isMuted) {
+      this.ctx.suspend();
+    } else {
+      this.ctx.resume();
+    }
+    return this.isMuted;
+  }
+
+  async playBase64(base64Str) {
+    if (this.isMuted || !this.ctx) return;
+    try {
+      const response = await fetch(base64Str);
+      const arrayBuffer = await response.arrayBuffer();
+      const audioBuffer = await this.ctx.decodeAudioData(arrayBuffer);
+      const source = this.ctx.createBufferSource();
+      source.buffer = audioBuffer;
+      source.connect(this.ctx.destination);
+      source.start();
+    } catch (error) {
+      console.warn("Audio error:", error);
+    }
+  }
+
+  playHitSound(velocity, isSlowMo) {
+    if (this.isMuted || !this.ctx) return;
+
+    const now = performance.now();
+    if (now - this.lastHitTime < 30) return;
+    this.lastHitTime = now;
+
+    let intensity = Math.min(velocity / 15, 1);
+    if (intensity < 0.1) return;
+
+    const osc = this.ctx.createOscillator();
+    const gainNode = this.ctx.createGain();
+    const filter = this.ctx.createBiquadFilter();
+
+    filter.type = 'lowpass';
+    filter.frequency.value = 950 + (intensity * 1200);
+
+    osc.connect(filter);
+    filter.connect(gainNode);
+    gainNode.connect(this.ctx.destination);
+
+    const randomDetune = (Math.random() - 0.5) * 120;
+    let freq = 320 + randomDetune; 
+    if (isSlowMo) freq /= 2;
+
+    const t = this.ctx.currentTime;
+    osc.frequency.setValueAtTime(freq, t);
+    osc.frequency.exponentialRampToValueAtTime(freq / 3, t + 0.12);
+    
+    gainNode.gain.setValueAtTime(0, t);
+    gainNode.gain.linearRampToValueAtTime(intensity * 0.55, t + 0.012);
+    gainNode.gain.exponentialRampToValueAtTime(0.001, t + 0.22);
+
+    osc.start();
+    osc.stop(t + 0.22);
+  }
+
+  playPuffSound(duration = 1.0) {
+    if (this.isMuted || !this.ctx) return; 
+    const noise = this.ctx.createBufferSource();
+    noise.buffer = this.noiseBuffer;
+    
+    const filter = this.ctx.createBiquadFilter();
+    filter.type = 'lowpass';
+    
+    const t = this.ctx.currentTime;
+    filter.frequency.setValueAtTime(400, t);
+    filter.frequency.linearRampToValueAtTime(50, t + duration);
+    
+    const gainNode = this.ctx.createGain();
+    gainNode.gain.setValueAtTime(0.4, t);
+    gainNode.gain.linearRampToValueAtTime(0.001, t + duration);
+    
+    noise.connect(filter);
+    filter.connect(gainNode);
+    gainNode.connect(this.ctx.destination);
+    
+    noise.start();
+    noise.stop(t + duration);
+  }
+
+  playFansWhoosh(isSlowMo) {
+    if (this.isMuted || !this.ctx) return;
+    const src = this.ctx.createBufferSource(); 
+    src.buffer = this.noiseBuffer;
+    
+    const hp = this.ctx.createBiquadFilter(); hp.type = 'highpass'; hp.frequency.value = 220;
+    const bp = this.ctx.createBiquadFilter(); bp.type = 'bandpass'; bp.frequency.value = 520; bp.Q.value = 0.9;
+    const gain = this.ctx.createGain(); 
+    
+    src.connect(hp); hp.connect(bp); bp.connect(gain); gain.connect(this.ctx.destination);
+    
+    const dur = isSlowMo ? 1.0 : 0.65;
+    const t = this.ctx.currentTime;
+    
+    gain.gain.setValueAtTime(0.0001, t); 
+    gain.gain.exponentialRampToValueAtTime(0.26, t + 0.07); 
+    gain.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+    
+    src.playbackRate.value = isSlowMo ? 0.8 : 1.0; 
+    src.start(); 
+    src.stop(t + dur);
+  }
+}
+
+const audioManager = new AudioManager();
+class UIManager {
+  constructor(callbacks) {
+    this.cb = callbacks;
+    this.activePaletteTarget = null; 
+    
+    this.elements = {
+      btnMute: document.getElementById('btn-sound'),
+      btnPause: document.getElementById('btn-pause'),
+      btnLetters: document.getElementById('btn-letters'),
+      btnBalls: document.getElementById('btn-balls'),
+      btnFans: document.getElementById('btn-fans'),
+      btnSlow: document.getElementById('btn-slow'),
+      wordInput: document.getElementById('word-input'),
+      beadCount: document.getElementById('bead-count'),
+      loader: document.getElementById('loader'),
+      btnMag: document.getElementById('btn-mag-main'),
+      btnPaint: document.getElementById('btn-paint-main'),
+      toolHint: document.getElementById('tool-hint')
+    };
+    
+    this.initBindings();
+    this.initStoreSubscriptions();
+    this.elements.btnMute.style.color = audioManager.isMuted ? '#666' : '#00f3ff';
+  }
+
+  hideLoader() {
+    this.elements.loader.style.display = 'none';
+    document.body.classList.remove('loading');
+  }
+
+  updateBeadCounter(current, max) {
+    if (this.elements.beadCount) this.elements.beadCount.textContent = `${current}/${max}`;
+  }
+
+  updateFanProgress(level) {
+    if (this.elements.btnFans) this.elements.btnFans.style.setProperty('--prog', (level * 100) + '%');
+  }
+
+  resetUIState(lettersEnabled) {
+    this.elements.btnPause.style.color = '#00f3ff';
+    this.elements.btnPause.querySelector('path').setAttribute('d', 'M6 19h4V5H6v14zm8-14v14h4V5h-4z');
+    this.elements.btnLetters.classList.toggle('active-state', lettersEnabled);
+    this.updateFanProgress(0);
+  }
+
+  lockLetters(isLocked) {
+    const wrapper = this.elements.btnLetters.closest('.combo-wrapper');
+    if (wrapper) wrapper.classList.toggle('locked', isLocked);
+    if (isLocked) this.elements.btnLetters.classList.remove('active-state'); 
+    
+    if (this.elements.wordInput) {
+      this.elements.wordInput.disabled = isLocked;
+      this.elements.wordInput.style.opacity = isLocked ? '0.3' : '1';
+      this.elements.wordInput.style.pointerEvents = isLocked ? 'none' : 'auto';
+    }
+  }
+
+  setLettersActive(isActive) {
+    this.elements.btnLetters.classList.toggle('active-state', isActive);
+  }
+
+  triggerApplyWord() {
+    let newWord = this.elements.wordInput.value.trim().toUpperCase().replace(/[^A-Z0-9]/g, '');
+    if (newWord.length === 0) newWord = "GOOGLE"; 
+    if (newWord.length > 8) newWord = newWord.substring(0, 8); 
+    this.elements.wordInput.value = newWord;
+    this.cb.onApplyWord(newWord);
+  }
+
+  // --- ЛОГИКА ПАЛИТРЫ (Без hover) ---
+  closePalette() {
+    document.querySelectorAll('.palette-container').forEach(p => p.classList.remove('open'));
+    this.elements.btnMag.classList.remove('is-selecting');
+    this.elements.btnPaint.classList.remove('is-selecting');
+    this.activePaletteTarget = null;
+  }
+
+  openPalette(target) {
+    this.closePalette();
+    this.activePaletteTarget = target;
+    const palette = document.querySelector(`.${target}-palette`);
+    if (palette) palette.classList.add('open');
+    this.elements.btnMag.classList.toggle('is-selecting', target === 'mag');
+    this.elements.btnPaint.classList.toggle('is-selecting', target === 'paint');
+  }
+
+  initBindings() {
+    // Глобальный перехват ПКМ для сброса инструмента
+    window.addEventListener('contextmenu', (e) => {
+      if (store.get().currentTool !== -1 || store.get().paintToolColor !== -1) {
+        e.preventDefault();
+        store.update({ currentTool: -1, paintToolColor: -1 });
+      }
+    });
+
+    document.addEventListener('click', (e) => {
+      const btnOrLink = e.target.closest('button, .hud-btn, .icon-btn, .holo-btn, .mode-btn, .mag-main-btn, .palette-color-btn');
+      if (btnOrLink) btnOrLink.blur();
+
+      // Закрытие палитры при клике в пустоту
+      if (this.activePaletteTarget && !e.target.closest('.equipment-rack')) {
+        this.closePalette();
+      }
+
+      const target = e.target.closest('[data-action]');
+      if (!target) return;
+
+      e.preventDefault();
+      e.stopPropagation();
+
+      const action = target.dataset.action;
+
+      switch (action) {
+        case 'toggleMute':
+          const currentlyMuted = audioManager.toggleMute();
+          this.elements.btnMute.style.color = currentlyMuted ? '#666' : '#00f3ff';
+          break;
+        case 'togglePause':
+          const isPaused = this.cb.onTogglePause();
+          this.elements.btnPause.style.color = isPaused ? '#ff4444' : '#00f3ff';
+          const path = this.elements.btnPause.querySelector('path');
+          if (isPaused) path.setAttribute('d', 'M8 5v14l11-7z');
+          else path.setAttribute('d', 'M6 19h4V5H6v14zm8-14v14h4V5h-4z');
+          break;
+        case 'reset':
+          this.cb.onReset();
+          break;
+        case 'toggleUI':
+          document.body.classList.toggle('ui-hidden');
+          this.closePalette(); // Схлопываем веер, если спрятали весь интерфейс
+          break;
+        case 'toggleFullscreen':
+          if (!document.fullscreenElement) document.documentElement.requestFullscreen().catch(e => console.warn(e));
+          else document.exitFullscreen();
+          break;
+        case 'applyWord':
+          this.triggerApplyWord();
+          break;
+        case 'setModeLab':
+          store.update({ mode: 'lab' });
+          break;
+        case 'setModeDisco':
+          store.update({ mode: 'disco' });
+          break;
+        case 'toggleLetters':
+          const isEnabled = this.cb.onToggleLetters();
+          this.elements.btnLetters.classList.toggle('active-state', isEnabled);
+          break;
+        case 'returnLetters':
+          this.cb.onReturnLetters();
+          break;
+        case 'spawnBalls':
+          this.cb.onSpawnBalls();
+          break;
+        case 'clearBalls':
+          this.cb.onShrinkBalls();
+          break;
+        case 'toggleSlowMo':
+          store.update({ isSlowMo: !store.get().isSlowMo });
+          break;
+        case 'toggleFans':
+          this.cb.onToggleFans(); 
+          break;
+        
+        // Палитра Магнита (Вкл/Выкл)
+        case 'togglePaletteMag':
+          if (this.activePaletteTarget === 'mag') {
+            this.closePalette();
+          } else {
+            this.openPalette('mag');
+          }
+          break;
+        
+        // Палитра Краски (Вкл/Выкл)
+        case 'togglePalettePaint':
+          if (this.activePaletteTarget === 'paint') {
+            this.closePalette();
+          } else {
+            this.openPalette('paint');
+          }
+          break;
+
+        case 'selectPaletteColor':
+          const colorVal = parseInt(target.dataset.color);
+          if (this.activePaletteTarget === 'mag') {
+            store.update({ paintToolColor: -1 }); // Глушим краску
+            store.update({ currentTool: colorVal });
+          } 
+          else if (this.activePaletteTarget === 'paint') {
+            store.update({ currentTool: -1 }); // Глушим магнит
+            store.update({ paintToolColor: colorVal });
+          }
+          this.closePalette();
+          break;
+      }
+    });
+
+    this.elements.wordInput.addEventListener('focus', (e) => { e.target.value = ''; });
+    this.elements.wordInput.addEventListener('keypress', (e) => { 
+      if (e.key === 'Enter') { this.triggerApplyWord(); this.elements.wordInput.blur(); } 
+    });
+
+    document.getElementById('terminal-handle').addEventListener('click', () => { 
+      const wrapper = document.getElementById('holo-wrapper');
+      wrapper.classList.toggle('open'); 
+      
+      // Если панель закрыли, принудительно прячем веер
+      if (!wrapper.classList.contains('open')) {
+        this.closePalette();
+      }
+    });
+
+    // Схлопываем веер, если курсор ушел с панели обратно в 3D-комнату
+    document.getElementById('holo-wrapper').addEventListener('mouseleave', () => {
+      this.closePalette();
+    });
+    document.addEventListener('fullscreenchange', () => {
+      const path = document.getElementById('btn-fullscreen').querySelector('path');
+      if (document.fullscreenElement) {
+        path.setAttribute('d', 'M5 16h3v3h2v-5H5v2zm3-8H5v2h5V5H8v3zm6 11h2v-3h3v-2h-5v5zm2-11V5h-2v5h5V8h-3z');
+      } else {
+        path.setAttribute('d', 'M5 5h5V3H3v7h2V5zm5 14H5v-5H3v7h7v-2zm11-5h-2v5h-5v2h7v-7zm-2-9V5h-5V3h7v7h-2z');
+      }
+    });
+
+    window.addEventListener('keydown', (e) => {
+      if (document.activeElement === this.elements.wordInput) return;
+      
+      const triggerAction = (action) => {
+        const btn = document.querySelector(`[data-action="${action}"]`);
+        if (btn) btn.click();
+      };
+
+      switch(e.code) {
+        case 'Space': e.preventDefault(); triggerAction('togglePause'); break;
+        case 'Escape': 
+          triggerAction('reset'); // ТЕПЕРЬ ESC ВСЕГДА ВЫЗЫВАЕТ СБРОС СЦЕНЫ
+          break;
+        case 'KeyM': triggerAction('toggleMute'); break;
+        case 'KeyH': triggerAction('toggleUI'); break;
+        case 'F11': e.preventDefault(); triggerAction('toggleFullscreen'); break;
+      }
+    });
+  }
+
+  initStoreSubscriptions() {
+    store.subscribe((state) => {
+      document.getElementById('mode-lab').classList.toggle('active', state.mode === 'lab'); 
+      document.getElementById('mode-disco').classList.toggle('active', state.mode === 'disco'); 
+      this.elements.btnSlow.classList.toggle('active-state', state.isSlowMo);
+
+      const magMainBtn = document.getElementById('btn-mag-main');
+      magMainBtn.classList.remove('mag-color-0', 'mag-color-1', 'mag-color-2', 'mag-color-3');
+      document.body.classList.remove('tool-mag-0', 'tool-mag-1', 'tool-mag-2', 'tool-mag-3');
+      
+      if (state.currentTool !== -1) {
+        document.body.classList.add(`tool-mag-${state.currentTool}`);
+        magMainBtn.classList.add(`mag-color-${state.currentTool}`);
+      }
+      
+      const paintBtn = document.getElementById('btn-paint-main');
+      paintBtn.classList.remove('paint-color-0', 'paint-color-1', 'paint-color-2', 'paint-color-3');
+      document.body.classList.remove('tool-paint-0', 'tool-paint-1', 'tool-paint-2', 'tool-paint-3');
+      
+      if (state.paintToolColor !== undefined && state.paintToolColor !== -1) {
+        document.body.classList.add(`tool-paint-${state.paintToolColor}`);
+        paintBtn.classList.add(`paint-color-${state.paintToolColor}`);
+      }
+
+      // Управление неоновой подсказкой инструмента
+      const isToolActive = state.currentTool !== -1 || state.paintToolColor !== -1;
+      if (this.elements.toolHint) {
+        this.elements.toolHint.classList.toggle('visible', isToolActive);
+      }
+    });
+  }
+}
+
+class PhysicsManager {
+  constructor() {
+    this.world = new CANNON.World({ gravity: new CANNON.Vec3(0, CONFIG.WORLD.GRAVITY, 0) });
+    this.matStandard = new CANNON.Material('standard');
+    this.matBouncy = new CANNON.Material('bouncy');
+    this.matSlippery = new CANNON.Material('slippery');
+    this.world.addContactMaterial(new CANNON.ContactMaterial(this.matStandard, this.matBouncy, { friction: 0.3, restitution: 0.9 }));
+    this.world.addContactMaterial(new CANNON.ContactMaterial(this.matBouncy, this.matBouncy, { friction: 0.1, restitution: 0.9 }));
+    this.world.addContactMaterial(new CANNON.ContactMaterial(this.matSlippery, this.matBouncy, { friction: 0.0, restitution: 0.5 }));
+  }
+
+  createStaticPlane(pos, rot, configGroups) {
+    const body = new CANNON.Body({ 
+      mass: 0, 
+      material: this.matStandard, 
+      collisionFilterGroup: configGroups.SCENE, 
+      collisionFilterMask: configGroups.OBJECTS | configGroups.TINY 
+    });
+    body.addShape(new CANNON.Plane());
+    body.position.copy(pos);
+    if (rot) body.quaternion.setFromEuler(rot.x, rot.y, rot.z);
+    this.world.addBody(body);
+    return body;
+  }
+  
+  step(dt, isSlowMo) {
+    const timeScale = isSlowMo ? 0.2 : 1.0; 
+    const scaledDt = dt * timeScale; 
+    const fixedTimeStep = (1 / 60) * timeScale; 
+    this.world.step(fixedTimeStep, scaledDt, 20);
+  }
+
+  applyEnvironmentForces(letterBodies, balls, fanLevel, timeSec, isMagnetEquipped) {
+    const env = -(Math.cos(Math.PI * fanLevel) - 1) / 2;
+    const repWeaken = fanLevel > 0 ? 0.25 : 1.0;
+
+    const applyLogic = (body, useMagnet) => {
+      if (!body || body.position.y > CONFIG.WORLD.FLOOR_LEVEL + 3.0) return;
+      const distSq = body.position.x * body.position.x + body.position.z * body.position.z; 
+      
+      if (useMagnet && distSq < CONFIG.PHYSICS.REPULSOR.MAGNET_OUTER_RADIUS_SQ && distSq > CONFIG.PHYSICS.REPULSOR.MAGNET_INNER_RADIUS_SQ) { 
+        body.wakeUp(); 
+        const pull = CONFIG.PHYSICS.REPULSOR.MAGNET_PULL_FORCE * repWeaken; 
+        body.velocity.x -= body.position.x * pull; 
+        body.velocity.z -= body.position.z * pull; 
+      }
+      
+      if (!isMagnetEquipped && distSq <= CONFIG.PHYSICS.REPULSOR.CORE_RADIUS_SQ && body.position.y < CONFIG.WORLD.FLOOR_LEVEL + 2.5) { 
+        body.wakeUp(); 
+        const vForce = CONFIG.PHYSICS.REPULSOR.CORE_UP_FORCE * repWeaken; 
+        if (body.velocity.y < vForce) { 
+          body.velocity.y = vForce; 
+          const a = Math.random() * Math.PI * 2; 
+          const s = CONFIG.PHYSICS.REPULSOR.CORE_SCATTER * repWeaken; 
+          body.velocity.x += Math.cos(a) * s; 
+          body.velocity.z += Math.sin(a) * s; 
+          body.angularVelocity.x += (Math.random() - 0.5) * 30; 
+          body.angularVelocity.z += (Math.random() - 0.5) * 30; 
+        } 
+      }
+    };
+
+    const applyUpdraft = (body) => {
+      if (!body || body.mass <= 0 || env <= 0 || body.position.y > CONFIG.WORLD.FLOOR_LEVEL + 14.0) return;
+      body.wakeUp(); 
+      const targetY = CONFIG.WORLD.FLOOR_LEVEL + 8.0; 
+      const bob = 0.55 * env * Math.sin(timeSec * 2.3 + body.id * 0.17); 
+      const desiredAccY = (6.6 + 4.5 * ((targetY + bob) - body.position.y) - 1.35 * body.velocity.y) * env; 
+      const drift = 0.75 * env;
+      body.applyForce(new CANNON.Vec3(body.mass * Math.sin(timeSec * 1.35 + body.id * 0.11) * drift, body.mass * desiredAccY, body.mass * Math.cos(timeSec * 1.15 + body.id * 0.09) * drift), body.position); 
+      body.angularVelocity.x *= 0.92; body.angularVelocity.y *= 0.92; body.angularVelocity.z *= 0.92;
+    };
+
+    for (const body of letterBodies) { applyLogic(body, true); if (env > 0) applyUpdraft(body); }
+    for (const body of balls) { if (!body) continue; applyLogic(body, false); if (env > 0) applyUpdraft(body); }
+  }
+}
+
+class InputManager {
+  constructor(camera, world, getPausedState, getCurrentTool, getInteractables, onDragChange, getRoomMeshes, getPaintTool) {
+    this.getPaintTool = getPaintTool;
+    this.getRoomMeshes = getRoomMeshes; 
+    
+    this.camera = camera;
+    this.world = world;
+    this.getPausedState = getPausedState; 
+    this.getCurrentTool = getCurrentTool;
+    this.getInteractables = getInteractables; 
+    this.onDragChange = onDragChange; 
+
+    this.raycaster = new THREE.Raycaster();
+    this.inputCoord = new THREE.Vector2();
+    this.isDragging = false;
+    this.isMouseDown = false;
+    this.dragConstraint = null;
+
+    this.mouseBody = new CANNON.Body({ mass: 0, type: CANNON.Body.KINEMATIC, collisionFilterGroup: 0 });
+    this.world.addBody(this.mouseBody);
+    
+    this.movementPlane = new THREE.Plane(new THREE.Vector3(0, 0, 1), 0);
+    this.floorPlane = new THREE.Plane(new THREE.Vector3(0, 1, 0), -CONFIG.WORLD.FLOOR_LEVEL);
+    
+    this.interactionTarget = new THREE.Vector3();
+    this.interactionNormal = new THREE.Vector3(0, 1, 0);
+    this.hasInteractionTarget = false;
+    this.isPaintingStreamActive = false; 
+    this.currentDragOffset = 0;
+
+    this.initEvents();
+  }
+
+  setInputCoords(e) {
+    this.inputCoord.x = (e.clientX / window.innerWidth) * 2 - 1;
+    this.inputCoord.y = -(e.clientY / window.innerHeight) * 2 + 1;
+  }
+
+  updateInteractionTarget() {
+    this.raycaster.setFromCamera(this.inputCoord, this.camera);
+    const meshes = this.getRoomMeshes();
+    const intersects = this.raycaster.intersectObjects(meshes);
+
+    if (intersects.length > 0) {
+      this.interactionTarget.copy(intersects[0].point);
+      this.hasInteractionTarget = true;
+      
+      const n = intersects[0].face.normal.clone();
+      const normalMatrix = new THREE.Matrix3().getNormalMatrix(intersects[0].object.matrixWorld);
+      this.interactionNormal.copy(n.applyMatrix3(normalMatrix).normalize());
+    } else {
+      this.hasInteractionTarget = false;
+    }
+  }
+
+  update(dt) {
+      if (!this.getPausedState() && this.isPaintingStreamActive) {
+           this.updateInteractionTarget(); 
+      }
+  }
+
+  initEvents() {
+    window.addEventListener('mousedown', (e) => {
+      if (this.getPausedState()) return; 
+      if (e.target.tagName === 'BUTTON' || e.target.tagName === 'INPUT' || e.target.closest('#holo-wrapper') || e.target.closest('#hud-controls')) return;
+      
+      this.setInputCoords(e);
+      this.isMouseDown = true;
+
+      const paintColorIdx = this.getPaintTool ? this.getPaintTool() : -1;
+      if (paintColorIdx !== -1) {
+          this.isPaintingStreamActive = true;
+          this.updateInteractionTarget();
+          return;
+      }
+
+      if (this.getCurrentTool() !== -1) {
+        this.updateInteractionTarget();
+        return; 
+      }
+      
+      this.raycaster.setFromCamera(this.inputCoord, this.camera);
+      const { meshes, getBodyByMesh } = this.getInteractables();
+      const intersects = this.raycaster.intersectObjects(meshes);
+      
+      if (intersects.length > 0) {
+        let hitBody = null; let halfHeight = 0.2;
+        for (const hitObj of intersects) {
+          const result = getBodyByMesh(hitObj);
+          if (result) { hitBody = result.body; halfHeight = result.halfHeight; break; }
+        }
+
+        if (hitBody) {
+          this.isDragging = true;
+          this.onDragChange(true); 
+          hitBody.wakeUp();
+          this.currentDragOffset = halfHeight;
+          this.movementPlane.constant = -hitBody.position.z;
+          this.mouseBody.position.copy(hitBody.position);
+          this.dragConstraint = new CANNON.PointToPointConstraint(hitBody, new CANNON.Vec3(0,0,0), this.mouseBody, new CANNON.Vec3(0,0,0));
+          this.world.addConstraint(this.dragConstraint);
+        }
+      }
+    });
+
+    window.addEventListener('mousemove', (e) => {
+      this.setInputCoords(e);
+      
+      if (this.isMouseDown && this.getCurrentTool() !== -1) {
+        this.updateInteractionTarget();
+      }
+
+      if (this.isDragging && this.dragConstraint) {
+        this.raycaster.setFromCamera(this.inputCoord, this.camera);
+        const targetVec = new THREE.Vector3();
+        this.raycaster.ray.intersectPlane(this.movementPlane, targetVec);
+        if (targetVec) {
+          targetVec.x = Math.max(-14, Math.min(14, targetVec.x));
+          targetVec.y = Math.max(CONFIG.WORLD.FLOOR_LEVEL + this.currentDragOffset + 0.1, Math.min(9, targetVec.y));
+          targetVec.z = Math.max(-10, Math.min(10, targetVec.z));
+          this.mouseBody.position.set(targetVec.x, targetVec.y, targetVec.z);
+        }
+      }
+    });
+
+    window.addEventListener('mouseup', () => {
+      this.isPaintingStreamActive = false;
+      this.isMouseDown = false;
+      if (this.dragConstraint) {
+        const body = this.dragConstraint.bodyA;
+        if (body) {
+          body.velocity.scale(1.8, body.velocity);
+          body.angularVelocity.scale(1.5, body.angularVelocity);
+        }
+        this.world.removeConstraint(this.dragConstraint);
+        this.dragConstraint = null;
+      }
+      if (this.isDragging) {
+          this.isDragging = false;
+          this.onDragChange(false); 
+      }
+    });
+  }
+
+  cancelDrag() {
+    this.isPaintingStreamActive = false;
+    this.isMouseDown = false;
+    if (this.dragConstraint) {
+      this.world.removeConstraint(this.dragConstraint);
+      this.dragConstraint = null;
+    }
+    this.isDragging = false;
+    this.onDragChange(false);
+  }
+}
+
+class ParticlePool {
+  constructor(scene, texture, maxParticles, type, baseColorHex) {
+    this.scene = scene;
+    this.pool = [];            
+    this.activeParticles = []; 
+
+    for (let i = 0; i < maxParticles; i++) {
+      const material = new THREE.SpriteMaterial({ 
+        map: texture, 
+        color: new THREE.Color(baseColorHex), 
+        transparent: true, 
+        opacity: 0, 
+        depthWrite: false 
+      });
+      const sprite = new THREE.Sprite(material);
+      sprite.visible = false; 
+      this.scene.add(sprite);
+      
+      this.pool.push({
+        mesh: sprite,
+        velocity: new THREE.Vector3(),
+        life: 0,
+        decay: 0,
+        type: type
+      });
+    }
+  }
+
+  spawn(pos, velocity, scale, life, decay) {
+    if (this.pool.length === 0) return; 
+
+    const p = this.pool.pop(); 
+    
+    p.mesh.position.copy(pos);
+    p.mesh.scale.set(scale, scale, 1);
+    p.mesh.material.opacity = 1.0; 
+    p.mesh.visible = true;
+    
+    p.velocity.copy(velocity);
+    p.life = life;
+    p.decay = decay;
+    
+    this.activeParticles.push(p); 
+  }
+
+  update(isSlowMo) {
+    const sf = isSlowMo ? 0.2 : 1.0;
+    
+    for (let i = this.activeParticles.length - 1; i >= 0; i--) {
+      const p = this.activeParticles[i];
+      p.life -= p.decay * sf;
+
+      if (p.type === 'heat') {
+        p.mesh.material.opacity = Math.max(0, p.life) * 0.55;
+        const s = p.mesh.scale.x * (1.0 + 0.020 * sf);
+        p.mesh.scale.set(s, s, 1);
+        p.velocity.x *= 0.994;
+        p.velocity.z *= 0.994;
+      } else if (p.type === 'paint') {
+        p.mesh.material.opacity = Math.min(1.0, p.life * 2.0) * 0.25; 
+        const s = p.mesh.scale.x * (1.0 + 0.03 * sf); 
+        p.mesh.scale.set(s, s, 1);
+        p.mesh.material.rotation += 0.02 * sf; 
+        p.velocity.multiplyScalar(0.97); 
+      } else {
+        p.mesh.material.opacity = Math.max(0, p.life) * 0.4;
+        const s = p.mesh.scale.x * (1.0 + 0.015 * sf);
+        p.mesh.scale.set(s, s, 1);
+        p.mesh.material.rotation += 0.01 * sf; 
+        p.velocity.multiplyScalar(0.96);
+      }
+
+      p.mesh.position.add(p.velocity.clone().multiplyScalar(sf));
+
+      if (p.life <= 0) {
+        p.mesh.visible = false;
+        this.activeParticles.splice(i, 1); 
+        this.pool.push(p);                 
+      }
+    }
+  }
+}
+
+class GameObject {
+  constructor(world, scene, mesh, body) {
+    this.world = world;
+    this.scene = scene;
+    this.mesh = mesh;
+    this.body = body;
+
+    if (this.mesh) this.scene.add(this.mesh);
+    if (this.body) {
+      this.world.addBody(this.body);
+      this.body.userData.gameObject = this; 
+    }
+  }
+
+  update() {
+    if (this.mesh && this.body) {
+      this.mesh.position.copy(this.body.position);
+      this.mesh.quaternion.copy(this.body.quaternion);
+    }
+  }
+
+  setVisible(isVisible) {
+    if (this.mesh) this.mesh.visible = isVisible;
+    if (this.body) {
+      if (isVisible && !this.world.bodies.includes(this.body)) {
+        this.world.addBody(this.body);
+        this.body.velocity.set(0, 0, 0);
+        this.body.angularVelocity.set(0, 0, 0);
+        this.body.position.copy(this.body.userData.startPos);
+        this.body.quaternion.set(0, 0, 0, 1);
+        this.body.sleep();
+      } else if (!isVisible && this.world.bodies.includes(this.body)) {
+        this.world.removeBody(this.body);
+      }
+    }
+  }
+
+  destroy() {
+    if (this.mesh) {
+      this.scene.remove(this.mesh);
+      if (this.mesh.geometry) this.mesh.geometry.dispose();
+      if (this.mesh.material) {
+        Array.isArray(this.mesh.material) ? this.mesh.material.forEach(m => m.dispose()) : this.mesh.material.dispose();
+      }
+    }
+    if (this.body) this.world.removeBody(this.body);
+  }
+}
+
+class MiniBeadPool {
+  constructor(world, scene, physicsMaterial, maxBeads) {
+    this.world = world;
+    this.scene = scene;
+    this.pool = [];
+    this.activeBeads = [];
+
+    const geo = new THREE.SphereGeometry(0.04, 16, 16);
+    const shape = new CANNON.Sphere(0.04);
+
+    this.materialsMap = {};
+    CONFIG.COLORS.GOOGLE_UNIQUE.forEach(hex => {
+      this.materialsMap[hex] = new THREE.MeshStandardMaterial({ 
+        color: hex, roughness: 0.1, metalness: 0.2, transparent: true, opacity: 0.9 
+      });
+    });
+
+    for (let i = 0; i < maxBeads; i++) {
+      const mesh = new THREE.Mesh(geo, this.materialsMap[CONFIG.COLORS.GOOGLE_UNIQUE[0]]);
+      mesh.castShadow = true; 
+      mesh.receiveShadow = true;
+      mesh.visible = false;
+      this.scene.add(mesh);
+
+      const body = new CANNON.Body({ 
+        mass: 0.005, 
+        material: physicsMaterial, 
+        collisionFilterGroup: CONFIG.PHYSICS.GROUPS.TINY, 
+        collisionFilterMask: CONFIG.PHYSICS.GROUPS.SCENE 
+      });
+      body.addShape(shape);
+      
+      this.pool.push({ mesh, body, life: 0 });
+    }
+  }
+
+  spawn(pos, colorHex) {
+    if (this.pool.length === 0) return;
+
+    const bead = this.pool.pop();
+    
+    if (this.materialsMap[colorHex]) {
+      bead.mesh.material = this.materialsMap[colorHex];
+    }
+    bead.mesh.visible = true;
+
+    const spawnPos = new THREE.Vector3(
+      pos.x + (Math.random() - 0.5) * 0.15,
+      pos.y + (Math.random() - 0.5) * 0.15,
+      pos.z + (Math.random() - 0.5) * 0.15
+    );
+
+    bead.body.position.copy(spawnPos);
+    bead.body.velocity.set((Math.random()-0.5)*3, Math.random()*3 + 1.5, (Math.random()-0.5)*3);
+    bead.body.angularVelocity.set(0, 0, 0);
+    
+    this.world.addBody(bead.body);
+    bead.body.wakeUp();
+
+    bead.life = 0.6; 
+    this.activeBeads.push(bead);
+  }
+
+  update(dt) {
+    for (let i = this.activeBeads.length - 1; i >= 0; i--) {
+      const bead = this.activeBeads[i];
+      bead.life -= dt;
+
+      bead.mesh.position.copy(bead.body.position);
+      bead.mesh.quaternion.copy(bead.body.quaternion);
+
+      if (bead.life <= 0 || bead.body.position.y < CONFIG.WORLD.FLOOR_LEVEL - 2) {
+        bead.mesh.visible = false;
+        this.world.removeBody(bead.body); 
+        this.activeBeads.splice(i, 1);
+        this.pool.push(bead);
+      }
+    }
+  }
+}
+
+class SceneManager {
+  constructor() {
+    this.scene = new THREE.Scene();
+    this.camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 100);
+    this.camera.position.set(0, 2, 28);
+
+    this.renderer = new THREE.WebGLRenderer({ antialias: true });
+    this.renderer.setSize(window.innerWidth, window.innerHeight);
+    this.renderer.shadowMap.enabled = true;
+    this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+    this.renderer.outputColorSpace = THREE.SRGBColorSpace;
+    this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
+    this.renderer.toneMappingExposure = 0.8;
+    document.body.appendChild(this.renderer.domElement);
+
+    this.composer = new EffectComposer(this.renderer);
+    this.composer.addPass(new RenderPass(this.scene, this.camera));
+    this.bloomPass = new UnrealBloomPass(new THREE.Vector2(window.innerWidth, window.innerHeight), 0.15, 0.6, 0.15);
+    this.composer.addPass(this.bloomPass);
+
+    this.walls = []; 
+    this.discoSpots = [];
+
+    this._initResizeHandler();
+  }
+
+  _initResizeHandler() {
+    window.addEventListener('resize', () => {
+      this.camera.aspect = window.innerWidth / window.innerHeight;
+      this.camera.updateProjectionMatrix();
+      this.renderer.setSize(window.innerWidth, window.innerHeight);
+      this.composer.setSize(window.innerWidth, window.innerHeight);
+      this.bloomPass.setSize(window.innerWidth, window.innerHeight);
+    });
+  }
+
+  buildEnvironment() {
+    this.dayLights = new THREE.Group(); this.scene.add(this.dayLights); 
+    this.ambientLight = new THREE.AmbientLight(0xffffff, 0.8); this.dayLights.add(this.ambientLight); 
+    this.leftLight = new THREE.DirectionalLight(0x9bb7ff, 0.0); this.leftLight.position.set(-10, 6, 8); this.dayLights.add(this.leftLight); 
+    this.fillLight = new THREE.DirectionalLight(0xffe2c2, 0.0); this.fillLight.position.set(10, 6, 8); this.dayLights.add(this.fillLight);
+    
+    this.nightLights = new THREE.Group(); this.scene.add(this.nightLights); 
+    const ledGeo = new THREE.BoxGeometry(0.2, 0.05, 0.2); 
+    const ledMat = new THREE.MeshStandardMaterial({ color: 0xffffff, emissive: 0xffffff, emissiveIntensity: 3.5, roughness: 0.9, metalness: 0.1 }); 
+    const ledStrip = new THREE.InstancedMesh(ledGeo, ledMat, (80 * 2) + 120); ledStrip.instanceMatrix.setUsage(THREE.StaticDrawUsage); 
+    const dummy = new THREE.Object3D(); let idx = 0;
+    const placeLedLine = (startX, startZ, endX, endZ, count) => { for (let i = 0; i < count; i++) { const t = i / (count - 1); dummy.position.set(startX + (endX - startX) * t, CONFIG.WORLD.FLOOR_LEVEL + 0.03, startZ + (endZ - startZ) * t); dummy.rotation.set(0,0,0); dummy.updateMatrix(); ledStrip.setMatrixAt(idx++, dummy.matrix); } }
+    placeLedLine(-14.7, -10.0, -14.7, 12.0, 80); placeLedLine(14.7, -10.0, 14.7, 12.0, 80); placeLedLine(-14.7, -10.0, 14.7, -10.0, 120); 
+    this.nightLights.add(ledStrip); this.nightLights.visible = false;
+
+    this.labLampsGroup = new THREE.Group(); this.scene.add(this.labLampsGroup);
+    this.discoLampsGroup = new THREE.Group(); this.scene.add(this.discoLampsGroup); this.discoLampsGroup.visible = false;
+
+    const createOfficeLamp = (x) => {
+      const group = new THREE.Group(); group.position.set(x, CONFIG.WORLD.CEILING_HEIGHT - 0.05, 0); 
+      const housing = new THREE.Mesh(new THREE.BoxGeometry(2.4, 0.05, 6.8), new THREE.MeshStandardMaterial({ color: 0xeeeeee, roughness: 0.5, metalness: 0.1 })); group.add(housing);
+      const diffuser = new THREE.Mesh(new THREE.PlaneGeometry(2.0, 6.4), new THREE.MeshStandardMaterial({ color: 0xffffff, emissive: 0xffffff, emissiveIntensity: 1.2, roughness: 0.1 })); diffuser.rotation.x = Math.PI / 2; diffuser.position.y = -0.026; group.add(diffuser); 
+      const rectLight = new THREE.RectAreaLight(0xffffff, 6.0, 2.0, 6.4); rectLight.position.set(0, -0.05, 0); rectLight.lookAt(0, -10, 0); group.add(rectLight);
+      const shadowLight = new THREE.SpotLight(0xffffff, 40); shadowLight.position.set(0, -0.05, 0); shadowLight.angle = Math.PI / 2.5; shadowLight.penumbra = 1.0; shadowLight.castShadow = true; shadowLight.shadow.bias = -0.0001; shadowLight.shadow.mapSize.set(1024, 1024);
+      group.add(shadowLight); group.add(shadowLight.target); shadowLight.target.position.set(0, -10, 0);
+      this.labLampsGroup.add(group);
+    };
+    createOfficeLamp(-5); createOfficeLamp(5);
+
+    const createDiscoSpot = (x, z, colorHex) => {
+      const spotLight = new THREE.SpotLight(colorHex, 500); spotLight.position.set(x, CONFIG.WORLD.CEILING_HEIGHT - 0.5, z);
+      spotLight.angle = Math.PI / 12; spotLight.penumbra = 0.5; spotLight.castShadow = true; spotLight.shadow.bias = -0.0001; spotLight.target.position.set(0, CONFIG.WORLD.FLOOR_LEVEL, 0);
+      const housing = new THREE.Mesh(new THREE.CylinderGeometry(0.3, 0.3, 0.8), new THREE.MeshStandardMaterial({ color: 0x111111, metalness: 0.8 })); housing.position.copy(spotLight.position); housing.lookAt(spotLight.target.position); housing.rotateX(Math.PI / 2);
+      this.discoLampsGroup.add(spotLight); this.discoLampsGroup.add(spotLight.target); this.discoLampsGroup.add(housing);
+      this.discoSpots.push({ light: spotLight, housing: housing });
+    };
+    createDiscoSpot(-13, -8, 0xff00ff); createDiscoSpot(13, -8, 0x00ffff); createDiscoSpot(-13, 10, 0xffff00); createDiscoSpot(13, 10, 0x00ff00);   
+
+    this.labProps = new THREE.Group(); this.scene.add(this.labProps);
+    this.baseMesh = new THREE.Mesh(new THREE.CylinderGeometry(5, 6, 0.5, 32), new THREE.MeshPhysicalMaterial({ color: 0xffffff, metalness: 0.0, roughness: 0.02, transparent: true, opacity: 0.25, transmission: 1.0, ior: 1.52, reflectivity: 0.5, envMapIntensity: 1.2, side: THREE.DoubleSide, depthWrite: false }));
+    this.baseMesh.position.set(0, CONFIG.WORLD.FLOOR_LEVEL + 0.3, 0); this.baseMesh.receiveShadow = true; this.baseMesh.renderOrder = 1; this.labProps.add(this.baseMesh);
+    const ringGeo = new THREE.TorusGeometry(4.5, 0.1, 32, 100);
+    const ringMat = new THREE.MeshPhysicalMaterial({ 
+        color: 0xcccccc, 
+        emissive: 0x0055ff, 
+        emissiveIntensity: 1.2, 
+        roughness: 0.1, 
+        metalness: 0.1,        
+        transparent: true,
+        opacity: 1.0
+    });
+    this.ringMesh = new THREE.Mesh(ringGeo, ringMat);
+    this.ringMesh.position.set(0, CONFIG.WORLD.FLOOR_LEVEL + 0.66, 0); 
+    this.ringMesh.rotation.x = Math.PI / 2; 
+    this.ringMesh.renderOrder = 2;
+    this.labProps.add(this.ringMesh);
+
+    this.floorLight = new THREE.PointLight(0x0088ff, 12, 8); 
+    this.floorLight.position.set(0, CONFIG.WORLD.FLOOR_LEVEL + 1.5, 0); 
+    this.labProps.add(this.floorLight);
+    
+    this.holoLight = new THREE.PointLight(0x0088ff, 20, 15); 
+    this.holoLight.position.set(0, CONFIG.WORLD.FLOOR_LEVEL + 1, 0); 
+    this.labProps.add(this.holoLight);
+
+    this.ventOverlay = new THREE.Mesh(new THREE.PlaneGeometry(CONFIG.WORLD.ROOM_SIZE, CONFIG.WORLD.ROOM_SIZE), new THREE.MeshStandardMaterial({ map: ventGridTex, transparent: true, opacity: 0.0, color: 0xffffff, roughness: 0.2, metalness: 0.0, emissive: new THREE.Color(0xFFB074), emissiveIntensity: 0.0, depthWrite: false })); 
+    this.ventOverlay.rotation.x = -Math.PI / 2; this.ventOverlay.position.set(0, CONFIG.WORLD.FLOOR_LEVEL + 0.012, 0); this.ventOverlay.renderOrder = 999; this.scene.add(this.ventOverlay);
+  
+    const reticleGeo = new THREE.PlaneGeometry(3.0, 3.0);
+    const reticleTex = new THREE.TextureLoader().load(getComputedStyle(document.documentElement).getPropertyValue('--tex-reticle').slice(5, -2));
+    const reticleMat = new THREE.MeshBasicMaterial({ 
+        map: reticleTex, 
+        transparent: true, 
+        opacity: 0.8, 
+        color: 0x00f3ff, 
+        depthWrite: false, 
+        blending: THREE.AdditiveBlending 
+    });
+    this.magnetReticle = new THREE.Mesh(reticleGeo, reticleMat);
+    this.magnetReticle.position.set(0, CONFIG.WORLD.FLOOR_LEVEL + 0.05, 0);
+    this.magnetReticle.visible = false; 
+    this.scene.add(this.magnetReticle);
+  }
+  createWallMesh(width, height, pos, rot, material) {
+    const mesh = new THREE.Mesh(new THREE.PlaneGeometry(width, height), material);
+    mesh.position.copy(pos);
+    if (rot) mesh.rotation.set(rot.x, rot.y, rot.z);
+    mesh.receiveShadow = true;
+    this.scene.add(mesh);
+    this.walls.push({ mesh, isFloor: pos.y === CONFIG.WORLD.FLOOR_LEVEL, isBack: rot && rot.x === 0 && rot.y === 0 });
+    return mesh;
+  }
+
+  setAtmosphere(mode, configColors) {
+    this.labProps.visible = true;
+    for (const w of this.walls) { w.mesh.material.map = tileTex; w.mesh.material.color.setHex(0xffffff); w.mesh.material.roughness = 0.1; w.mesh.material.metalness = 0.1; w.mesh.material.needsUpdate = true; }
+    
+    if (mode === 'disco') {
+      this.scene.background = new THREE.Color(configColors.BG_DISCO); 
+      this.scene.fog = new THREE.Fog(configColors.BG_DISCO, 40, 120); 
+      this.ambientLight.intensity = 0.4; 
+      this.holoLight.intensity = 8; this.ringMesh.material.emissiveIntensity = 0.8; this.floorLight.intensity = 4;
+      this.leftLight.intensity = 0.2; this.fillLight.intensity = 0.2; 
+      this.labLampsGroup.visible = false; this.discoLampsGroup.visible = true; this.nightLights.visible = true; 
+      for (const w of this.walls) w.mesh.material.color.setHex(0x666aa6);
+      this.renderer.toneMappingExposure = 1.1; this.bloomPass.strength = 0.7; this.bloomPass.threshold = 0.1; this.bloomPass.radius = 0.5;
+    } else {
+      this.scene.background = new THREE.Color(configColors.BG_DAY); 
+      this.scene.fog = new THREE.Fog(configColors.BG_DAY, 50, 150); 
+      this.ambientLight.intensity = 0.8; 
+      this.ringMesh.material.color.setHex(0x0088ff); this.ringMesh.material.emissive.setHex(0x0055ff); this.floorLight.color.setHex(0x0088ff); this.holoLight.color.setHex(0x0088ff); this.baseMesh.material.color.setHex(0xffffff); this.holoLight.intensity = 20; this.ringMesh.material.emissiveIntensity = 1.2; this.floorLight.intensity = 10;
+      this.leftLight.intensity = 0.0; this.fillLight.intensity = 0.0; 
+      this.labLampsGroup.visible = true; this.discoLampsGroup.visible = false; this.nightLights.visible = false; 
+      for (const w of this.walls) w.mesh.material.color.setHex(0xffffff);
+      this.renderer.toneMappingExposure = 0.8; this.bloomPass.strength = 0.3; this.bloomPass.threshold = 0.9; this.bloomPass.radius = 0.2;
+    }
+  }
+
+updateAtmosphere(timeSec, mode, platformImpact, fanLevel, isMagnetEquipped, activeToolColor) {
+    const isNight = mode === 'disco';
+
+    if (this.currentRingIntensity === undefined) this.currentRingIntensity = 1.2;
+
+    const targetRingIntensity = isMagnetEquipped ? 0.0 : (isNight ? 0.8 : 1.2);
+    this.currentRingIntensity = THREE.MathUtils.lerp(this.currentRingIntensity, targetRingIntensity, 0.05);
+
+    const maxIntensity = isNight ? 0.8 : 1.2;
+    const ratio = Math.max(0, Math.min(this.currentRingIntensity / maxIntensity, 1.0));
+
+    this.ringMesh.material.emissiveIntensity = this.currentRingIntensity;
+    this.ringMesh.material.opacity = THREE.MathUtils.lerp(0.15, 1.0, ratio);
+
+    if (isNight) {
+      const hue = (timeSec * 0.2) % 1;
+      this.ringMesh.material.emissive.setHSL(hue, 0.7, 0.5);
+    } else {
+      this.ringMesh.material.emissive.setHex(0x0055ff);
+    }
+
+    if (isMagnetEquipped) {
+        this.magnetReticle.visible = true;
+        if (activeToolColor) this.magnetReticle.material.color.setHex(activeToolColor);
+        const pulse = 0.8 + 0.2 * Math.sin(timeSec * 8);
+        this.magnetReticle.scale.set(pulse, pulse, 1);
+        this.magnetReticle.material.opacity = pulse * 0.8;
+    } else {
+        this.magnetReticle.visible = false;
+    }
+    
+    if (isNight) {
+      const hue = (timeSec * 0.2) % 1;
+      const rgbColor = new THREE.Color().setHSL(hue, 0.7, 0.5);
+      const glassColor = new THREE.Color().setHSL(hue, 0.2, 0.95);
+      this.floorLight.color.copy(rgbColor);
+      this.holoLight.color.copy(rgbColor);
+      this.baseMesh.material.color.copy(glassColor);
+      this.discoSpots.forEach((spot, index) => {
+        const speed = 1.5; const time = timeSec * speed + (index * 2.0);
+        const targetX = Math.sin(time) * 10; const targetZ = Math.cos(time * 0.73) * 8;
+        spot.light.target.position.set(targetX, CONFIG.WORLD.FLOOR_LEVEL, targetZ);
+        spot.light.target.updateMatrixWorld();
+        spot.housing.lookAt(spot.light.target.position);
+        spot.housing.rotateX(Math.PI / 2);
+      });
+    }
+    
+    const dimFactor = 1.0 - (platformImpact * 0.85);
+    this.floorLight.intensity = (isNight ? 3 : 10) * dimFactor;
+    this.holoLight.intensity = (isNight ? 6 : 20) * dimFactor;
+    
+    const env = -(Math.cos(Math.PI * fanLevel) - 1) / 2;
+    const nightGlowFactor = isNight ? 0.5 : 1.0;
+    this.ventOverlay.material.opacity = 0.70 * env * (0.92 + 0.08 * Math.sin(timeSec * 6.5)) * nightGlowFactor;
+    this.ventOverlay.material.emissiveIntensity = 2.1 * env * nightGlowFactor;
+  }
+
+  render() {
+    this.composer.render();
+  }
+}
+
+class GoogleRoomApp {
+  constructor() {
+    this.isPaused = false;
+    this.isResetting = false; 
+    this.lastTime = performance.now();
+    this.platformImpact = 0;
+    this.sceneManager = new SceneManager();
+
+    this.scene = this.sceneManager.scene;
+    this.camera = this.sceneManager.camera;
+    this.renderer = this.sceneManager.renderer;
+    this.composer = this.sceneManager.composer;
+    this.bloomPass = this.sceneManager.bloomPass;
+    
+    this.currentWord = "GOOGLE";
+    this.globalFont = null;
+    this.lettersEnabled = true;
+    this.fansActive = false; 
+    this.fanLevel = 0.0;
+    this.lettersHiddenByMagnet = false; 
+    this.currentRingIntensity = 1.2;
+    
+    this.dustPool = new ParticlePool(this.scene, heatTex, 60, 'dust', 0xaaaaaa);
+    this.heatPool = new ParticlePool(this.scene, heatTex, 40, 'heat', 0xFFB074);
+    
+    this.paintPools = CONFIG.COLORS.GOOGLE_UNIQUE.map(colorHex => 
+      new ParticlePool(this.scene, heatTex, 1000, 'paint', colorHex)
+    );
+    this.paintParticleTime = 0;
+
+    this.letterObjects = []; 
+    this.ballsPool = new Array(CONFIG.PHYSICS.MAX_BALLS).fill(null);
+    this.activeBallsCount = 0;
+    this.ballSpawnIndex = 0;
+    
+    this.ballMat = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.2, metalness: 0.1 });
+    this.tick = this.tick.bind(this);
+    
+    this.physicsManager = new PhysicsManager();
+    this.world = this.physicsManager.world;
+    this.matStandard = this.physicsManager.matStandard;
+    this.matBouncy = this.physicsManager.matBouncy;
+    this.matSlippery = this.physicsManager.matSlippery;
+
+    this.miniBeadPool = new MiniBeadPool(this.world, this.scene, this.matBouncy, 120);
+
+    this.uiManager = new UIManager({
+      onTogglePause: () => { this.isPaused = !this.isPaused; return this.isPaused; },
+      onReset: () => this.resetScene(),
+      onSpawnBalls: () => { if (!this.isPaused) this.spawnBalls(); },
+      onShrinkBalls: () => { if (!this.isPaused) this.startShrinkingBalls(); },
+      onToggleFans: () => {
+        if (!this.isPaused) {
+          this.fansActive = !this.fansActive;
+          if (this.fansActive) audioManager.playFansWhoosh(isSlowMo());
+        }
+      },
+      onToggleLetters: () => {
+        if (this.isPaused) return this.lettersEnabled;
+        this.lettersEnabled = !this.lettersEnabled;
+        this.letterObjects.forEach(obj => obj.setVisible(this.lettersEnabled));
+        return this.lettersEnabled;
+      },
+      onReturnLetters: () => { if (!this.isPaused) this.returnLettersToStart(); },
+      onApplyWord: (word) => {
+        if (!this.isPaused) {
+          this.changeWordSmoothly(word); 
+        }
+      }
+    });
+
+    this.initSceneObjects();
+    
+    this.inputManager = new InputManager(
+      this.camera, 
+      this.world, 
+      () => this.isPaused,
+      () => store.get().currentTool,
+      () => {
+        const meshes = [...(this.lettersEnabled ? this.letterObjects.map(d=>d.mesh) : []), this.ballInstancedMesh];
+        const getBodyByMesh = (hitObj) => {
+           if (hitObj.object === this.ballInstancedMesh) {
+              const body = this.ballsPool[hitObj.instanceId];
+              return body ? { body, halfHeight: 0.2 } : null;
+           } else {
+            const letterObj = this.letterObjects.find(d => d.mesh === hitObj.object);
+            return letterObj ? { body: letterObj.body, halfHeight: letterObj.body.userData.halfHeight } : null;
+           }
+        };
+        return { meshes, getBodyByMesh };
+      },
+      (isDragging) => {
+        if (isDragging) document.body.classList.add('is-dragging');
+        else document.body.classList.remove('is-dragging');
+      },
+      () => this.sceneManager.walls.map(w => w.mesh),
+      () => store.get().paintToolColor !== undefined ? store.get().paintToolColor : -1
+    );
+
+    this.setupStateReactions();
+    
+    const fontLoader = new FontLoader();
+    fontLoader.load('https://threejs.org/examples/fonts/helvetiker_bold.typeface.json', (font) => { 
+      this.uiManager.hideLoader(); 
+      this.globalFont = font; 
+      this.spawnLetters(this.currentWord); 
+    });
+
+    requestAnimationFrame(this.tick);
+  }
+
+  clearBalls() {
+    if (this.activeBallsCount === 0) return;
+
+    for (let i = 0; i < CONFIG.PHYSICS.MAX_BALLS; i++) {
+      const body = this.ballsPool[i];
+      if (body) {
+        if (Math.random() < 0.3) {
+          this.createDustExplosion(body.position, 0.15); 
+        }
+        
+        this.world.removeBody(body);
+        this.ballsPool[i] = null;
+      }
+      
+      this.dummyObj.scale.set(0, 0, 0); 
+      this.dummyObj.updateMatrix();
+      this.ballInstancedMesh.setMatrixAt(i, this.dummyObj.matrix);
+    }
+    
+    this.updateBeadsBlinking(); 
+    this.ballInstancedMesh.instanceMatrix.needsUpdate = true;
+    this.activeBallsCount = 0;
+    this.ballSpawnIndex = 0;
+    
+    this.uiManager.updateBeadCounter(this.activeBallsCount, CONFIG.PHYSICS.MAX_BALLS);
+  }
+
+  resetScene() {
+    if (this.isResetting || this.isChangingWord) return;
+    this.isResetting = true;
+
+    this.inputManager.cancelDrag();
+    this.isPaused = false;
+
+    this.fansActive = false;
+    store.update({ currentTool: -1, paintToolColor: -1 });
+    this.returnLettersToStart();
+    this.startShrinkingBalls();
+
+    setTimeout(() => {
+      this.lettersEnabled = true;
+      this.spawnLetters(this.currentWord);
+      
+      this.ballsPool.forEach((body, i) => { 
+        if (body) { 
+          this.world.removeBody(body); 
+          this.ballsPool[i] = null; 
+        } 
+        this.dummyObj.scale.set(0,0,0); 
+        this.dummyObj.updateMatrix(); 
+        this.ballInstancedMesh.setMatrixAt(i, this.dummyObj.matrix); 
+      });
+      this.ballInstancedMesh.instanceMatrix.needsUpdate = true; 
+      this.activeBallsCount = 0; 
+      this.ballSpawnIndex = 0;
+      
+      this.uiManager.updateBeadCounter(this.activeBallsCount, CONFIG.PHYSICS.MAX_BALLS);
+      this.uiManager.resetUIState(this.lettersEnabled);
+      this.composer.render();
+
+      this.isResetting = false;
+    }, 850); 
+  }
+
+  setupStateReactions() {
+    let lastMode = store.get().mode;
+    let lastTool = store.get().currentTool;
+
+    store.subscribe((state) => {
+      if (state.mode !== lastMode) {
+          this.fansActive = false; this.fanLevel = 0.0;
+          this.uiManager.updateFanProgress(0);
+          lastMode = state.mode; 
+      }
+      this.sceneManager.setAtmosphere(state.mode, CONFIG.COLORS);
+      if (!this.world.bodies.includes(this.platformBody)) this.world.addBody(this.platformBody);
+      
+      if (state.mode === 'disco') {
+        for (const l of this.letterObjects) { l.mesh.material.emissiveIntensity = 0.02; l.mesh.material.roughness = 0.25; l.mesh.material.color.setHex(l.body.userData.googleColor); }
+        this.setBallGlow(true); 
+      } else {
+        for (const l of this.letterObjects) { l.mesh.material.emissiveIntensity = 0.0; l.mesh.material.roughness = 0.5; l.mesh.material.color.setHex(l.body.userData.googleColor); }
+        this.setBallGlow(false); 
+      }
+
+      if (state.currentTool !== lastTool) {
+        const wasMagnet = lastTool !== -1;
+        const isMagnet = state.currentTool !== -1;
+
+        if (wasMagnet !== isMagnet) {
+          this.uiManager.lockLetters(isMagnet);
+
+          if (isMagnet) {
+            if (this.lettersEnabled) {
+              this.hideLettersSmoothly();
+              this.lettersHiddenByMagnet = true;
+            }
+          } else {
+            if (this.lettersHiddenByMagnet) {
+              this.uiManager.setLettersActive(true); 
+              this.showLettersSmoothly(); 
+              this.lettersHiddenByMagnet = false;
+            }
+          }
+          
+          this.updateBeadsBlinking();
+        }
+        
+        lastTool = state.currentTool;
+      }
+    });
+  }
+  
+  initSceneObjects() {
+    this.sceneManager.buildEnvironment();
+
+    const platformShape = new CANNON.Cylinder(5, 6, 0.2, 16); 
+    this.platformBody = new CANNON.Body({ mass: 0, material: this.matSlippery, collisionFilterGroup: CONFIG.PHYSICS.GROUPS.SCENE, collisionFilterMask: CONFIG.PHYSICS.GROUPS.OBJECTS | CONFIG.PHYSICS.GROUPS.TINY });
+    this.platformBody.addShape(platformShape, new CANNON.Vec3(0,0,0), new CANNON.Quaternion().setFromAxisAngle(new CANNON.Vec3(1,0,0), -Math.PI/2)); 
+    this.platformBody.position.set(0, CONFIG.WORLD.FLOOR_LEVEL + 0.1, 0); this.platformBody.userData = { isRubber: true }; 
+    this.world.addBody(this.platformBody);
+
+    const createWall = (w, h, pos, rot) => {
+      this.physicsManager.createStaticPlane(pos, rot, CONFIG.PHYSICS.GROUPS);
+      const material = new THREE.MeshStandardMaterial({ color: 0xffffff, side: THREE.FrontSide, roughness: 0.1, metalness: 0.1 });
+      this.sceneManager.createWallMesh(w, h, pos, rot, material);
+    };
+    
+    const h = CONFIG.WORLD.ROOM_SIZE; const w = CONFIG.WORLD.ROOM_SIZE; const thickness = 2.0; 
+    const floorBody = new CANNON.Body({ mass: 0, material: this.matStandard, collisionFilterGroup: CONFIG.PHYSICS.GROUPS.SCENE, collisionFilterMask: CONFIG.PHYSICS.GROUPS.OBJECTS | CONFIG.PHYSICS.GROUPS.TINY }); 
+    floorBody.addShape(new CANNON.Box(new CANNON.Vec3(w/2, thickness/2, h/2)), new CANNON.Vec3(0, -thickness/2, 0)); floorBody.position.set(0, CONFIG.WORLD.FLOOR_LEVEL, 0); this.world.addBody(floorBody);
+    const floorMaterial = new THREE.MeshStandardMaterial({ color: 0xffffff, side: THREE.FrontSide, roughness: 0.1, metalness: 0.1 });
+    this.sceneManager.createWallMesh(w, h, new THREE.Vector3(0, CONFIG.WORLD.FLOOR_LEVEL, 0), new THREE.Vector3(-Math.PI / 2, 0, 0), floorMaterial);
+    
+    createWall(CONFIG.WORLD.ROOM_SIZE, CONFIG.WORLD.ROOM_SIZE, new THREE.Vector3(0, CONFIG.WORLD.CEILING_HEIGHT, 0), new THREE.Vector3(Math.PI/2, 0, 0)); 
+    createWall(CONFIG.WORLD.ROOM_SIZE, 20, new THREE.Vector3(0, 2.5, -10), new THREE.Vector3(0, 0, 0)); 
+    createWall(CONFIG.WORLD.ROOM_SIZE, 20, new THREE.Vector3(-15, 2.5, 0), new THREE.Vector3(0, Math.PI/2, 0)); 
+    createWall(CONFIG.WORLD.ROOM_SIZE, 20, new THREE.Vector3(15, 2.5, 0), new THREE.Vector3(0, -Math.PI/2, 0)); 
+    createWall(CONFIG.WORLD.ROOM_SIZE, 20, new THREE.Vector3(0, 2.5, 12), new THREE.Vector3(0, Math.PI, 0)); 
+
+    const ballGeo = new THREE.SphereGeometry(CONFIG.PHYSICS.BALL_RADIUS, 16, 16); 
+    this.ballShape = new CANNON.Sphere(CONFIG.PHYSICS.BALL_RADIUS);
+    this.ballInstancedMesh = new THREE.InstancedMesh(ballGeo, this.ballMat, CONFIG.PHYSICS.MAX_BALLS);
+    this.ballInstancedMesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+    this.ballInstancedMesh.castShadow = true;
+    this.ballInstancedMesh.receiveShadow = true;
+    this.scene.add(this.ballInstancedMesh);
+    
+    this.dummyObj = new THREE.Object3D();
+    this.dummyObj.scale.set(0, 0, 0); this.dummyObj.updateMatrix();
+    for (let i = 0; i < CONFIG.PHYSICS.MAX_BALLS; i++) {
+        this.ballInstancedMesh.setMatrixAt(i, this.dummyObj.matrix);
+        this.ballInstancedMesh.setColorAt(i, new THREE.Color(0xffffff));
+    }
+  }
+
+  setBallGlow(enabled) {
+      if (enabled) {
+        this.ballMat.emissive.setHex(0x000000); this.ballMat.emissiveIntensity = 0.0;
+        this.ballMat.metalness = 0.75; this.ballMat.roughness = 0.15; 
+      } else {
+        this.ballMat.emissive.setHex(0x000000); this.ballMat.emissiveIntensity = 0.0;
+        this.ballMat.metalness = 0.3; this.ballMat.roughness = 0.15;
+      }
+      this.ballMat.needsUpdate = true;
+      for (let i = 0; i < CONFIG.PHYSICS.MAX_BALLS; i++) {
+        const body = this.ballsPool[i];
+        if (body) {
+          this.ballInstancedMesh.setColorAt(i, new THREE.Color(body.userData.originalColorHex));
+        }
+      }
+      if (this.ballInstancedMesh.instanceColor) this.ballInstancedMesh.instanceColor.needsUpdate = true;
+  }
+
+  startShrinkingBalls() {
+    if (this.activeBallsCount === 0) return;
+
+    const shrinkDuration = 0.8; 
+    const startTime = performance.now();
+
+    for (let i = 0; i < CONFIG.PHYSICS.MAX_BALLS; i++) {
+      const body = this.ballsPool[i];
+      if (body) {
+        body.userData.isShrinking = true;
+        body.userData.shrinkStartTime = startTime;
+        body.userData.shrinkDuration = shrinkDuration * 1000; 
+        
+        body.collisionFilterMask = 0;
+      }
+    }
+    
+    this.activeBallsCount = 0;
+    this.ballSpawnIndex = 0;
+    this.uiManager.updateBeadCounter(0, CONFIG.PHYSICS.MAX_BALLS);
+    
+    this.updateBeadsBlinking(); 
+  }
+
+  spawnBalls() {
+    for (let i = 0; i < 40; i++) {
+      const idx = this.ballSpawnIndex;
+      const oldBody = this.ballsPool[idx];
+      
+      if (oldBody) { 
+         this.createDustExplosion(oldBody.position, 0.2);
+         this.world.removeBody(oldBody); 
+      } else {
+         this.activeBallsCount++;
+      }
+      
+      const colorHex = CONFIG.COLORS.GOOGLE_UNIQUE[Math.floor(Math.random() * CONFIG.COLORS.GOOGLE_UNIQUE.length)];
+      const x = (Math.random()-0.5)*20, y = 8+Math.random()*5, z = (Math.random()-0.5)*10;
+      
+      const body = new CANNON.Body({ mass: CONFIG.PHYSICS.BALL_MASS, material: this.matBouncy, angularDamping: 0.1, linearDamping: 0.01, collisionFilterGroup: CONFIG.PHYSICS.GROUPS.OBJECTS, collisionFilterMask: CONFIG.PHYSICS.GROUPS.SCENE | CONFIG.PHYSICS.GROUPS.OBJECTS });
+      body.addShape(this.ballShape); body.position.set(x, y, z); this.world.addBody(body); 
+      body.userData = { originalColorHex: colorHex, instanceId: idx };
+      this.ballsPool[idx] = body;
+      this.ballSpawnIndex = (this.ballSpawnIndex + 1) % CONFIG.PHYSICS.MAX_BALLS;
+    } 
+    
+    this.setBallGlow(isNight()); 
+    this.uiManager.updateBeadCounter(this.activeBallsCount, CONFIG.PHYSICS.MAX_BALLS);
+    this.updateBeadsBlinking(); 
+  }
+
+ paintRoom(colorIndex) {
+    const colors = CONFIG.COLORS.GOOGLE_UNIQUE; 
+    const targetColor = colors[colorIndex]; 
+    
+    const camPos = this.camera.position;
+    const sprayDir = new THREE.Vector3().subVectors(this.inputManager.interactionTarget, camPos).normalize();
+
+    this.letterObjects.forEach(obj => {
+      const v = new THREE.Vector3().subVectors(obj.body.position, camPos);
+      const distAlongRay = v.dot(sprayDir); 
+
+      if (distAlongRay > 0 && distAlongRay < 40) {
+        const perpDist = v.clone().cross(sprayDir).length();
+        
+        const allowedRadius = 1.0 + distAlongRay * 0.25;
+
+        if (perpDist < allowedRadius) {
+          obj.body.userData.googleColor = targetColor;
+          
+          const pushForce = 1.0 - (distAlongRay / 40.0); 
+          const impulseVec = sprayDir.clone().multiplyScalar(pushForce * 0.002);
+          
+          obj.body.applyImpulse(
+              new CANNON.Vec3(impulseVec.x, impulseVec.y, impulseVec.z), 
+              obj.body.position
+          );
+        }
+      }
+    });
+    for (let i = 0; i < CONFIG.PHYSICS.MAX_BALLS; i++) {
+      const body = this.ballsPool[i];
+      if (body) {
+        const v = new THREE.Vector3().subVectors(body.position, camPos);
+        const distAlongRay = v.dot(sprayDir);
+
+        if (distAlongRay > 0 && distAlongRay < 40) {
+          const perpDist = v.clone().cross(sprayDir).length();
+          const allowedRadius = 1.0 + distAlongRay * 0.25;
+
+          if (perpDist < allowedRadius) {
+            body.userData.originalColorHex = targetColor;
+            this.ballInstancedMesh.setColorAt(i, new THREE.Color(targetColor));
+          }
+        }
+      }
+    }
+    
+    if (this.ballInstancedMesh.instanceColor) {
+      this.ballInstancedMesh.instanceColor.needsUpdate = true;
+    }
+
+    if (Math.random() < 0.1) audioManager.playPuffSound(0.2);
+  }
+
+  changeWordSmoothly(newWord) {
+    if (this.isChangingWord) return;
+
+    if (this.currentWord === newWord) {
+      this.returnLettersToStart();
+      return;
+    }
+
+    this.isChangingWord = true;
+
+    if (!this.lettersEnabled) {
+      this.currentWord = newWord;
+      this.spawnLetters(this.currentWord);
+      this.letterObjects.forEach(obj => obj.setVisible(false));
+      this.isChangingWord = false;
+      return;
+    }
+
+    const now = performance.now();
+    const duration = 300; 
+
+    this.letterObjects.forEach(obj => {
+      const body = obj.body;
+      body.userData.isShrinkingWord = true;
+      body.userData.shrinkStartTime = now;
+      
+      body.collisionFilterMask = 0; 
+      body.type = CANNON.Body.KINEMATIC;
+      body.velocity.set(0, 0, 0);
+      body.angularVelocity.set(0, 0, 0);
+    });
+
+    setTimeout(() => {
+      this.letterObjects.forEach(obj => {
+        this.createDustExplosion(obj.body.position, 0.35); 
+      });
+
+      this.currentWord = newWord;
+      this.spawnLetters(this.currentWord);
+
+      const growStartTime = performance.now();
+      
+      this.letterObjects.forEach(obj => {
+        const body = obj.body;
+        obj.mesh.scale.set(0, 0, 0); 
+        
+        body.userData.isGrowingWord = true;
+        body.userData.growStartTime = growStartTime;
+        
+        body.collisionFilterMask = 0;
+        body.type = CANNON.Body.KINEMATIC;
+      });
+
+      setTimeout(() => {
+        this.letterObjects.forEach(obj => {
+          const body = obj.body;
+          body.userData.isGrowingWord = false;
+          obj.mesh.scale.set(1, 1, 1); 
+          
+          body.type = CANNON.Body.DYNAMIC;
+          body.collisionFilterMask = CONFIG.PHYSICS.GROUPS.SCENE | CONFIG.PHYSICS.GROUPS.OBJECTS;
+          
+          body.velocity.set(0, 0, 0);
+          body.angularVelocity.set(0, 0, 0);
+          body.previousPosition.copy(body.position);
+          
+          body.sleep(); 
+        });
+        
+        this.isChangingWord = false; 
+      }, duration);
+
+    }, duration);
+  }
+
+  spawnLetters(wordStr) {
+      this.letterObjects.forEach(obj => obj.destroy());
+      this.letterObjects.length = 0;
+
+      if (!this.globalFont || !wordStr) return;
+      
+      const charSpacing = 2.8; 
+      const totalWidth = wordStr.length * charSpacing; 
+      const startXOffset = -totalWidth / 2 + (charSpacing / 2);
+
+      for (let i = 0; i < wordStr.length; i++) {
+          const color = CONFIG.COLORS.GOOGLE_PALETTE[i % CONFIG.COLORS.GOOGLE_PALETTE.length];
+          const geo = new TextGeometry(wordStr[i], { font: this.globalFont, size: 2.5, height: 0.8, curveSegments: 8, bevelEnabled: true, bevelThickness: 0.15, bevelSize: 0.08, bevelSegments: 5 }); geo.center();
+          const mesh = new THREE.Mesh(geo, new THREE.MeshStandardMaterial({ color, roughness: 0.5, metalness: 0.1, emissive: color, emissiveIntensity: 0.0 })); 
+          mesh.castShadow = true; mesh.receiveShadow = true; 
+          
+          geo.computeBoundingBox(); const size = geo.boundingBox.getSize(new THREE.Vector3());
+          const body = new CANNON.Body({ mass: CONFIG.PHYSICS.LETTER_MASS, material: this.matBouncy, angularDamping: 0.1, linearDamping: 0.01, collisionFilterGroup: CONFIG.PHYSICS.GROUPS.OBJECTS, collisionFilterMask: CONFIG.PHYSICS.GROUPS.SCENE | CONFIG.PHYSICS.GROUPS.OBJECTS });
+          body.addShape(new CANNON.Box(new CANNON.Vec3(size.x/2, size.y/2, size.z/2))); 
+          const startX = startXOffset + (i * charSpacing); 
+          body.position.set(startX, 2, 0); 
+          body.userData = { startPos: new CANNON.Vec3(startX, 2, 0), googleColor: color, halfHeight: size.y/2 }; 
+          body.sleep();
+
+          const letterObj = new GameObject(this.world, this.scene, mesh, body);
+
+          body.addEventListener('collide', (e) => {
+            if (!this.lettersEnabled) return; 
+            const v = Math.abs(e.contact.getImpactVelocityAlongNormal()); if (v <= 1.35) return;
+            const contactPos = new THREE.Vector3(e.contact.bi.position.x + e.contact.ri.x, e.contact.bi.position.y + e.contact.ri.y, e.contact.bi.position.z + e.contact.ri.z);
+            if (e.body && e.body.mass === 0) {
+                this.spawnMiniBeads(contactPos, body.userData.googleColor); 
+                if (Math.abs(contactPos.x) < 5 && Math.abs(contactPos.z) < 5 && contactPos.y < CONFIG.WORLD.FLOOR_LEVEL + 1.0) { this.platformImpact = 1.0; } 
+            } audioManager.playHitSound(v, isSlowMo());
+          });
+          
+          this.letterObjects.push(letterObj);
+      }
+      if (isNight()) this.setBallGlow(true);
+  }
+
+ updateBeadsBlinking() {
+    // 1. Проверяем условия: Магнит активен? Шариков 0?
+    const isMagnet = store.get().currentTool !== -1;
+    const hasNoBalls = this.activeBallsCount === 0;
+
+    const btn = this.uiManager.elements.btnBalls;
+    
+    if (isMagnet && hasNoBalls) {
+      // Если класс уже есть, ничего не делаем, чтобы не сбивать ритм
+      if (!btn.classList.contains('needs-attention')) {
+        btn.classList.add('needs-attention');
+      }
+    } else {
+      // Иначе убираем мигание
+      btn.classList.remove('needs-attention');
+    }
+  }
+
+  hideLettersSmoothly() {
+    if (this.letterObjects.length === 0 || !this.lettersEnabled) return;
+    const now = performance.now();
+    
+    this.letterObjects.forEach(obj => {
+      const body = obj.body;
+      body.userData.isShrinkingWord = true;
+      body.userData.isGrowingWord = false; 
+      body.userData.shrinkStartTime = now;
+      
+      body.collisionFilterMask = 0; 
+      body.type = CANNON.Body.KINEMATIC;
+      body.velocity.set(0, 0, 0);
+      body.angularVelocity.set(0, 0, 0);
+      
+      this.createDustExplosion(body.position, 0.25); 
+    });
+  }
+
+  showLettersSmoothly() {
+    if (this.letterObjects.length === 0 || !this.lettersEnabled) return;
+    const now = performance.now();
+    
+    this.letterObjects.forEach(obj => {
+      const body = obj.body;
+      body.userData.isGrowingWord = true;
+      body.userData.isShrinkingWord = false; 
+      body.userData.growStartTime = now;
+    });
+
+    this.returnLettersToStart();
+  }
+
+  returnLettersToStart() {
+    if (this.letterObjects.length === 0 || this.isPaused) return;
+    
+   audioManager.playBase64(base64ReturnSound);
+    const now = performance.now();
+    
+    this.letterObjects.forEach(obj => {
+      const body = obj.body;
+      
+      body.type = CANNON.Body.KINEMATIC; 
+      body.collisionFilterMask = 0;
+      body.velocity.set(0, 0, 0);
+      body.angularVelocity.set(0, 0, 0);
+
+      body.userData.returnStartPos = body.position.clone();
+      body.userData.returnStartQuat = { x: body.quaternion.x, y: body.quaternion.y, z: body.quaternion.z, w: body.quaternion.w };
+      body.userData.returnStartTime = now;
+      
+      body.userData.isReturning = true;
+    });
+  }
+
+  spawnMiniBeads(pos, colorHex) {
+    for (let i = 0; i < 12; i++) {
+      this.miniBeadPool.spawn(pos, colorHex);
+    }
+  }
+
+  createDustExplosion(pos, intensity01) {
+    const basePos = new THREE.Vector3(pos.x, pos.y, pos.z);
+    
+    const cloudCount = 4 + Math.floor(4 * intensity01);
+    for(let i = 0; i < cloudCount; i++) {
+      const spawnPos = basePos.clone().add(new THREE.Vector3((Math.random()-0.5)*0.5, (Math.random()-0.5)*0.5, (Math.random()-0.5)*0.5));
+      const vel = new THREE.Vector3((Math.random()-0.5)*0.2, 0.1 + Math.random()*0.3, (Math.random()-0.5)*0.2);
+      const scale = 1.0 + Math.random() * 1.5;
+      const decay = 0.02 + Math.random() * 0.02;
+      
+      this.dustPool.spawn(spawnPos, vel, scale, 1.0, decay);
+    }
+  }
+
+  createHeatAirPuff(x, z, env) {
+    const spawnPos = new THREE.Vector3(x + (Math.random()-0.5)*0.8, CONFIG.WORLD.FLOOR_LEVEL + 0.18, z + (Math.random()-0.5)*0.8);
+    const vel = new THREE.Vector3((Math.random()-0.5)*0.08, 0.55 + Math.random()*0.70, (Math.random()-0.5)*0.08);
+    if (isSlowMo()) vel.multiplyScalar(0.75);
+    const scale = 0.55 + Math.random() * 0.70;
+    
+    this.heatPool.spawn(spawnPos, vel, scale, 1.0 * env, 0.032);
+  }
+  
+
+  tick(currentTime) {
+    requestAnimationFrame(this.tick);
+    
+    if (!this.isPaused) {
+      let dt = (currentTime - this.lastTime) / 1000; 
+      this.lastTime = currentTime; 
+      if (dt > 0.1) dt = 0.1; 
+      
+      this.physicsManager.step(dt, isSlowMo());
+      const timeSec = currentTime / 1000; 
+
+      this.inputManager.update(dt); 
+
+      const state = this.updateEnvironment(dt, timeSec);
+      this.updatePhysics(dt, timeSec, state.isMagnetEquipped, state.isMagnetPulling, state.activeColor);
+
+      this.dustPool.update(isSlowMo());
+      this.heatPool.update(isSlowMo());
+      this.paintPools.forEach(pool => pool.update(isSlowMo())); 
+      this.miniBeadPool.update(dt);
+    } else {
+      this.lastTime = currentTime; 
+    }
+
+    this.updateLetterAnimations(currentTime);
+    this.updateBallInstances(currentTime);
+    this.composer.render();
+  }
+
+  updateEnvironment(dt, timeSec) {
+    this.platformImpact = THREE.MathUtils.lerp(this.platformImpact, 0, 0.05);
+    const tool = store.get().currentTool;
+    const isMagnetEquipped = tool !== -1;
+    const isMagnetPulling = isMagnetEquipped && this.inputManager.isMouseDown && this.inputManager.hasInteractionTarget;
+    const TOOL_COLORS = { 0: 0x34A853, 1: 0xFBBC05, 2: 0xEA4335, 3: 0x4285F4 };
+    const activeColor = isMagnetEquipped ? TOOL_COLORS[tool] : null;
+
+    this.sceneManager.updateAtmosphere(timeSec, store.get().mode, this.platformImpact, this.fanLevel, isMagnetEquipped, activeColor, isMagnetPulling);
+
+    if (isMagnetEquipped && this.inputManager.hasInteractionTarget) {
+      this.sceneManager.magnetReticle.position.copy(this.inputManager.interactionTarget);
+      this.sceneManager.magnetReticle.position.addScaledVector(this.inputManager.interactionNormal, 0.05);
+      const lookPos = this.sceneManager.magnetReticle.position.clone().add(this.inputManager.interactionNormal);
+      this.sceneManager.magnetReticle.lookAt(lookPos);
+    }
+
+    if (this.fansActive) { 
+      this.fanLevel += dt / 1.0; 
+    } else { 
+      this.fanLevel -= dt / (this.isResetting ? 0.8 : 2.0); 
+    }
+    this.fanLevel = Math.max(0, Math.min(1, this.fanLevel)); 
+    this.uiManager.updateFanProgress(this.fanLevel);
+    
+    const env = -(Math.cos(Math.PI * this.fanLevel) - 1) / 2;
+    if (env > 0) { 
+      const tries = isSlowMo() ? 2 : 4; 
+      for (let k = 0; k < tries; k++) { 
+         const spawnChance = isNight() ? 0.2 : 0.85;
+         if (Math.random() < spawnChance) this.createHeatAirPuff((Math.random()-0.5)*26, (Math.random()-0.5)*18, env); 
+      } 
+    }
+    return { isMagnetEquipped, isMagnetPulling, activeColor };
+  }
+
+  updatePhysics(dt, timeSec, isMagnetEquipped, isMagnetPulling, activeColor) {
+    this.physicsManager.applyEnvironmentForces(
+        this.lettersEnabled ? this.letterObjects.map(obj => obj.body) : [], 
+        this.ballsPool, 
+        this.fanLevel, 
+        timeSec,
+        isMagnetEquipped 
+    );
+
+    const interactionTarget = this.inputManager.interactionTarget;
+    const hasInteractionTarget = this.inputManager.hasInteractionTarget;
+    const isPaintingStreamActive = this.inputManager.isPaintingStreamActive;
+    const interactionNormal = this.inputManager.interactionNormal
+    const sprayColorIdx = store.get().paintToolColor !== undefined ? store.get().paintToolColor : -1;
+  if (isPaintingStreamActive && hasInteractionTarget && sprayColorIdx !== -1) {
+        this.paintParticleTime += dt;
+        const interval = 1 / 150; 
+        
+        const sprayDir = new THREE.Vector3().subVectors(interactionTarget, this.camera.position).normalize();
+        const right = new THREE.Vector3(1, 0, 0).applyQuaternion(this.camera.quaternion);
+        const up = new THREE.Vector3(0, 1, 0).applyQuaternion(this.camera.quaternion);
+
+        while (this.paintParticleTime >= interval) {
+            const pos = this.camera.position.clone();
+            pos.addScaledVector(sprayDir, 1.5); 
+            pos.addScaledVector(right, 0.8);    
+            pos.addScaledVector(up, -0.5);      
+            
+            const speed = 18.0 + Math.random() * 8.0; 
+            const velocity = sprayDir.clone().multiplyScalar(speed);
+            
+            velocity.addScaledVector(right, (Math.random() - 0.5) * 4.0);
+            velocity.addScaledVector(up, (Math.random() - 0.5) * 4.0);
+            
+            const size = 0.8 + Math.random() * 1.5; 
+            const decay = 0.015 + Math.random() * 0.01; 
+            
+            this.paintPools[sprayColorIdx].spawn(pos, velocity, size, 1.0, decay);
+            this.paintParticleTime -= interval;
+        }
+        
+        if (Math.random() < 0.4) {
+            this.paintRoom(sprayColorIdx);
+        }
+    } else {
+        this.paintParticleTime = 0;
+    }
+
+    if (isMagnetPulling) {
+      const magCenter = interactionTarget.clone();
+      magCenter.addScaledVector(interactionNormal, 3.0);
+
+      const applyMagnetForce = (body, colorHex) => {
+        if (!body || colorHex !== activeColor) return; 
+        body.wakeUp(); 
+        const toCenter = new CANNON.Vec3(magCenter.x - body.position.x, magCenter.y - body.position.y, magCenter.z - body.position.z);
+        const dist = toCenter.length();
+        
+        if (dist < 40.0 && dist > 0.001) { 
+          toCenter.normalize(); 
+          const orbitRadius = 2.5; 
+          const pullStrength = (dist - orbitRadius) * 8.0;
+          body.velocity.x += toCenter.x * pullStrength * dt;
+          body.velocity.y += toCenter.y * pullStrength * dt;
+          body.velocity.z += toCenter.z * pullStrength * dt;
+
+          const tangent = toCenter.cross(new CANNON.Vec3(0, 1, 0));
+          body.velocity.x += tangent.x * 12.0 * dt;
+          body.velocity.z += tangent.z * 12.0 * dt;
+          body.velocity.scale(0.96, body.velocity); 
+        }
+      };
+      this.ballsPool.forEach(b => { if(b) applyMagnetForce(b, b.userData.originalColorHex); });
+    }
+  }
+
+updateLetterAnimations(currentTime) {
+    if (!this.lettersEnabled) return;
+
+    const targetColor = new THREE.Color();
+
+    this.letterObjects.forEach(obj => {
+      const body = obj.body;
+      
+      if (body.userData.isShrinkingWord) {
+        const progress = Math.min((currentTime - body.userData.shrinkStartTime) / 300, 1.0);
+        const scale = 1.0 - THREE.MathUtils.smoothstep(progress, 0, 1);
+        obj.mesh.scale.set(scale, scale, scale);
+      } else if (body.userData.isGrowingWord) {
+        const progress = Math.min((currentTime - body.userData.growStartTime) / 300, 1.0);
+        const scale = THREE.MathUtils.smoothstep(progress, 0, 1);
+        obj.mesh.scale.set(scale, scale, scale);
+      }
+
+      if (body.userData.googleColor !== undefined) {
+        targetColor.setHex(body.userData.googleColor);
+        obj.mesh.material.color.lerp(targetColor, 0.05);
+        obj.mesh.material.emissive.lerp(targetColor, 0.05);
+      }
+
+      if (body.userData.isReturning) {
+        const elapsed = currentTime - body.userData.returnStartTime;
+        let progress = Math.min(elapsed / 800, 1.0);
+        const ease = 1 - Math.pow(1 - progress, 3);
+
+        body.position.x = THREE.MathUtils.lerp(body.userData.returnStartPos.x, body.userData.startPos.x, ease);
+        body.position.y = THREE.MathUtils.lerp(body.userData.returnStartPos.y, body.userData.startPos.y, ease);
+        body.position.z = THREE.MathUtils.lerp(body.userData.returnStartPos.z, body.userData.startPos.z, ease);
+
+        const qStart = new THREE.Quaternion(body.userData.returnStartQuat.x, body.userData.returnStartQuat.y, body.userData.returnStartQuat.z, body.userData.returnStartQuat.w);
+        qStart.slerp(new THREE.Quaternion(0, 0, 0, 1), ease);
+        body.quaternion.set(qStart.x, qStart.y, qStart.z, qStart.w);
+
+        if (progress >= 1.0) {
+          body.userData.isReturning = false;
+          body.type = CANNON.Body.DYNAMIC;
+          body.collisionFilterMask = CONFIG.PHYSICS.GROUPS.SCENE | CONFIG.PHYSICS.GROUPS.OBJECTS;
+          body.velocity.set(0, 0, 0);        
+          body.angularVelocity.set(0, 0, 0); 
+          body.previousPosition.copy(body.position); 
+          body.sleep(); 
+        }
+      }
+      obj.update(); 
+    });
+  }
+
+  updateBallInstances(currentTime) {
+    for (let i = 0; i < CONFIG.PHYSICS.MAX_BALLS; i++) {
+      const body = this.ballsPool[i];
+      if (body) {
+        let scale = 1.0;
+        if (body.userData.isShrinking) {
+          const elapsed = currentTime - body.userData.shrinkStartTime;
+          const progress = Math.min(elapsed / body.userData.shrinkDuration, 1.0);
+          scale = 1.0 - THREE.MathUtils.smoothstep(progress, 0, 1);
+          if (progress >= 1.0) {
+            this.world.removeBody(body);
+            this.ballsPool[i] = null;
+            scale = 0; 
+          }
+        }
+        this.dummyObj.position.copy(body.position);
+        this.dummyObj.quaternion.copy(body.quaternion);
+        this.dummyObj.scale.set(scale, scale, scale);
+        this.dummyObj.updateMatrix();
+        this.ballInstancedMesh.setMatrixAt(i, this.dummyObj.matrix);
+      } else {
+        this.dummyObj.scale.set(0, 0, 0);
+        this.dummyObj.updateMatrix();
+        this.ballInstancedMesh.setMatrixAt(i, this.dummyObj.matrix);
+      }
+    }
+    this.ballInstancedMesh.instanceMatrix.needsUpdate = true;
+  }
+}
+
+const app = new GoogleRoomApp();
+</script>
+</body>
+</html>

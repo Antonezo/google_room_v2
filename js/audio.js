@@ -1,3 +1,5 @@
+import { isSlowMo } from './state.js';
+
 export const base64ReturnSound = "data:audio/mp3;base64,ТВОЙ_ОЧЕНЬ_ДЛИННЫЙ_КОД";
 
 export class AudioManager {

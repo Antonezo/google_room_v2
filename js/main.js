@@ -13,7 +13,6 @@ import { UIManager } from './ui.js';
 import { InputManager } from './input.js';
 import { ParticlePool, GameObject, MiniBeadPool } from './utils.js';
 
-
 RectAreaLightUniformsLib.init();
 
 export class GoogleRoomApp {
@@ -75,8 +74,23 @@ export class GoogleRoomApp {
       },
       onToggleLetters: () => {
         if (this.isPaused) return this.lettersEnabled;
+        
         this.lettersEnabled = !this.lettersEnabled;
-        this.letterObjects.forEach(obj => obj.setVisible(this.lettersEnabled));
+        
+        if (this.lettersEnabled) {
+          this.letterObjects.forEach(obj => obj.setVisible(true));
+          this.showLettersSmoothly();
+        } else {
+          this.hideLettersSmoothly();
+          
+          clearTimeout(this.lettersToggleTimeout);
+          this.lettersToggleTimeout = setTimeout(() => {
+            if (!this.lettersEnabled) {
+              this.letterObjects.forEach(obj => obj.setVisible(false));
+            }
+          }, 300);
+        }
+        
         return this.lettersEnabled;
       },
       onReturnLetters: () => { if (!this.isPaused) this.returnLettersToStart(); },
@@ -99,10 +113,10 @@ export class GoogleRoomApp {
         const getBodyByMesh = (hitObj) => {
            if (hitObj.object === this.ballInstancedMesh) {
               const body = this.ballsPool[hitObj.instanceId];
-              return body ? { body, halfHeight: 0.2 } : null;
+              return body ? body : null; 
            } else {
-            const letterObj = this.letterObjects.find(d => d.mesh === hitObj.object);
-            return letterObj ? { body: letterObj.body, halfHeight: letterObj.body.userData.halfHeight } : null;
+              const letterObj = this.letterObjects.find(d => d.mesh === hitObj.object);
+              return letterObj ? letterObj.body : null; 
            }
         };
         return { meshes, getBodyByMesh };
@@ -155,42 +169,66 @@ export class GoogleRoomApp {
   }
 
   resetScene() {
-    if (this.isResetting || this.isChangingWord) return;
-    this.isResetting = true;
+    if (store && typeof store.get === 'function') {
+      const currentState = store.get();
+      if (typeof store.set === 'function') {
+        store.set({ ...currentState, currentTool: -1, paintToolColor: -1 });
+      } else if (typeof store.update === 'function') {
+        store.update({ currentTool: -1, paintToolColor: -1 });
+      }
+      if (store.get().mode === 'space') {
+        const btnZeroG = document.getElementById('btn-zerog');
+        if (btnZeroG) btnZeroG.click();
+      }
+    }
 
-    this.inputManager.cancelDrag();
-    this.isPaused = false;
+    document.body.classList.remove('is-pressing');
 
-    this.fansActive = false;
-    store.update({ currentTool: -1, paintToolColor: -1 });
-    this.returnLettersToStart();
+    document.querySelectorAll('.mag-main-btn, .paint-btn, .palette-item').forEach(btn => {
+      btn.classList.remove('active', 'active-state', 'is-selecting');
+    });
+
+    if (typeof isSlowMo === 'function' && isSlowMo()) {
+      const btnSlow = document.getElementById('btn-slow'); 
+      if (btnSlow) btnSlow.click(); 
+    }
+
+    if (this.fansActive) {
+      const btnFans = document.getElementById('btn-fans');
+      if (btnFans) {
+        btnFans.click();
+      } else {
+        this.fansActive = false; 
+      }
+    }
+    this.fanLevel = 0.0;
+    if (this.uiManager && typeof this.uiManager.updateFanProgress === 'function') {
+      this.uiManager.updateFanProgress(0);
+    }
+
     this.startShrinkingBalls();
 
-    setTimeout(() => {
+    this.letterObjects.forEach((obj, i) => {
+      const body = obj.body;
+      const palette = CONFIG.COLORS.GOOGLE_PALETTE;
+      body.userData.googleColor = palette[i % palette.length];
+    });
+
+    if (!this.lettersEnabled) {
       this.lettersEnabled = true;
-      this.spawnLetters(this.currentWord);
-      
-      this.ballsPool.forEach((body, i) => { 
-        if (body) { 
-          this.world.removeBody(body); 
-          this.ballsPool[i] = null; 
-        } 
-        this.dummyObj.scale.set(0,0,0); 
-        this.dummyObj.updateMatrix(); 
-        this.ballInstancedMesh.setMatrixAt(i, this.dummyObj.matrix); 
+      if (this.uiManager && typeof this.uiManager.setLettersActive === 'function') {
+        this.uiManager.setLettersActive(true);
+      }
+      this.letterObjects.forEach(obj => {
+        if (obj.setVisible) obj.setVisible(true);
+        else obj.mesh.visible = true; 
       });
-      this.ballInstancedMesh.instanceMatrix.needsUpdate = true; 
-      this.activeBallsCount = 0; 
-      this.ballSpawnIndex = 0;
-      
-      this.uiManager.updateBeadCounter(this.activeBallsCount, CONFIG.PHYSICS.MAX_BALLS);
-      this.uiManager.resetUIState(this.lettersEnabled);
-      this.composer.render();
-
-      this.isResetting = false;
-    }, 850); 
+      this.showLettersSmoothly();
+    } else {
+      this.returnLettersToStart();
+    }
   }
-
+  
   setupStateReactions() {
     let lastMode = store.get().mode;
     let lastTool = store.get().currentTool;
@@ -231,14 +269,13 @@ export class GoogleRoomApp {
               this.lettersHiddenByMagnet = false;
             }
           }
-          
           this.updateBeadsBlinking();
         }
-        
         lastTool = state.currentTool;
       }
     });
   }
+
   
   initSceneObjects() {
     this.sceneManager.buildEnvironment();
@@ -352,35 +389,34 @@ export class GoogleRoomApp {
     this.updateBeadsBlinking(); 
   }
 
- paintRoom(colorIndex) {
+  paintRoom(colorIndex) {
     const colors = CONFIG.COLORS.GOOGLE_UNIQUE; 
     const targetColor = colors[colorIndex]; 
     
     const camPos = this.camera.position;
     const sprayDir = new THREE.Vector3().subVectors(this.inputManager.interactionTarget, camPos).normalize();
 
+    // 1. ОБРАБОТКА БУКВ (Высокая чувствительность, без физической отдачи)
     this.letterObjects.forEach(obj => {
+      if (!this.lettersEnabled || obj.body.collisionFilterMask === 0) return;
+      
       const v = new THREE.Vector3().subVectors(obj.body.position, camPos);
       const distAlongRay = v.dot(sprayDir); 
 
       if (distAlongRay > 0 && distAlongRay < 40) {
         const perpDist = v.clone().cross(sprayDir).length();
         
-        const allowedRadius = 1.0 + distAlongRay * 0.25;
+        // Увеличенный радиус захвата специально для букв (было ~0.5, стало 1.8)
+        const letterSensitivity = 1.8 + distAlongRay * 0.12; 
 
-        if (perpDist < allowedRadius) {
+        if (perpDist < letterSensitivity) {
           obj.body.userData.googleColor = targetColor;
-          
-          const pushForce = 1.0 - (distAlongRay / 40.0); 
-          const impulseVec = sprayDir.clone().multiplyScalar(pushForce * 0.002);
-          
-          obj.body.applyImpulse(
-              new CANNON.Vec3(impulseVec.x, impulseVec.y, impulseVec.z), 
-              obj.body.position
-          );
+          // Физический импульс (applyImpulse) удален, чтобы буквы оставались на месте
         }
       }
     });
+
+    // 2. ОБРАБОТКА ШАРИКОВ (Старая логика: малый радиус и физический отброс)
     for (let i = 0; i < CONFIG.PHYSICS.MAX_BALLS; i++) {
       const body = this.ballsPool[i];
       if (body) {
@@ -389,11 +425,26 @@ export class GoogleRoomApp {
 
         if (distAlongRay > 0 && distAlongRay < 40) {
           const perpDist = v.clone().cross(sprayDir).length();
-          const allowedRadius = 1.0 + distAlongRay * 0.25;
-
-          if (perpDist < allowedRadius) {
+          const ballRadius = 0.5 + distAlongRay * 0.075; 
+          
+          if (perpDist < ballRadius) {
             body.userData.originalColorHex = targetColor;
             this.ballInstancedMesh.setColorAt(i, new THREE.Color(targetColor));
+
+            // Для шариков оставляем физику, чтобы они разлетались от струи
+            const pushForce = 1.0 - (distAlongRay / 40.0);
+            const spread = new THREE.Vector3(
+                (Math.random() - 0.5) * 0.6,
+                (Math.random() - 0.5) * 0.6,
+                (Math.random() - 0.5) * 0.6
+            );
+            const randomizedDir = sprayDir.clone().add(spread).normalize();
+            const impulseVec = randomizedDir.multiplyScalar(pushForce * 0.0005);
+
+            body.applyImpulse(
+                new CANNON.Vec3(impulseVec.x, impulseVec.y, impulseVec.z),
+                body.position
+            );
           }
         }
       }
@@ -522,26 +573,23 @@ export class GoogleRoomApp {
       if (isNight()) this.setBallGlow(true);
   }
 
- updateBeadsBlinking() {
-    // 1. Проверяем условия: Магнит активен? Шариков 0?
+  updateBeadsBlinking() {
     const isMagnet = store.get().currentTool !== -1;
     const hasNoBalls = this.activeBallsCount === 0;
 
     const btn = this.uiManager.elements.btnBalls;
     
     if (isMagnet && hasNoBalls) {
-      // Если класс уже есть, ничего не делаем, чтобы не сбивать ритм
       if (!btn.classList.contains('needs-attention')) {
         btn.classList.add('needs-attention');
       }
     } else {
-      // Иначе убираем мигание
       btn.classList.remove('needs-attention');
     }
   }
 
   hideLettersSmoothly() {
-    if (this.letterObjects.length === 0 || !this.lettersEnabled) return;
+    if (this.letterObjects.length === 0) return;
     const now = performance.now();
     
     this.letterObjects.forEach(obj => {
@@ -551,16 +599,13 @@ export class GoogleRoomApp {
       body.userData.shrinkStartTime = now;
       
       body.collisionFilterMask = 0; 
-      body.type = CANNON.Body.KINEMATIC;
-      body.velocity.set(0, 0, 0);
-      body.angularVelocity.set(0, 0, 0);
       
       this.createDustExplosion(body.position, 0.25); 
     });
   }
 
   showLettersSmoothly() {
-    if (this.letterObjects.length === 0 || !this.lettersEnabled) return;
+    if (this.letterObjects.length === 0) return;
     const now = performance.now();
     
     this.letterObjects.forEach(obj => {
@@ -576,7 +621,6 @@ export class GoogleRoomApp {
   returnLettersToStart() {
     if (this.letterObjects.length === 0 || this.isPaused) return;
     
-   audioManager.playBase64(base64ReturnSound);
     const now = performance.now();
     
     this.letterObjects.forEach(obj => {
@@ -624,7 +668,6 @@ export class GoogleRoomApp {
     this.heatPool.spawn(spawnPos, vel, scale, 1.0 * env, 0.032);
   }
   
-
   tick(currentTime) {
     requestAnimationFrame(this.tick);
     
@@ -691,6 +734,28 @@ export class GoogleRoomApp {
   }
 
   updatePhysics(dt, timeSec, isMagnetEquipped, isMagnetPulling, activeColor) {
+    const limit = 30; 
+    
+    for (const obj of this.letterObjects) {
+      if (!obj.body) continue;
+      
+      const pos = obj.body.position;
+      
+      if (pos.y < -5 || pos.y > 40 || pos.x < -limit || pos.x > limit || pos.z < -limit || pos.z > limit) {
+        
+        obj.body.velocity.set(0, 0, 0);
+        obj.body.angularVelocity.set(0, 0, 0);
+        
+        obj.body.position.set((Math.random() - 0.5) * 5, 10, (Math.random() - 0.5) * 5);
+        
+        if (this.inputManager && this.inputManager.isDragging && 
+            this.inputManager.dragConstraint && 
+            this.inputManager.dragConstraint.bodyA === obj.body) {
+            this.inputManager.cancelDrag();
+        }
+      }
+    }
+
     this.physicsManager.applyEnvironmentForces(
         this.lettersEnabled ? this.letterObjects.map(obj => obj.body) : [], 
         this.ballsPool, 
@@ -704,35 +769,41 @@ export class GoogleRoomApp {
     const isPaintingStreamActive = this.inputManager.isPaintingStreamActive;
     const interactionNormal = this.inputManager.interactionNormal
     const sprayColorIdx = store.get().paintToolColor !== undefined ? store.get().paintToolColor : -1;
-  if (isPaintingStreamActive && hasInteractionTarget && sprayColorIdx !== -1) {
-        this.paintParticleTime += dt;
-        const interval = 1 / 150; 
-        
-        const sprayDir = new THREE.Vector3().subVectors(interactionTarget, this.camera.position).normalize();
-        const right = new THREE.Vector3(1, 0, 0).applyQuaternion(this.camera.quaternion);
-        const up = new THREE.Vector3(0, 1, 0).applyQuaternion(this.camera.quaternion);
 
-        while (this.paintParticleTime >= interval) {
-            const pos = this.camera.position.clone();
-            pos.addScaledVector(sprayDir, 1.5); 
-            pos.addScaledVector(right, 0.8);    
-            pos.addScaledVector(up, -0.5);      
-            
-            const speed = 18.0 + Math.random() * 8.0; 
-            const velocity = sprayDir.clone().multiplyScalar(speed);
-            
-            velocity.addScaledVector(right, (Math.random() - 0.5) * 4.0);
-            velocity.addScaledVector(up, (Math.random() - 0.5) * 4.0);
-            
-            const size = 0.8 + Math.random() * 1.5; 
-            const decay = 0.015 + Math.random() * 0.01; 
-            
-            this.paintPools[sprayColorIdx].spawn(pos, velocity, size, 1.0, decay);
-            this.paintParticleTime -= interval;
-        }
-        
+
+   // === В файле main.js (внутри updatePhysics) ===
+
+  // === В файле main.js (внутри updatePhysics) ===
+
+    if (isPaintingStreamActive && hasInteractionTarget && sprayColorIdx !== -1) {
+        // Физическое перекрашивание объектов
         if (Math.random() < 0.4) {
             this.paintRoom(sprayColorIdx);
+        }
+
+        // Генерация визуального облака аэрозоли
+        const camPos = this.camera.position;
+        const sprayDir = new THREE.Vector3().subVectors(interactionTarget, camPos).normalize();
+        
+        // Точка спавна чуть впереди игрока
+        const spawnPos = camPos.clone().addScaledVector(sprayDir, 1.2);
+        const intensity = isSlowMo() ? 1 : 3;
+
+        for (let i = 0; i < intensity; i++) {
+            // Формируем конус распыления
+            const spread = new THREE.Vector3(
+                (Math.random() - 0.5) * 0.15,
+                (Math.random() - 0.5) * 0.15,
+                (Math.random() - 0.5) * 0.15
+            );
+            
+            const randomizedDir = sprayDir.clone().add(spread).normalize();
+            
+            // Разная скорость и размер для "рваного" эффекта дыма
+            const vel = randomizedDir.multiplyScalar(0.7 + Math.random() * 0.6);
+            const scale = 0.6 + Math.random() * 1.4;
+
+            this.paintPools[sprayColorIdx].spawn(spawnPos, vel, scale, 1.0, 0.03);
         }
     } else {
         this.paintParticleTime = 0;
@@ -740,35 +811,75 @@ export class GoogleRoomApp {
 
     if (isMagnetPulling) {
       const magCenter = interactionTarget.clone();
-      magCenter.addScaledVector(interactionNormal, 3.0);
+      magCenter.addScaledVector(interactionNormal, 0.4);
+      const normalVec = new CANNON.Vec3(interactionNormal.x, interactionNormal.y, interactionNormal.z);
 
       const applyMagnetForce = (body, colorHex) => {
         if (!body || colorHex !== activeColor) return; 
         body.wakeUp(); 
-        const toCenter = new CANNON.Vec3(magCenter.x - body.position.x, magCenter.y - body.position.y, magCenter.z - body.position.z);
-        const dist = toCenter.length();
         
-        if (dist < 40.0 && dist > 0.001) { 
-          toCenter.normalize(); 
-          const orbitRadius = 2.5; 
-          const pullStrength = (dist - orbitRadius) * 8.0;
-          body.velocity.x += toCenter.x * pullStrength * dt;
-          body.velocity.y += toCenter.y * pullStrength * dt;
-          body.velocity.z += toCenter.z * pullStrength * dt;
+        const toBall = new CANNON.Vec3(body.position.x - magCenter.x, body.position.y - magCenter.y, body.position.z - magCenter.z);
+        const dist = toBall.length();
+        
+        if (dist < 40.0) { 
+          const distFromPlane = toBall.dot(normalVec);
+          const radialVec = new CANNON.Vec3(
+            toBall.x - normalVec.x * distFromPlane, 
+            toBall.y - normalVec.y * distFromPlane, 
+            toBall.z - normalVec.z * distFromPlane
+          );
+          
+          const radiusDist = radialVec.length();
+          const flattenForce = -distFromPlane * 15.0; 
+          
+          body.velocity.x += normalVec.x * flattenForce * dt;
+          body.velocity.y += normalVec.y * flattenForce * dt;
+          body.velocity.z += normalVec.z * flattenForce * dt;
 
-          const tangent = toCenter.cross(new CANNON.Vec3(0, 1, 0));
-          body.velocity.x += tangent.x * 12.0 * dt;
-          body.velocity.z += tangent.z * 12.0 * dt;
-          body.velocity.scale(0.96, body.velocity); 
+          if (radiusDist > 0.01) {
+            radialVec.normalize();
+            const orbitRadius = 0.8; 
+            const maxPullDist = Math.min(Math.abs(orbitRadius - radiusDist), 5.0);
+            const pullDirection = (orbitRadius - radiusDist) > 0 ? 1 : -1; 
+            let radialPull = pullDirection * maxPullDist * 12.0; 
+
+            if (radiusDist < orbitRadius * 0.6) {
+                radialPull *= 2.0; 
+            }
+
+            body.velocity.x += radialVec.x * radialPull * dt;
+            body.velocity.y += radialVec.y * radialPull * dt;
+            body.velocity.z += radialVec.z * radialPull * dt;
+
+            const tangent = normalVec.cross(radialVec);
+            const orbitSpeed = 45.0; 
+            body.velocity.x += tangent.x * orbitSpeed * dt;
+            body.velocity.y += tangent.y * orbitSpeed * dt;
+            body.velocity.z += tangent.z * orbitSpeed * dt;
+          } else {
+             let kick = normalVec.cross(new CANNON.Vec3(0, 1, 0));
+             if (kick.lengthSquared() < 0.01) kick.set(1, 0, 0);
+             kick.normalize();
+             body.velocity.x += kick.x * 15.0 * dt;
+             body.velocity.y += kick.y * 15.0 * dt;
+             body.velocity.z += kick.z * 15.0 * dt;
+          }
+
+          const currentSpeed = body.velocity.length();
+          const MAX_SPEED = 25.0; 
+          if (currentSpeed > MAX_SPEED) {
+              body.velocity.scale(MAX_SPEED / currentSpeed, body.velocity);
+          }
+
+          body.velocity.scale(0.93, body.velocity); 
         }
       };
+      
       this.ballsPool.forEach(b => { if(b) applyMagnetForce(b, b.userData.originalColorHex); });
     }
   }
 
-updateLetterAnimations(currentTime) {
-    if (!this.lettersEnabled) return;
-
+  updateLetterAnimations(currentTime) {
     const targetColor = new THREE.Color();
 
     this.letterObjects.forEach(obj => {
@@ -778,6 +889,15 @@ updateLetterAnimations(currentTime) {
         const progress = Math.min((currentTime - body.userData.shrinkStartTime) / 300, 1.0);
         const scale = 1.0 - THREE.MathUtils.smoothstep(progress, 0, 1);
         obj.mesh.scale.set(scale, scale, scale);
+
+        if (progress >= 1.0) {
+          body.userData.isShrinkingWord = false;
+          body.type = CANNON.Body.KINEMATIC; 
+          body.velocity.set(0, 0, 0);
+          body.angularVelocity.set(0, 0, 0);
+          body.sleep(); 
+        }
+
       } else if (body.userData.isGrowingWord) {
         const progress = Math.min((currentTime - body.userData.growStartTime) / 300, 1.0);
         const scale = THREE.MathUtils.smoothstep(progress, 0, 1);
@@ -787,7 +907,7 @@ updateLetterAnimations(currentTime) {
       if (body.userData.googleColor !== undefined) {
         targetColor.setHex(body.userData.googleColor);
         obj.mesh.material.color.lerp(targetColor, 0.05);
-        obj.mesh.material.emissive.lerp(targetColor, 0.05);
+        if (obj.mesh.material.emissive) obj.mesh.material.emissive.lerp(targetColor, 0.05);
       }
 
       if (body.userData.isReturning) {
@@ -847,5 +967,29 @@ updateLetterAnimations(currentTime) {
   }
 }
 
-// ГЛАВНЫЙ ЗАПУСК
+window.addEventListener('mousedown', (e) => {
+  if (document.activeElement.tagName === 'INPUT') {
+    document.activeElement.blur();
+  }
+
+  if (e.target.tagName === 'CANVAS') {
+    document.body.classList.add('is-pressing');
+  }
+});
+
 const app = new GoogleRoomApp();
+
+// Добавь это в конец файла main.js
+window.addEventListener('load', () => {
+  const doors = document.getElementById('loader-doors');
+  
+  // Имитируем небольшую задержку для "прогрузки систем"
+  setTimeout(() => {
+    if (doors) {
+      doors.classList.add('loaded');
+      
+      // Если у тебя есть AudioManager, можно добавить звук пшика:
+      // if (window.audioManager) audioManager.play('door_open_sound');
+    }
+  }, 2500); 
+});

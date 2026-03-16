@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import * as CANNON from 'cannon-es';
 import { CONFIG } from './config.js';
-import { isSlowMo } from './state.js';
+import { store, isSlowMo } from './state.js';
 
 // Класс для управления частицами (пыль, краска, искры)
 export class ParticlePool {
@@ -49,8 +49,11 @@ export class ParticlePool {
     this.activeParticles.push(p); 
   }
 
-  update(isSlowMoVal) {
+// === В файле utils.js ===
+
+update(isSlowMoVal) {
     const sf = isSlowMoVal ? 0.2 : 1.0;
+    const mode = store.get().mode; // Получаем текущий режим (lab или disco)
     
     for (let i = this.activeParticles.length - 1; i >= 0; i--) {
       const p = this.activeParticles[i];
@@ -62,18 +65,27 @@ export class ParticlePool {
         p.mesh.scale.set(s, s, 1);
         p.velocity.x *= 0.994;
         p.velocity.z *= 0.994;
-      } else if (p.type === 'paint') {
-        p.mesh.material.opacity = Math.min(1.0, p.life * 2.0) * 0.25; 
-        const s = p.mesh.scale.x * (1.0 + 0.03 * sf); 
+      } 
+      else if (p.type === 'paint') {
+        // Определяем густоту облака: в Лаборатории делаем его заметнее
+        const opacityFactor = (mode === 'lab') ? 0.08 : 0.014;
+        
+        // 1. Динамическая турбулентность (эффект ветра)
+        const turbulence = new THREE.Vector3(
+          (Math.random() - 0.5) * 0.1,
+          (Math.random() - 0.5) * 0.1,
+          (Math.random() - 0.5) * 0.1
+        );
+        p.velocity.add(turbulence);
+
+        // 2. Внешний вид
+        p.mesh.material.opacity = p.life * opacityFactor;
+        p.mesh.material.rotation += 0.02 * sf;
+        
+        // 3. Физика облака
+        const s = p.mesh.scale.x * (1.0 + 0.02 * sf);
         p.mesh.scale.set(s, s, 1);
-        p.mesh.material.rotation += 0.02 * sf; 
-        p.velocity.multiplyScalar(0.97); 
-      } else {
-        p.mesh.material.opacity = Math.max(0, p.life) * 0.4;
-        const s = p.mesh.scale.x * (1.0 + 0.015 * sf);
-        p.mesh.scale.set(s, s, 1);
-        p.mesh.material.rotation += 0.01 * sf; 
-        p.velocity.multiplyScalar(0.96);
+        p.velocity.multiplyScalar(0.92); 
       }
 
       p.mesh.position.add(p.velocity.clone().multiplyScalar(sf));

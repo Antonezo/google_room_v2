@@ -5,6 +5,10 @@ export class UIManager {
   constructor(callbacks) {
     this.cb = callbacks;
     this.activePaletteTarget = null; 
+    this.mouseX = 0;
+    this.mouseY = 0;
+    this.isPainting = false;
+    this.sprayLoop = null;
     
     this.elements = {
       btnMute: document.getElementById('btn-sound'),
@@ -29,6 +33,28 @@ export class UIManager {
   hideLoader() {
     this.elements.loader.style.display = 'none';
     document.body.classList.remove('loading');
+  }
+
+  startSprayEffect() {
+    if (this.sprayLoop) return;
+
+    const emit = () => {
+      const colorIdx = store.get().paintToolColor;
+      if (this.isPainting && colorIdx !== -1) {
+        this.createSprayParticle(this.mouseX, this.mouseY, colorIdx);
+        this.sprayLoop = requestAnimationFrame(emit);
+      } else {
+        this.sprayLoop = null;
+      }
+    };
+
+    this.sprayLoop = requestAnimationFrame(emit);
+  }
+
+  createSprayParticle(mouseX, mouseY, colorIndex) {
+    // Полное обнуление: метод просто возвращает управление, 
+    // не создавая никаких 2D-капель на экране.
+    return;
   }
 
   updateBeadCounter(current, max) {
@@ -87,6 +113,24 @@ export class UIManager {
   }
 
   initBindings() {
+    window.addEventListener('mousemove', (e) => {
+      this.mouseX = e.clientX;
+      this.mouseY = e.clientY;
+    });
+
+    window.addEventListener('mousedown', (e) => {
+      if (e.target.closest('#holo-wrapper') || e.target.closest('#hud-controls')) return;
+
+      if (e.button === 0) {
+        this.isPainting = true;
+        this.startSprayEffect();
+      }
+    });
+
+    window.addEventListener('mouseup', () => {
+      this.isPainting = false;
+    });
+
     window.addEventListener('contextmenu', (e) => {
       if (store.get().currentTool !== -1 || store.get().paintToolColor !== -1) {
         e.preventDefault();
@@ -169,15 +213,19 @@ export class UIManager {
 
     document.getElementById('holo-wrapper').addEventListener('mouseleave', () => this.closePalette());
 
-    window.addEventListener('keydown', (e) => {
+  window.addEventListener('keydown', (e) => {
+      // Игнорируем нажатия, если мы печатаем текст в инпуте
       if (document.activeElement === this.elements.wordInput) return;
+      
       const triggerAction = (action) => {
         const btn = document.querySelector(`[data-action="${action}"]`);
         if (btn) btn.click();
       };
+      
       switch(e.code) {
         case 'Space': e.preventDefault(); triggerAction('togglePause'); break;
-        case 'Escape': triggerAction('reset'); break;
+        // МЕНЯЕМ ESCAPE НА KEY R
+        case 'KeyR': triggerAction('reset'); break; 
         case 'KeyM': triggerAction('toggleMute'); break;
         case 'KeyH': triggerAction('toggleUI'); break;
       }

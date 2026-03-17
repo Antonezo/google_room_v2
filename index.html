@@ -1,0 +1,139 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Google Room - Final Clean</title>
+  <meta name="theme-color" content="#0b0f17">
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Cdefs%3E%3CradialGradient id='blueGrad' cx='30%25' cy='30%25' r='70%25'%3E%3Cstop offset='0%25' stop-color='%23fff'/%3E%3Cstop offset='100%25' stop-color='%234285F4'/%3E%3C/radialGradient%3E%3CradialGradient id='redGrad' cx='30%25' cy='30%25' r='70%25'%3E%3Cstop offset='0%25' stop-color='%23fff'/%3E%3Cstop offset='100%25' stop-color='%23EA4335'/%3E%3C/radialGradient%3E%3CradialGradient id='yellowGrad' cx='30%25' cy='30%25' r='70%25'%3E%3Cstop offset='0%25' stop-color='%23fff'/%3E%3Cstop offset='100%25' stop-color='%23FBBC05'/%3E%3C/radialGradient%3E%3C/defs%3E%3Ccircle cx='50' cy='45' r='40' fill='url(%23blueGrad)'/%3E%3Ccircle cx='72' cy='68' r='26' fill='url(%23redGrad)'/%3E%3Ccircle cx='38' cy='72' r='20' fill='url(%23yellowGrad)'/%3E%3C/svg%3E" type="image/svg+xml">
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body class="loading">
+
+<div id="loader-doors">
+  <div class="door left-door">
+    <div class="hex-pattern"></div>
+    <div class="door-joint"></div>
+    
+    <div class="loader-center-hub">
+      <div class="cyber-panel">
+        
+        <div class="panel-logo"></div>
+        <div class="panel-footer">by Gemini</div>
+        
+      </div>
+    </div>
+  </div>
+  
+  <div class="door right-door">
+    <div class="hex-pattern"></div>
+    <div class="door-joint"></div>
+  </div>
+</div>
+<div id="loader">System Loading...<br><span style="font-size: 14px; font-weight: normal; color: #666">Initializing Physics</span></div>
+
+<div id="hud-controls">
+  <button id="btn-sound" class="hud-btn" data-action="toggleMute">
+    <svg viewBox="0 0 24 24"><path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02zM14 3.23v2.06c2.89.86 5 3.54 5 6.71s-2.11 5.85-5 6.71v2.06c4.01-.91 7-4.49 7-8.77s-2.99-7.86-7-8.77z"/></svg>
+    <span class="ghost-hint">[M]</span>
+  </button>
+  <button id="btn-pause" class="hud-btn" data-action="togglePause">
+    <svg viewBox="0 0 24 24"><path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/></svg>
+    <span class="ghost-hint">[SPACE]</span>
+  </button>
+  <button id="btn-reset" class="hud-btn" data-action="reset">
+    RESET
+    <span class="ghost-hint">[R]</span>
+  </button>
+  <button id="btn-hide" class="hud-btn" data-action="toggleUI">
+    <svg viewBox="0 0 24 24"><path d="M12 4.5 C7 4.5 2.73 7.61 1 12 c1.73 4.39 6 7.5 11 7.5 s9.27 -3.11 11 -7.5 c-1.73 -4.39 -6 -7.5 -11 -7.5 z M12 17 c-2.76 0 -5 -2.24 -5 -5 s2.24 -5 5 -5 s5 2.24 5 5 s-5 5 -5 5 z M12 9 c-1.66 0 -3 1.34 -3 3 s1.34 3 3 3 s3 -1.34 3 -3 s-1.34 -3 -3 -3 z"/></svg>
+    <span class="ghost-hint">[H]</span>
+  </button>
+  <button id="btn-fullscreen" class="hud-btn" data-action="toggleFullscreen">
+    <svg viewBox="0 0 24 24"><path d="M5 5h5V3H3v7h2V5zm5 14H5v-5H3v7h7v-2zm11-5h-2v5h-5v2h7v-7zm-2-9V5h-5V3h7v7h-2z"/></svg>
+    <span class="ghost-hint">FULLSCREEN</span>
+  </button>
+</div>
+
+<div id="holo-wrapper">
+  <div id="terminal-handle"> <div id="handle-icon">SYSTEM</div> </div>
+  <div id="holo-panel">
+    
+    <div class="section-title">WORD SELECTOR</div>
+    <div class="word-control">
+       <input type="text" id="word-input" value="GOOGLE" maxlength="8" autocomplete="off" spellcheck="false" placeholder="TYPE..." />
+       <button id="btn-apply-word" class="icon-btn" data-action="applyWord">✔️</button>
+    </div>
+    
+    <div class="section-title">ATMOSPHERE MODE</div>
+    <div class="mode-switch-container">
+      <button id="mode-lab" class="mode-btn active" data-action="setModeLab">LAB</button>
+      <button id="mode-disco" class="mode-btn" data-action="setModeDisco">DISCO</button>
+    </div>
+    
+    <div class="section-title">PHYSICS CONTROL</div>
+    <div class="actions-grid">
+      
+      <div class="combo-wrapper">
+        <button id="btn-letters" class="combo-main-btn active-state" data-action="toggleLetters"><span class="btn-icon">Ab</span>Letters</button>
+        <button id="btn-reset-letters" class="combo-reset-btn" data-action="returnLetters">RETURN</button>
+      </div>
+      
+      <div class="combo-wrapper">
+        <button id="btn-balls" class="combo-main-btn" data-action="spawnBalls">
+          <span class="btn-icon"><svg viewBox="0 0 24 24"><circle cx="6" cy="15" r="4" /><circle cx="18" cy="15" r="4" /><circle cx="12" cy="7" r="4" /></svg></span>Beads
+          <div id="bead-count" class="bead-counter">0/200</div>
+        </button>
+        <button id="btn-clear-balls" class="combo-reset-btn" title="Clear Beads" data-action="clearBalls">CLEAR</button>
+      </div>
+      
+      <button id="btn-slow" class="holo-btn" data-action="toggleSlowMo"><span class="btn-icon">🐢</span>Slo-Mo</button>
+      <button id="btn-fans" class="holo-btn" data-action="toggleFans"><span class="btn-icon"><svg class="stroked" viewBox="0 0 24 24"><path d="M6 20 Q4 16 6 12 T6 4" /><path d="M12 20 Q10 16 12 12 T12 4" /><path d="M18 20 Q16 16 18 12 T18 4" /></svg></span>Air Floor</button>
+      
+    </div>
+
+   <div class="section-title">EQUIPMENT</div>
+  
+  <div class="equipment-rack">
+    
+    <div class="tool-wrapper">
+      <button id="btn-mag-main" class="mag-main-btn" data-action="togglePaletteMag"></button>
+      
+      <div class="palette-container mag-palette">
+        <div id="mag-btn-0" class="palette-item item-0" data-color="0" data-action="selectPaletteColor" title="Green"></div>
+        <div id="mag-btn-1" class="palette-item item-1" data-color="1" data-action="selectPaletteColor" title="Yellow"></div>
+        <div id="mag-btn-2" class="palette-item item-2" data-color="2" data-action="selectPaletteColor" title="Red"></div>
+        <div id="mag-btn-3" class="palette-item item-3" data-color="3" data-action="selectPaletteColor" title="Blue"></div>
+      </div>
+    </div>
+
+    <div class="tool-wrapper">
+      <button id="btn-paint-main" class="mag-main-btn paint-btn" data-action="togglePalettePaint"></button>
+      
+      <div class="palette-container paint-palette">
+        <div id="paint-btn-0" class="palette-item item-0" data-color="0" data-action="selectPaletteColor" title="Green"></div>
+        <div id="paint-btn-1" class="palette-item item-1" data-color="1" data-action="selectPaletteColor" title="Yellow"></div>
+        <div id="paint-btn-2" class="palette-item item-2" data-color="2" data-action="selectPaletteColor" title="Red"></div>
+        <div id="paint-btn-3" class="palette-item item-3" data-color="3" data-action="selectPaletteColor" title="Blue"></div>
+      </div>
+    </div>
+
+  </div>
+  
+  <div id="tool-hint">[ПКМ] — СБРОСИТЬ ИНСТРУМЕНТ</div>
+
+  </div>
+</div>
+
+<script type="importmap">
+  {
+    "imports": {
+      "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+      "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/",
+      "cannon-es": "https://unpkg.com/cannon-es@0.20.0/dist/cannon-es.js"
+    }
+  }
+</script>
+<script type="module" src="js/main.js"></script>
+</body>
+</html>

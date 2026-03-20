@@ -978,18 +978,3 @@ window.addEventListener('mousedown', (e) => {
 });
 
 const app = new GoogleRoomApp();
-
-// Добавь это в конец файла main.js
-window.addEventListener('load', () => {
-  const doors = document.getElementById('loader-doors');
-  
-  // Имитируем небольшую задержку для "прогрузки систем"
-  setTimeout(() => {
-    if (doors) {
-      doors.classList.add('loaded');
-      
-      // Если у тебя есть AudioManager, можно добавить звук пшика:
-      // if (window.audioManager) audioManager.play('door_open_sound');
-    }
-  }, 2500); 
-});

@@ -1,6 +1,6 @@
 :root { 
   
-  --neon-blue: #00f3ff; 
+  --neon-blue: #00f3ff;
   --glass-bg: rgba(10, 20, 30, 0.40); 
   --border-color: rgba(0, 243, 255, 0.3); 
 
@@ -223,14 +223,19 @@ body.loading #hud-controls, body.loading #holo-wrapper { opacity: 0 !important; 
 #btn-balls:active { transform: scale(0.96); }
 
 
-/* === КОНТЕЙНЕР ДВЕРЕЙ === */
+/* === КОНТЕЙНЕР ДВЕРЕЙ (И ЖЕЛЕЗОБЕТОННЫЙ КУРСОР ВЕЗДЕ) === */
+#loader-doors, 
+#loader-doors * {
+  cursor: var(--cur-ui-arrow) !important;
+}
+
 #loader-doors {
   position: fixed;
   top: 0; left: 0;
   width: 100vw; height: 100vh;
   z-index: 10000;
   display: flex;
-  background: transparent; /* Чтобы за дверями сразу была видна комната */
+  background: transparent;
   pointer-events: all;
   overflow: hidden;
   transition: visibility 1.4s;
@@ -281,23 +286,47 @@ body.loading #hud-controls, body.loading #holo-wrapper { opacity: 0 !important; 
 .left-door .door-joint { right: 0; }
 .right-door .door-joint { left: 0; }
 
-/* === РОДИТЕЛЬ: ТУТ МАГИЯ СВЕЧЕНИЯ === */
+/* === РОДИТЕЛЬ: ТУТ МАГИЯ СВЕЧЕНИЯ И ПОЗИЦИОНИРОВАНИЯ === */
 .loader-center-hub {
   position: absolute;
-  top: 50%; 
-  right: -230px; 
-  transform: translateY(-50%);
-  z-index: 101;
-  transition: opacity 0.5s;
+  /* Жестко центрируем его по центру главного контейнера */
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
   
-  /* ЭТОТ ФИЛЬТР делает те самые диагональные линии НЕОНОВЫМИ */
-  /* Он добавляет свечение точно по контуру нашего ромба */
-  filter: 
-    drop-shadow(0 0 5px var(--neon-blue)) 
-    drop-shadow(0 0 15px var(--neon-blue));
+  display: flex;
+  gap: 15px;
+  z-index: 10001 !important; /* Делаем поверх всего, чтобы не прятался за дверями */
+  
+  /* Стандартное свечение */
+  filter: drop-shadow(0 0 10px rgba(0, 243, 255, 0.4));
+  
+  opacity: 1;
+  transition: opacity 0.4s ease;
+  pointer-events: none; 
 }
 
-/* === САМА ПЛАШКА: ТЕМНАЯ, ОБЪЕМНАЯ, УГЛУБЛЕННАЯ === */
+/* === НОВЫЕ КЛАССЫ АНИМАЦИЙ РОМБА ДЛЯ JS === */
+.loader-center-hub.fade-out-fast { 
+  opacity: 0 !important; 
+  transition: opacity 1.2s ease !important; 
+}
+
+.loader-center-hub.hub-hidden { 
+  opacity: 0 !important; 
+  transition: none !important; 
+}
+
+.loader-center-hub.fade-in-volumetric { 
+  animation: fadeInSimple 0.6s ease forwards; 
+}
+
+@keyframes fadeInSimple {
+  from { opacity: 0; filter: drop-shadow(0 0 0 rgba(0, 243, 255, 0)); }
+  to { opacity: 1; filter: drop-shadow(0 0 10px rgba(0, 243, 255, 0.4)); }
+}
+
+/* === САМА ПЛАШКА: ТЕМНАЯ, ОБЪЕМНАЯ, УГЛУБЛЕННАЯ (ТВОЙ КОД) === */
 .cyber-panel {
   width: 460px; 
   height: 240px; 
@@ -324,6 +353,7 @@ body.loading #hud-controls, body.loading #holo-wrapper { opacity: 0 !important; 
   text-align: center;
   justify-content: space-between; 
 }
+
 /* Элементы внутри */
 .panel-header {
   color: #dcefff; /* Светлый техно-цвет */
@@ -367,19 +397,7 @@ body.loading #hud-controls, body.loading #holo-wrapper { opacity: 0 !important; 
   margin-top: auto; /* Прижимаем к низу */
 }
 
-/* АНИМАЦИЯ ЛОГОТИПА (без изменений) */
-@keyframes pulseLogo {
-  0% { filter: drop-shadow(0 0 5px var(--neon-blue)); transform: scale(0.95); }
-  100% { filter: drop-shadow(0 0 20px var(--neon-blue)); transform: scale(1.05); }
-}
-
-/* АНИМАЦИЯ ЛОГОТИПА */
-@keyframes pulseLogo {
-  0% { filter: drop-shadow(0 0 5px var(--neon-blue)); transform: scale(0.95); }
-  100% { filter: drop-shadow(0 0 20px var(--neon-blue)); transform: scale(1.05); }
-}
-
-/* Анимация пульсации логотипа */
+/* АНИМАЦИЯ ЛОГОТИПА (Оставил одну копию) */
 @keyframes pulseLogo {
   0% { filter: drop-shadow(0 0 5px var(--neon-blue)); transform: scale(0.95); }
   100% { filter: drop-shadow(0 0 20px var(--neon-blue)); transform: scale(1.05); }
@@ -611,4 +629,287 @@ body::after {
 .left-door {
   overflow: visible !important;
   z-index: 2; /* Гарантируем, что панель будет лежать ПОВЕРХ правой створки */
+}
+/* === ОБЪЕМНОЕ СТЕКЛЯННОЕ МЕНЮ (ПО КОНЦЕПТУ) === */
+
+/* Переменные холодного синего неона */
+:root {
+  --glass-cyan-primary: rgba(0, 243, 255, 1); /* Яркий неон */
+  --glass-cyan-dim: rgba(0, 243, 255, 0.4);   /* Приглушенный неон для покоя */
+  --glass-cyan-bg: rgba(0, 150, 180, 0.1);    /* Очень прозрачный фон */
+}
+
+/* Главный контейнер (Стеклянная панель) */
+.holo-start-menu {
+  position: absolute;
+  top: 50%;
+  left: 20%;
+  transform: translateY(-50%);
+  width: 380px; /* Немного шире для объема */
+  
+  /* ЭФФЕКТ СТЕКЛА */
+  background: rgba(0, 30, 40, 0.4); 
+  backdrop-filter: blur(15px); /* Сильное размытие фона за панелью */
+  -webkit-backdrop-filter: blur(15px);
+  
+  /* ТОНКИЙ ХОЛОДНЫЙ КОНТУР */
+  border: 1px solid rgba(0, 243, 255, 0.2);
+  border-radius: 15px; /* Скругления! */
+  padding: 30px;
+  
+  /* ВНУТРЕННИЙ ОБЪЕМ И ВНЕШНЕЕ ХОЛОДНОЕ СВЕЧЕНИЕ */
+  box-shadow: 
+    inset 0 0 20px rgba(0, 243, 255, 0.05), /* Очень мягкий внутренний свет */
+    0 0 40px rgba(0, 243, 255, 0.1);       /* Мягкий внешний свет на дверь */
+    
+  z-index: 10;
+  display: flex;
+  flex-direction: column;
+  pointer-events: auto; 
+  transition: opacity 0.5s ease;
+}
+
+.holo-start-menu.game-started {
+  pointer-events: none;
+}
+
+/* === УПРАВЛЕНИЕ ЭКРАНАМИ МЕНЮ === */
+.menu-view {
+  display: none; 
+  flex-direction: column;
+  width: 100%;
+  gap: 30px; /* Большое расстояние между объемными кнопками */
+}
+
+.menu-view.active {
+  display: flex;
+  animation: fadeIn 0.3s ease forwards;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateX(-15px); }
+  to { opacity: 1; transform: translateX(0); }
+}
+
+/* Wrapper для настроек, чтобы дышали */
+.settings-list {
+  display: flex;
+  flex-direction: column;
+  gap: 30px;
+}
+
+/* === СТЕКЛЯННАЯ ОБЪЕМНАЯ КНОПКА (ОСНОВНАЯ) === */
+.holo-glass-btn {
+  position: relative;
+  background: var(--glass-cyan-bg); /* Очень прозрачный фон */
+  border: 1px solid var(--glass-cyan-dim); /* Тонкий, приглушенный неон */
+  color: #fff;
+  padding: 22px 35px; /* Больше padding для объема */
+  
+  /* ШРИФТ ORBITRON */
+  font-family: 'Orbitron', sans-serif;
+  font-size: 15px; 
+  font-weight: 700;
+  letter-spacing: 3px;
+  text-transform: uppercase;
+  
+  cursor: var(--cur-ui-arrow) !important;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  text-align: left;
+  width: 100%;
+  box-sizing: border-box; 
+  border-radius: 8px; /* Небольшое скругление */
+  
+  /* БАЗОВОЕ ВНУТРЕННЕЕ И ВНЕШНЕЕ СВЕЧЕНИЕ (ОБЪЕМ) */
+  box-shadow: 
+    inset 0 0 10px rgba(0, 243, 255, 0.1), /* Мягкий внутренний свет */
+    0 0 10px rgba(0, 243, 255, 0.1);        /* Тонкий внешний свет */
+    
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  overflow: hidden; /* Чтобы блик не вылезал */
+}
+
+/* ЭФФЕКТ "БЛИКА" СТЕКЛА НА ВЕРХНЕЙ ГРАНИ */
+.holo-glass-btn::before {
+  content: "";
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  height: 40%;
+  background: linear-gradient(to bottom, rgba(255, 255, 255, 0.05) 0%, rgba(255, 255, 255, 0) 100%);
+  pointer-events: none;
+}
+
+/* === ЭФФЕКТЫ ПРИ НАВЕДЕНИИ (HOVER - ХОЛОДНЫЙ НЕОН ЗАГОРАЕТСЯ) === */
+.holo-glass-btn:hover {
+  transform: scale(1.02); /* Легкое увеличение для объема */
+  background: rgba(0, 150, 180, 0.15); /* Фон чуть плотнее */
+  border-color: var(--glass-cyan-primary); /* Контур загорается */
+  
+  /* МОЩНОЕ ОБЪЕМНОЕ СВЕЧЕНИЕ ПРИ НАВЕДЕНИИ */
+  box-shadow: 
+    inset 0 0 15px rgba(0, 243, 255, 0.4), /* Ярче внутри */
+    0 0 25px rgba(0, 243, 255, 0.6);       /* Яркий неон снаружи */
+}
+
+.holo-glass-btn .status {
+  color: var(--glass-cyan-primary);
+  text-shadow: 0 0 10px var(--glass-cyan-primary);
+  font-weight: bold;
+}
+
+/* Уникальный стиль для New Game (более интенсивное свечение) */
+.pulse-glow-volumetric {
+  animation: pulse-border-volumetric 2s infinite;
+}
+@keyframes pulse-border-volumetric {
+  0% { 
+    box-shadow: inset 0 0 10px rgba(0, 243, 255, 0.1), 0 0 10px rgba(0, 243, 255, 0.1); 
+    transform: scale(1);
+  }
+  50% { 
+    box-shadow: inset 0 0 15px rgba(0, 243, 255, 0.3), 0 0 25px rgba(0, 243, 255, 0.5); 
+    transform: scale(1.03); /* Легкое физическое увеличение */
+    border-color: rgba(0, 243, 255, 0.8);
+  }
+  100% { 
+    box-shadow: inset 0 0 10px rgba(0, 243, 255, 0.1), 0 0 10px rgba(0, 243, 255, 0.1); 
+    transform: scale(1);
+  }
+}
+
+/* Уникальный стиль для Resume (Стеклянный неон-зеленый) */
+.holo-glass-btn.btn-resume {
+  border-color: rgba(0, 255, 100, 0.4);
+  background: rgba(0, 80, 40, 0.15);
+  box-shadow: inset 0 0 10px rgba(0, 255, 100, 0.1), 0 0 10px rgba(0, 255, 100, 0.1);
+}
+.holo-glass-btn.btn-resume .btn-text, .holo-glass-btn.btn-resume .btn-dec {
+  color: #00ff66;
+  text-shadow: 0 0 10px rgba(0, 255, 100, 0.7);
+}
+.holo-glass-btn.btn-resume:hover {
+  border-color: #00ff66;
+  box-shadow: inset 0 0 15px rgba(0, 255, 100, 0.4), 0 0 25px rgba(0, 255, 100, 0.6);
+}
+
+/* === ЭЛЕГАНТНАЯ ВКЛАДКА BACK (Сниженный приоритет) === */
+.holo-back-tab {
+  background: transparent;
+  border: none;
+  border-top: 1px solid var(--glass-cyan-dim); /* Тонкий верхний контур */
+  color: #fff;
+  padding: 10px 20px;
+  font-family: 'Orbitron', sans-serif;
+  font-size: 11px; /* Намного меньше */
+  letter-spacing: 4px;
+  text-transform: uppercase;
+  cursor: var(--cur-ui-arrow) !important;
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  align-self: flex-start; /* Прижата к левому краю */
+  border-radius: 0 15px 0 0; /* Острый угол */
+  
+  /* Очень легкое свечение */
+  filter: drop-shadow(0 0 3px rgba(0, 243, 255, 0.2));
+  transition: all 0.2s ease;
+  margin-bottom: -15px; /* Чтобы приблизилась к списку */
+  opacity: 0.6; /* Полупрозрачная по умолчанию */
+}
+
+.holo-back-tab:hover {
+  opacity: 1; /* Загорается при наведении */
+  filter: drop-shadow(0 0 8px rgba(0, 243, 255, 0.5));
+}
+.holo-back-tab .btn-dec {
+  color: var(--glass-cyan-primary);
+}
+
+/* === ШУТОЧНАЯ КНОПКА EXIT (СТЕКЛО) === */
+.exit-btn {
+  cursor: default !important; 
+  /* Оставляем старую логику выезда шутки, но применяем стеклянный дизайн кнопок */
+}
+
+.exit-joke {
+  font-family: 'Orbitron', sans-serif;
+  position: absolute;
+  left: 0; right: 0;
+  bottom: 10px; /* Спрятана ПОД объемным фоном */
+  text-align: center;
+  color: var(--neon-blue);
+  font-size: 13px;
+  letter-spacing: 2px;
+  opacity: 0;
+  z-index: -3; /* Прячем за слоями фона кнопки */
+  transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+  pointer-events: none;
+}
+
+/* Класс, который будет добавляться по клику (из JS) */
+.exit-btn.show-joke .exit-joke {
+  bottom: -40px; /* Выезжает вниз */
+  opacity: 1;
+}
+
+/* Убираем затемнение комнаты за дверьми (сохраняем) */
+#loader-doors {
+  /* Мы форсируем курсор-стрелку (ui_arrow.png) для всего контейнера */
+  cursor: url('../Image/ui_arrow.png'), auto !important; 
+}
+
+/* СВЕТ В КОМНАТЕ ВСЕГДА ВКЛЮЧЕН (сохраняем) */
+canvas, #holo-wrapper {
+  opacity: 1 !important;
+  transition: none !important;
+}
+
+/* ПОЛНОСТЬЮ ОТКЛЮЧАЕМ ЧЕРНУЮ ПОДЛОЖКУ ДВЕРЕЙ */
+#loader-doors::before {
+  display: none !important;
+}
+
+/* === УПРАВЛЕНИЕ ЦЕНТРАЛЬНЫМ РОМБОМ (ХАБОМ) === */
+
+/* Стандартный ромб (в покое) */
+.loader-center-hub {
+  opacity: 1;
+  transition: opacity 0.5s ease;
+}
+
+/* 1. Плавное растворение без вспышек (перед открытием дверей) */
+.loader-center-hub.fade-out-fast {
+  opacity: 0 !important;
+  filter: drop-shadow(0 0 0 rgba(0, 243, 255, 0)) !important;
+  transition: all 0.4s ease !important; /* Растворяется за 0.4 сек */
+}
+
+/* 2. Жесткая невидимость (чтобы ромб не "ехал" на левой двери при закрытии) */
+.loader-center-hub.hub-hidden {
+  opacity: 0 !important;
+  filter: none !important;
+  transition: none !important;
+}
+
+/* 3. Плавное появление после того, как двери сомкнулись */
+.loader-center-hub.fade-in-volumetric {
+  animation: fadeInSimple 0.6s ease forwards;
+}
+
+@keyframes fadeInSimple {
+  0% { 
+    opacity: 0; 
+    filter: drop-shadow(0 0 0 rgba(0, 243, 255, 0)); 
+  }
+  100% { 
+    opacity: 1; 
+    filter: drop-shadow(0 0 10px rgba(0, 243, 255, 0.4)); 
+  }
+}
+
+/* === КУРСОР ДЛЯ ЗАКРЫТЫХ ДВЕРЕЙ И МЕНЮ === */
+#loader-doors, #start-menu {
+  cursor: var(--cur-ui-arrow), auto !important;
 }

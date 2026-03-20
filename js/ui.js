@@ -10,9 +10,8 @@ export class UIManager {
     this.isPainting = false;
     this.sprayLoop = null;
     
+    // Удалили старые кнопки (btnMute, btnPause и т.д.), оставили только нужные
     this.elements = {
-      btnMute: document.getElementById('btn-sound'),
-      btnPause: document.getElementById('btn-pause'),
       btnLetters: document.getElementById('btn-letters'),
       btnBalls: document.getElementById('btn-balls'),
       btnFans: document.getElementById('btn-fans'),
@@ -27,13 +26,165 @@ export class UIManager {
     
     this.initBindings();
     this.initStoreSubscriptions();
-    this.elements.btnMute.style.color = audioManager.isMuted ? '#666' : '#00f3ff';
+    this.initStartMenu();
   }
 
   hideLoader() {
-    this.elements.loader.style.display = 'none';
-    document.body.classList.remove('loading');
+    if (this.elements.loader) {
+      this.elements.loader.style.display = 'none';
+    }
   }
+
+ initStartMenu() {
+    const btnStart = document.getElementById('btn-start-game');
+    const btnResume = document.getElementById('btn-resume-game');
+    const btnOpenSettings = document.getElementById('btn-open-settings');
+    const btnBackMain = document.getElementById('btn-back-main');
+    const btnSfx = document.getElementById('btn-toggle-sfx');
+    const btnMusic = document.getElementById('btn-toggle-music');
+    const viewMain = document.getElementById('view-main');
+    const viewSettings = document.getElementById('view-settings');
+    const btnInGameMenu = document.getElementById('btn-in-game-menu');
+    const btnExit = document.getElementById('btn-exit');
+    const startMenu = document.getElementById('start-menu');
+    const doors = document.getElementById('loader-doors');
+    const centerHub = document.querySelector('.loader-center-hub');
+
+    let sfxOn = !audioManager.isMuted;
+    let musicOn = false;
+
+    if (btnOpenSettings) {
+      btnOpenSettings.addEventListener('click', () => {
+        viewMain.classList.remove('active');
+        viewSettings.classList.add('active');
+      });
+    }
+
+    if (btnBackMain) {
+      btnBackMain.addEventListener('click', () => {
+        viewSettings.classList.remove('active');
+        viewMain.classList.add('active');
+      });
+    }
+
+    if (btnSfx) {
+      btnSfx.addEventListener('click', () => {
+        sfxOn = !sfxOn;
+        btnSfx.querySelector('.status').textContent = sfxOn ? 'ON' : 'OFF';
+        btnSfx.querySelector('.status').style.color = sfxOn ? 'var(--neon-blue)' : '#666';
+        audioManager.isMuted = !sfxOn;
+      });
+    }
+
+    if (btnMusic) {
+      btnMusic.addEventListener('click', () => {
+        musicOn = !musicOn;
+        btnMusic.querySelector('.status').textContent = musicOn ? 'ON' : 'OFF';
+        btnMusic.querySelector('.status').style.color = musicOn ? 'var(--neon-blue)' : '#666';
+      });
+    }
+
+const enterGame = () => {
+      const elem = document.documentElement;
+      if (elem.requestFullscreen && !document.fullscreenElement) elem.requestFullscreen();
+      
+      const startMenu = document.getElementById('start-menu');
+      if (startMenu) startMenu.classList.add('game-started'); // Меню остается на двери, но не кликается
+
+      const centerHub = document.querySelector('.loader-center-hub');
+      const doors = document.getElementById('loader-doors');
+
+      if (centerHub && doors) {
+        centerHub.classList.remove('fade-in-volumetric');
+        
+        // 1. ПАУЗА 0.5с
+        setTimeout(() => {
+          // 2. Растворение ромба
+          centerHub.classList.add('fade-out-fast');
+
+          // 3. Открытие дверей
+          setTimeout(() => {
+            doors.classList.add('loaded');
+            document.body.classList.remove('loading');
+          }, 600);
+        }, 500); 
+      }
+    };
+
+    if (btnStart) {
+      btnStart.addEventListener('click', () => {
+        if (btnResume && btnResume.style.display === 'flex') {
+          if (this.cb && this.cb.onReset) this.cb.onReset();
+        }
+        enterGame();
+      });
+    }
+
+    if (btnResume) {
+      btnResume.addEventListener('click', () => enterGame());
+    }
+
+    if (btnInGameMenu) {
+      btnInGameMenu.addEventListener('click', () => {
+        if (document.fullscreenElement) {
+          document.exitFullscreen();
+        } else {
+          if (doors) doors.classList.remove('loaded');
+          if (startMenu) startMenu.classList.remove('game-started');
+          if (btnResume) btnResume.style.display = 'flex';
+        }
+      });
+    }
+
+document.addEventListener('fullscreenchange', () => {
+      if (!document.fullscreenElement) {
+        const doors = document.getElementById('loader-doors');
+        const centerHub = document.querySelector('.loader-center-hub');
+        const startMenu = document.getElementById('start-menu');
+        const viewMain = document.getElementById('view-main');
+        const viewSettings = document.getElementById('view-settings');
+        const btnResume = document.getElementById('btn-resume-game');
+        const btnStart = document.getElementById('btn-start-game');
+
+        // 1. Двери начинают закрываться (анимация длится 1.4 секунды)
+        if (doors) doors.classList.remove('loaded'); 
+        
+        if (centerHub) {
+          // 2. ЖЕСТКО делаем ромб невидимым без анимаций, чтобы он не "ехал" полупрозрачным
+          centerHub.classList.remove('fade-out-fast');
+          centerHub.classList.remove('fade-in-volumetric');
+          centerHub.classList.add('hub-hidden'); // <- Включаем невидимость!
+
+          // 3. Ждем 1.4с (1400 мс), пока двери полностью сомкнутся в центре
+          setTimeout(() => {
+            // Только теперь снимаем невидимость и плавно проявляем ромб
+            centerHub.classList.remove('hub-hidden');
+            centerHub.classList.add('fade-in-volumetric');
+          }, 1400); // <--- ВОТ ЭТА ЦИФРА ИЗМЕНИЛАСЬ (было 600)
+        }
+
+        if (startMenu) {
+          // Возвращаем кликабельность меню (которое приехало вместе с дверью)
+          startMenu.classList.remove('game-started'); 
+          
+          if (viewMain && viewSettings) {
+            viewSettings.classList.remove('active');
+            viewMain.classList.add('active');
+          }
+        }
+
+        if (btnResume) btnResume.style.display = 'flex';
+        if (btnStart) btnStart.classList.remove('pulse-glow-volumetric');
+      }
+    });
+
+    if (btnExit) {
+      btnExit.addEventListener('click', () => {
+        btnExit.classList.add('show-joke');
+        setTimeout(() => btnExit.classList.remove('show-joke'), 3000);
+      });
+    }
+  } // <- конец функции initStartMenu
 
   startSprayEffect() {
     if (this.sprayLoop) return;
@@ -52,8 +203,6 @@ export class UIManager {
   }
 
   createSprayParticle(mouseX, mouseY, colorIndex) {
-    // Полное обнуление: метод просто возвращает управление, 
-    // не создавая никаких 2D-капель на экране.
     return;
   }
 
@@ -66,8 +215,6 @@ export class UIManager {
   }
 
   resetUIState(lettersEnabled) {
-    this.elements.btnPause.style.color = '#00f3ff';
-    this.elements.btnPause.querySelector('path').setAttribute('d', 'M6 19h4V5H6v14zm8-14v14h4V5h-4z');
     this.elements.btnLetters.classList.toggle('active-state', lettersEnabled);
     this.updateFanProgress(0);
   }
@@ -152,24 +299,8 @@ export class UIManager {
       e.preventDefault();
       const action = target.dataset.action;
 
+      // Удалили старые события кнопок (mute, pause, reset и т.д.)
       switch (action) {
-        case 'toggleMute':
-          const currentlyMuted = audioManager.toggleMute();
-          this.elements.btnMute.style.color = currentlyMuted ? '#666' : '#00f3ff';
-          break;
-        case 'togglePause':
-          const isPaused = this.cb.onTogglePause();
-          this.elements.btnPause.style.color = isPaused ? '#ff4444' : '#00f3ff';
-          const path = this.elements.btnPause.querySelector('path');
-          if (isPaused) path.setAttribute('d', 'M8 5v14l11-7z');
-          else path.setAttribute('d', 'M6 19h4V5H6v14zm8-14v14h4V5h-4z');
-          break;
-        case 'reset': this.cb.onReset(); break;
-        case 'toggleUI': document.body.classList.toggle('ui-hidden'); this.closePalette(); break;
-        case 'toggleFullscreen':
-          if (!document.fullscreenElement) document.documentElement.requestFullscreen();
-          else document.exitFullscreen();
-          break;
         case 'applyWord': this.triggerApplyWord(); break;
         case 'setModeLab': store.update({ mode: 'lab' }); break;
         case 'setModeDisco': store.update({ mode: 'disco' }); break;
@@ -213,21 +344,31 @@ export class UIManager {
 
     document.getElementById('holo-wrapper').addEventListener('mouseleave', () => this.closePalette());
 
-  window.addEventListener('keydown', (e) => {
-      // Игнорируем нажатия, если мы печатаем текст в инпуте
+    window.addEventListener('keydown', (e) => {
       if (document.activeElement === this.elements.wordInput) return;
       
-      const triggerAction = (action) => {
-        const btn = document.querySelector(`[data-action="${action}"]`);
-        if (btn) btn.click();
-      };
-      
+      // Исправили горячие клавиши, теперь они работают напрямую
       switch(e.code) {
-        case 'Space': e.preventDefault(); triggerAction('togglePause'); break;
-        // МЕНЯЕМ ESCAPE НА KEY R
-        case 'KeyR': triggerAction('reset'); break; 
-        case 'KeyM': triggerAction('toggleMute'); break;
-        case 'KeyH': triggerAction('toggleUI'); break;
+        case 'Space': 
+          e.preventDefault(); 
+          if(this.cb.onTogglePause) this.cb.onTogglePause(); 
+          break;
+        case 'KeyR': 
+          if(this.cb.onReset) this.cb.onReset(); 
+          break; 
+      case 'KeyM': 
+          audioManager.toggleMute(); 
+          // НОВОЕ: Ищем кнопку звука в новом HTML по её содержимому
+          const btnSfx = document.getElementById('btn-toggle-sfx');
+          if (btnSfx) {
+             btnSfx.querySelector('.status').textContent = audioManager.isMuted ? 'OFF' : 'ON';
+             btnSfx.querySelector('.status').style.color = audioManager.isMuted ? '#666' : 'var(--neon-blue)';
+          }
+          break;
+        case 'KeyH': 
+          document.body.classList.toggle('ui-hidden'); 
+          this.closePalette(); 
+          break;
       }
     });
   }

@@ -328,9 +328,12 @@ body.loading #hud-controls, body.loading #holo-wrapper { opacity: 0 !important; 
 
 /* === САМА ПЛАШКА: ТЕМНАЯ, ОБЪЕМНАЯ, УГЛУБЛЕННАЯ (ТВОЙ КОД) === */
 .cyber-panel {
-  width: 460px; 
-  height: 240px; 
+ width: 30vw; /* 30% ширины экрана */
+  max-width: 460px; /* Твой оригинальный размер как предел */
   box-sizing: border-box;
+  aspect-ratio: 460 / 240; 
+  height: auto;
+  padding: 3vw 4vw;
 
   /* ОБЪЕМНЫЙ ГРАДИЕНТ: темный, глубокий сине-серый */
   background: radial-gradient(circle at center, #1c2533 0%, #0d1117 100%); 
@@ -643,9 +646,14 @@ body::after {
 .holo-start-menu {
   position: absolute;
   top: 50%;
-  left: 20%;
   transform: translateY(-50%);
-  width: 380px; /* Немного шире для объема */
+  
+  /* АДАПТИВ В ПРОЦЕНТАХ ЭКРАНА (vw) */
+  left: 3vw; 
+  width: 24vw; /* Строго 24% от ширины экрана */
+  max-width: 380px; /* Чтобы на огромных мониторах меню не стало гигантским */
+  
+  padding: 2vw; /* Внутренние отступы тоже резиновые */
   
   /* ЭФФЕКТ СТЕКЛА */
   background: rgba(0, 30, 40, 0.4); 
@@ -704,7 +712,7 @@ body::after {
   background: var(--glass-cyan-bg); /* Очень прозрачный фон */
   border: 1px solid var(--glass-cyan-dim); /* Тонкий, приглушенный неон */
   color: #fff;
-  padding: 22px 35px; /* Больше padding для объема */
+  padding: 1.5vw 2vw;
   
   /* ШРИФТ ORBITRON */
   font-family: 'Orbitron', sans-serif;
@@ -912,4 +920,167 @@ canvas, #holo-wrapper {
 /* === КУРСОР ДЛЯ ЗАКРЫТЫХ ДВЕРЕЙ И МЕНЮ === */
 #loader-doors, #start-menu {
   cursor: var(--cur-ui-arrow), auto !important;
+}
+
+/* === СТИЛИ ДЛЯ ПОЛЗУНКОВ ГРОМКОСТИ === */
+.slider-group {
+  display: flex;
+  flex-direction: column;
+  gap: 15px;
+  cursor: default !important; /* Убираем курсор-стрелку с самой панели */
+}
+
+.slider-header {
+  display: flex;
+  justify-content: space-between;
+  width: 100%;
+}
+
+.slider-value {
+  color: var(--glass-cyan-primary);
+  text-shadow: 0 0 10px var(--glass-cyan-primary);
+  font-weight: bold;
+}
+
+/* Сброс стандартных стилей ползунка */
+.cyber-slider {
+  -webkit-appearance: none;
+  width: 100%;
+  height: 4px;
+  background: rgba(0, 243, 255, 0.2);
+  border-radius: 2px;
+  outline: none;
+  cursor: var(--cur-ui-arrow) !important;
+}
+
+/* Свечение полосы при наведении */
+.cyber-slider:hover {
+  background: rgba(0, 243, 255, 0.4);
+  box-shadow: 0 0 10px rgba(0, 243, 255, 0.2);
+}
+
+/* Ползунок (Кружочек/Квадратик) - WebKit (Chrome, Safari, Edge) */
+.cyber-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 16px;
+  height: 16px;
+  background: #fff;
+  border: 2px solid var(--neon-blue);
+  border-radius: 50%;
+  cursor: var(--cur-hand) !important;
+  box-shadow: 0 0 10px var(--neon-blue), inset 0 0 5px var(--neon-blue);
+  transition: transform 0.1s;
+}
+
+.cyber-slider::-webkit-slider-thumb:hover {
+  transform: scale(1.3);
+  background: var(--neon-blue);
+  box-shadow: 0 0 15px var(--neon-blue);
+}
+
+/* Ползунок - Firefox */
+.cyber-slider::-moz-range-thumb {
+  width: 16px;
+  height: 16px;
+  background: #fff;
+  border: 2px solid var(--neon-blue);
+  border-radius: 50%;
+  cursor: var(--cur-hand) !important;
+  box-shadow: 0 0 10px var(--neon-blue), inset 0 0 5px var(--neon-blue);
+  transition: transform 0.1s;
+}
+
+.cyber-slider::-moz-range-thumb:hover {
+  transform: scale(1.3);
+  background: var(--neon-blue);
+}
+
+/* === ФИКСЫ МЕНЮ === */
+
+/* Разрешаем тексту вылезать из кнопки Exit */
+.exit-btn {
+  overflow: visible !important; 
+}
+
+/* Исправленная анимация шутки Exit */
+.exit-joke {
+  bottom: -15px; /* Стартует сразу под нижней гранью кнопки */
+  transform: translateY(-5px); /* Чуть приподнята, чтобы казалось, что выезжает из-под неё */
+  opacity: 0;
+  z-index: -1; 
+  transition: all 0.3s ease-out;
+}
+
+.exit-btn.show-joke .exit-joke {
+  bottom: -25px; /* Выезжает аккуратно вниз, не пробивая главную рамку меню */
+  transform: translateY(0);
+  opacity: 1;
+}
+
+/* Снимаем жесткую высоту со всех кнопок в настройках (возвращаем размер главного меню) */
+.settings-list .holo-glass-btn {
+  min-height: auto; 
+}
+
+/* Применяем высоту 85px ТОЛЬКО к ползункам звука */
+.slider-group {
+  min-height: 85px;
+  justify-content: space-between !important;
+}
+
+/* === ИСПРАВЛЕННОЕ ВЫПАДАЮЩЕЕ МЕНЮ ЯЗЫКА === */
+.lang-group {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: flex-start !important;
+  gap: 0px; /* ВАЖНО: Убрали gap в закрытом состоянии, чтобы кнопка была тонкой */
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.lang-group.open {
+  gap: 12px; /* Появляется отступ только при открытии */
+  min-height: 85px; /* Ровно размер кнопок ползунков */
+}
+
+.lang-options {
+  display: flex;
+  width: 100%;
+  gap: 10px;
+  opacity: 0;
+  pointer-events: none;
+  height: 0;
+  overflow: hidden;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.lang-group.open .lang-options {
+  opacity: 1;
+  pointer-events: auto;
+  height: 30px; /* Уменьшили высоту внутренних кнопок, чтобы они не раздували главную */
+}
+
+.lang-options .lang-btn {
+  flex: 1;
+  min-height: 30px !important; /* Было 40px */
+  padding: 5px;
+  font-size: 10px; /* Чуть уменьшили шрифт, чтобы влезло ровно */
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  border-color: rgba(0, 243, 255, 0.2);
+}
+
+.lang-options .lang-btn.active-lang {
+  background: rgba(0, 243, 255, 0.25);
+  border-color: var(--neon-blue);
+  box-shadow: inset 0 0 10px rgba(0, 243, 255, 0.4);
+  color: #fff;
+}
+
+/* Возвращаем кликабельность кнопке МЕНЮ поверх 3D-сцены */
+#btn-in-game-menu {
+  pointer-events: auto !important;
 }

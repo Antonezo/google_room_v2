@@ -1,46 +1,116 @@
-import { isSlowMo } from './state.js';
-
-export const base64ReturnSound = "data:audio/mp3;base64,ТВОЙ_ОЧЕНЬ_ДЛИННЫЙ_КОД";
+export const base64ReturnSound = "data:audio/mp3;base64,ТВОЙ_ОЧЕНЬ_ДЛИННЫЙ_КОД_СЮДА";
 
 export class AudioManager {
   constructor() {
     this.ctx = null;
+    this.sfxGainNode = null; 
+    this.uiGainNode = null; 
     this.noiseBuffer = null;
-    this.isMuted = true;
     this.lastHitTime = 0;
+    this.sfxVolume = 0.7; 
+    this.isMenuMuted = true; 
+    
+    // Хранилище для звуков интерфейса
+    this.uiBuffers = { mouse_menu: null, start: null, click: null };
+  }
+
+  // Та самая функция, которая потерялась :)
+  resumeContext() {
+    if (!this.ctx) this.init();
+    if (this.ctx && this.ctx.state === 'suspended') {
+      this.ctx.resume();
+    }
   }
 
   init() {
     if (this.ctx) return; 
     this.ctx = new (window.AudioContext || window.webkitAudioContext)();
     
+    this.sfxGainNode = this.ctx.createGain();
+    this.sfxGainNode.gain.value = 0; 
+    this.sfxGainNode.connect(this.ctx.destination);
+
+    // Узел интерфейса: сразу делаем его тише!
+    this.uiGainNode = this.ctx.createGain();
+    this.uiGainNode.gain.value = this.sfxVolume * 0.15; // <- МНОЖИТЕЛЬ ЗДЕСЬ
+    this.uiGainNode.connect(this.ctx.destination);
+
     const bs = this.ctx.sampleRate * 2;
     this.noiseBuffer = this.ctx.createBuffer(1, bs, this.ctx.sampleRate);
     const d = this.noiseBuffer.getChannelData(0);
     for (let i = 0; i < bs; i++) d[i] = Math.random() * 2 - 1;
+
+    this.loadUISounds();
   }
 
-  toggleMute() {
-    if (!this.ctx) this.init();
-    this.isMuted = !this.isMuted;
-    
-    if (this.isMuted) {
-      this.ctx.suspend();
-    } else {
-      this.ctx.resume();
+  setSfxVolume(volume) {
+    this.sfxVolume = volume;
+    if (this.sfxGainNode && !this.isMenuMuted) {
+      this.sfxGainNode.gain.setTargetAtTime(volume, this.ctx.currentTime, 0.1);
     }
-    return this.isMuted;
+    if (this.uiGainNode) {
+      // И применяем множитель при каждом движении ползунка
+      this.uiGainNode.gain.setTargetAtTime(volume * 0.5, this.ctx.currentTime, 0.1);
+    }
+  }
+
+  async loadUISounds() {
+    const load = async (url) => {
+      try {
+        const res = await fetch(url);
+        const arrayBuffer = await res.arrayBuffer();
+        return await this.ctx.decodeAudioData(arrayBuffer);
+      } catch (e) {
+        console.warn("Не удалось загрузить звук:", url);
+        return null;
+      }
+    };
+
+    // ВНИМАНИЕ: Замени эти названия на реальные пути к твоим mp3!
+    this.uiBuffers.mouse_menu = await load('audio/mouse_menu.mp3');
+    this.uiBuffers.start = await load('audio/start.mp3'); 
+    this.uiBuffers.click = await load('audio/click.mp3'); 
+  }
+
+  playUI(type) {
+    this.resumeContext();
+    if (!this.ctx || !this.uiBuffers[type] || this.sfxVolume === 0) return;
+    
+    const source = this.ctx.createBufferSource();
+    source.buffer = this.uiBuffers[type];
+    source.connect(this.uiGainNode);
+    source.start();
+  }
+
+  fadeIn(duration = 1.0) {
+    if (!this.ctx || !this.sfxGainNode) return;
+    this.isMenuMuted = false;
+    const t = this.ctx.currentTime;
+    
+    this.sfxGainNode.gain.cancelScheduledValues(t);
+    this.sfxGainNode.gain.setValueAtTime(this.sfxGainNode.gain.value, t);
+    this.sfxGainNode.gain.linearRampToValueAtTime(this.sfxVolume, t + duration);
+  }
+
+  fadeOut(duration = 1.4) {
+    if (!this.ctx || !this.sfxGainNode) return;
+    this.isMenuMuted = true;
+    const t = this.ctx.currentTime;
+    
+    this.sfxGainNode.gain.cancelScheduledValues(t);
+    this.sfxGainNode.gain.setValueAtTime(this.sfxGainNode.gain.value, t);
+    this.sfxGainNode.gain.linearRampToValueAtTime(0, t + duration);
   }
 
   async playBase64(base64Str) {
-    if (this.isMuted || !this.ctx) return;
+    if (!this.ctx) return;
     try {
       const response = await fetch(base64Str);
       const arrayBuffer = await response.arrayBuffer();
       const audioBuffer = await this.ctx.decodeAudioData(arrayBuffer);
       const source = this.ctx.createBufferSource();
       source.buffer = audioBuffer;
-      source.connect(this.ctx.destination);
+      source.connect(this.ctx.destination); 
       source.start();
     } catch (error) {
       console.warn("Audio error:", error);
@@ -48,7 +118,7 @@ export class AudioManager {
   }
 
   playHitSound(velocity, isSlowMo) {
-    if (this.isMuted || !this.ctx) return;
+    if (!this.ctx || this.sfxVolume === 0) return;
 
     const now = performance.now();
     if (now - this.lastHitTime < 30) return;
@@ -66,7 +136,7 @@ export class AudioManager {
 
     osc.connect(filter);
     filter.connect(gainNode);
-    gainNode.connect(this.ctx.destination);
+    gainNode.connect(this.sfxGainNode); 
 
     const randomDetune = (Math.random() - 0.5) * 120;
     let freq = 320 + randomDetune; 
@@ -85,7 +155,7 @@ export class AudioManager {
   }
 
   playPuffSound(duration = 1.0) {
-    if (this.isMuted || !this.ctx) return; 
+    if (!this.ctx || this.sfxVolume === 0) return; 
     const noise = this.ctx.createBufferSource();
     noise.buffer = this.noiseBuffer;
     
@@ -102,14 +172,14 @@ export class AudioManager {
     
     noise.connect(filter);
     filter.connect(gainNode);
-    gainNode.connect(this.ctx.destination);
+    gainNode.connect(this.sfxGainNode); 
     
     noise.start();
     noise.stop(t + duration);
   }
 
   playFansWhoosh(isSlowMo) {
-    if (this.isMuted || !this.ctx) return;
+    if (!this.ctx || this.sfxVolume === 0) return;
     const src = this.ctx.createBufferSource(); 
     src.buffer = this.noiseBuffer;
     
@@ -117,7 +187,8 @@ export class AudioManager {
     const bp = this.ctx.createBiquadFilter(); bp.type = 'bandpass'; bp.frequency.value = 520; bp.Q.value = 0.9;
     const gain = this.ctx.createGain(); 
     
-    src.connect(hp); hp.connect(bp); bp.connect(gain); gain.connect(this.ctx.destination);
+    src.connect(hp); hp.connect(bp); bp.connect(gain); 
+    gain.connect(this.sfxGainNode); 
     
     const dur = isSlowMo ? 1.0 : 0.65;
     const t = this.ctx.currentTime;

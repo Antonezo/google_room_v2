@@ -35,13 +35,19 @@ export class UIManager {
     }
   }
 
- initStartMenu() {
+  initStartMenu() {
+    // Будим аудиоконтекст при первом клике в любой точке экрана
+    document.body.addEventListener('click', () => audioManager.resumeContext(), { once: true });
+
+    // 1. Ищем все нужные элементы интерфейса
     const btnStart = document.getElementById('btn-start-game');
     const btnResume = document.getElementById('btn-resume-game');
     const btnOpenSettings = document.getElementById('btn-open-settings');
     const btnBackMain = document.getElementById('btn-back-main');
-    const btnSfx = document.getElementById('btn-toggle-sfx');
-    const btnMusic = document.getElementById('btn-toggle-music');
+    const sliderSfx = document.getElementById('slider-sfx');
+    const valSfx = document.getElementById('val-sfx');
+    const sliderMusic = document.getElementById('slider-music');
+    const valMusic = document.getElementById('val-music');
     const viewMain = document.getElementById('view-main');
     const viewSettings = document.getElementById('view-settings');
     const btnInGameMenu = document.getElementById('btn-in-game-menu');
@@ -49,12 +55,101 @@ export class UIManager {
     const startMenu = document.getElementById('start-menu');
     const doors = document.getElementById('loader-doors');
     const centerHub = document.querySelector('.loader-center-hub');
+    const btnLang = document.getElementById('btn-toggle-lang');
 
-    let sfxOn = !audioManager.isMuted;
-    let musicOn = false;
+    // === 2. ЛОГИКА ПЕРЕВОДА МЕНЮ ===
+    const translations = {
+      EN: {
+        resume: "RESUME",
+        start: "NEW GAME",
+        settings: "SETTINGS",
+        exit: "EXIT",
+        exitJoke: "CLOSE THE BROWSER TAB :)",
+        back: "MAIN MENU",
+        sfx: "SFX VOLUME",
+        music: "MUSIC VOLUME",
+        langTitle: "LANGUAGE:",
+        inGameMenu: "MENU"
+      },
+      RU: {
+        resume: "ПРОДОЛЖИТЬ",
+        start: "НОВАЯ ИГРА",
+        settings: "НАСТРОЙКИ",
+        exit: "ВЫХОД",
+        exitJoke: "ПРОСТО ЗАКРОЙ ВКЛАДКУ :)",
+        back: "ГЛАВНОЕ МЕНЮ",
+        sfx: "ГРОМКОСТЬ ЭФФЕКТОВ",
+        music: "ГРОМКОСТЬ МУЗЫКИ",
+        langTitle: "ЯЗЫК:",
+        inGameMenu: "МЕНЮ"
+      }
+    };
 
+    let currentLang = 'EN';
+
+    const updateLanguage = (lang) => {
+      const t = translations[lang];
+      
+      if (btnResume) btnResume.querySelector('.btn-text').textContent = t.resume;
+      if (btnStart) btnStart.querySelector('.btn-text').textContent = t.start;
+      if (btnOpenSettings) btnOpenSettings.querySelector('.btn-text').textContent = t.settings;
+      if (btnExit) {
+        btnExit.querySelector('.btn-text-default').textContent = t.exit;
+        btnExit.querySelector('.exit-joke').textContent = t.exitJoke;
+      }
+      if (btnBackMain) btnBackMain.querySelector('.btn-text').textContent = t.back;
+      
+      // Обновляем текст заголовков ползунков
+      if (sliderSfx && sliderSfx.parentElement) sliderSfx.parentElement.querySelector('.btn-text').textContent = t.sfx;
+      if (sliderMusic && sliderMusic.parentElement) sliderMusic.parentElement.querySelector('.btn-text').textContent = t.music;
+      
+      // Обновляем саму кнопку языка
+      if (btnLang) {
+        btnLang.querySelector('.btn-text').textContent = t.langTitle;
+        btnLang.querySelector('.status').textContent = lang;
+      }
+      if (btnInGameMenu) {
+        const textSpan = btnInGameMenu.querySelector('.btn-text');
+        if (textSpan) textSpan.textContent = t.inGameMenu;
+      }
+    }; 
+
+    // === ИСПРАВЛЕННЫЙ СЛУШАТЕЛЬ ПЕРЕКЛЮЧЕНИЯ ЯЗЫКА (Выпадающее меню) ===
+    if (btnLang) {
+      btnLang.addEventListener('click', (e) => {
+        // Проверяем, кликнули ли мы по одной из внутренних кнопок (ENGLISH / РУССКИЙ)
+        const clickedLangBtn = e.target.closest('.lang-btn');
+        
+        if (clickedLangBtn) {
+          // Игрок выбрал конкретный язык
+          currentLang = clickedLangBtn.dataset.lang; // Берем 'EN' или 'RU'
+          updateLanguage(currentLang); // Переводим текст
+          
+          // Обновляем подсветку кнопок (убираем у всех, даем нажатой)
+          document.querySelectorAll('.lang-btn').forEach(b => b.classList.remove('active-lang'));
+          clickedLangBtn.classList.add('active-lang');
+          
+          // Сворачиваем выпадающее меню
+          btnLang.classList.remove('open');
+          e.stopPropagation(); // Блокируем лишние срабатывания
+        } else {
+          // Игрок кликнул по самой шапке "LANGUAGE" — просто открываем/закрываем меню
+          btnLang.classList.toggle('open');
+        }
+      });
+    }
+
+    // Применяем язык сразу при запуске
+    updateLanguage(currentLang);
+
+
+    // === 3. НАВИГАЦИЯ МЕЖДУ ОКНАМИ МЕНЮ (С предохранителем звука) ===
     if (btnOpenSettings) {
       btnOpenSettings.addEventListener('click', () => {
+        // Включаем глушитель на полсекунды
+        this.blockHoverSound = true;
+        setTimeout(() => this.blockHoverSound = false, 500);
+
         viewMain.classList.remove('active');
         viewSettings.classList.add('active');
       });
@@ -62,51 +157,69 @@ export class UIManager {
 
     if (btnBackMain) {
       btnBackMain.addEventListener('click', () => {
+        // Включаем глушитель на полсекунды
+        this.blockHoverSound = true;
+        setTimeout(() => this.blockHoverSound = false, 500);
+
         viewSettings.classList.remove('active');
         viewMain.classList.add('active');
+        if (btnLang) btnLang.classList.remove('open');
       });
     }
 
-    if (btnSfx) {
-      btnSfx.addEventListener('click', () => {
-        sfxOn = !sfxOn;
-        btnSfx.querySelector('.status').textContent = sfxOn ? 'ON' : 'OFF';
-        btnSfx.querySelector('.status').style.color = sfxOn ? 'var(--neon-blue)' : '#666';
-        audioManager.isMuted = !sfxOn;
+
+    // === 4. ЛОГИКА ПОЛЗУНКОВ (Плавная логарифмическая шкала) ===
+    if (sliderSfx) {
+      sliderSfx.addEventListener('input', (e) => {
+        audioManager.resumeContext();
+        const value = e.target.value;
+        valSfx.textContent = `${value}%`;
+        
+        // Магия: возводим в квадрат для идеального звучания
+        const volumeFloat = Math.pow(value / 100, 2) * 2.0;
+        if (audioManager.setSfxVolume) {
+          audioManager.setSfxVolume(volumeFloat);
+        }
       });
     }
 
-    if (btnMusic) {
-      btnMusic.addEventListener('click', () => {
-        musicOn = !musicOn;
-        btnMusic.querySelector('.status').textContent = musicOn ? 'ON' : 'OFF';
-        btnMusic.querySelector('.status').style.color = musicOn ? 'var(--neon-blue)' : '#666';
+    if (sliderMusic) {
+      sliderMusic.addEventListener('input', (e) => {
+        const value = e.target.value;
+        valMusic.textContent = `${value}%`;
+        
+        const volumeFloat = Math.pow(value / 100, 2) * 1.5;
+        if (audioManager.setMusicVolume) {
+          audioManager.setMusicVolume(volumeFloat);
+        }
       });
     }
 
-const enterGame = () => {
+
+    // === 5. ВХОД В ИГРУ (Открытие дверей и звук) ===
+    const enterGame = () => {
+      audioManager.resumeContext(); 
+
       const elem = document.documentElement;
       if (elem.requestFullscreen && !document.fullscreenElement) elem.requestFullscreen();
       
-      const startMenu = document.getElementById('start-menu');
-      if (startMenu) startMenu.classList.add('game-started'); // Меню остается на двери, но не кликается
-
-      const centerHub = document.querySelector('.loader-center-hub');
-      const doors = document.getElementById('loader-doors');
+      if (startMenu) startMenu.classList.add('game-started'); 
 
       if (centerHub && doors) {
         centerHub.classList.remove('fade-in-volumetric');
         
-        // 1. ПАУЗА 0.5с
+        // 1. Ждем 0.5с (переход в фуллскрин)
         setTimeout(() => {
-          // 2. Растворение ромба
+          // 2. Растворяем ромб
           centerHub.classList.add('fade-out-fast');
 
-          // 3. Открытие дверей
+          // 3. Ждем еще 0.6с, пока ромб исчезнет, и открываем
           setTimeout(() => {
+            audioManager.fadeIn(1.0); 
             doors.classList.add('loaded');
             document.body.classList.remove('loading');
-          }, 600);
+          }, 600); 
+          
         }, 500); 
       }
     };
@@ -124,11 +237,14 @@ const enterGame = () => {
       btnResume.addEventListener('click', () => enterGame());
     }
 
+
+    // === 6. ВЫХОД ИЗ ИГРЫ (Закрытие дверей) ===
     if (btnInGameMenu) {
       btnInGameMenu.addEventListener('click', () => {
         if (document.fullscreenElement) {
           document.exitFullscreen();
         } else {
+          // Запасной план, если игра не в фуллскрине
           if (doors) doors.classList.remove('loaded');
           if (startMenu) startMenu.classList.remove('game-started');
           if (btnResume) btnResume.style.display = 'flex';
@@ -136,37 +252,26 @@ const enterGame = () => {
       });
     }
 
-document.addEventListener('fullscreenchange', () => {
+    document.addEventListener('fullscreenchange', () => {
       if (!document.fullscreenElement) {
-        const doors = document.getElementById('loader-doors');
-        const centerHub = document.querySelector('.loader-center-hub');
-        const startMenu = document.getElementById('start-menu');
-        const viewMain = document.getElementById('view-main');
-        const viewSettings = document.getElementById('view-settings');
-        const btnResume = document.getElementById('btn-resume-game');
-        const btnStart = document.getElementById('btn-start-game');
-
-        // 1. Двери начинают закрываться (анимация длится 1.4 секунды)
+        
+        audioManager.fadeOut(1.4); // Плавно гасим звук
+        
         if (doors) doors.classList.remove('loaded'); 
         
         if (centerHub) {
-          // 2. ЖЕСТКО делаем ромб невидимым без анимаций, чтобы он не "ехал" полупрозрачным
           centerHub.classList.remove('fade-out-fast');
           centerHub.classList.remove('fade-in-volumetric');
-          centerHub.classList.add('hub-hidden'); // <- Включаем невидимость!
+          centerHub.classList.add('hub-hidden'); 
 
-          // 3. Ждем 1.4с (1400 мс), пока двери полностью сомкнутся в центре
           setTimeout(() => {
-            // Только теперь снимаем невидимость и плавно проявляем ромб
             centerHub.classList.remove('hub-hidden');
             centerHub.classList.add('fade-in-volumetric');
-          }, 1400); // <--- ВОТ ЭТА ЦИФРА ИЗМЕНИЛАСЬ (было 600)
+          }, 1400); 
         }
 
         if (startMenu) {
-          // Возвращаем кликабельность меню (которое приехало вместе с дверью)
           startMenu.classList.remove('game-started'); 
-          
           if (viewMain && viewSettings) {
             viewSettings.classList.remove('active');
             viewMain.classList.add('active');
@@ -178,13 +283,15 @@ document.addEventListener('fullscreenchange', () => {
       }
     });
 
+
+    // === 7. КНОПКА ВЫХОДА ИЗ ВКЛАДКИ ===
     if (btnExit) {
       btnExit.addEventListener('click', () => {
         btnExit.classList.add('show-joke');
         setTimeout(() => btnExit.classList.remove('show-joke'), 3000);
       });
     }
-  } // <- конец функции initStartMenu
+  }
 
   startSprayEffect() {
     if (this.sprayLoop) return;
@@ -260,13 +367,50 @@ document.addEventListener('fullscreenchange', () => {
   }
 
   initBindings() {
-    window.addEventListener('mousemove', (e) => {
-      this.mouseX = e.clientX;
-      this.mouseY = e.clientY;
+// --- ИСПРАВЛЕННЫЙ ЗВУК НАВЕДЕНИЯ (ТОЛЬКО ДЛЯ МЕНЮ) ---
+    this.lastHoveredBtn = null; 
+
+  document.addEventListener('mouseover', (e) => {
+      // --- ФИКС 1: Блокируем звук наведения на время анимации ---
+      if (this.blockHoverSound) return; 
+
+      const btn = e.target.closest('#start-menu .holo-glass-btn, #start-menu .holo-back-tab, #start-menu .exit-btn');
+      
+      if (!btn) {
+        this.lastHoveredBtn = null; 
+        return;
+      }
+      
+      if (btn !== this.lastHoveredBtn) {
+        this.lastHoveredBtn = btn;
+        audioManager.playUI('mouse_menu');
+      }
     });
 
+    // --- ИСПРАВЛЕННЫЙ ЗВУК КЛИКА (ТОЛЬКО ДЛЯ МЕНЮ) ---
+  document.addEventListener('mousedown', (e) => {
+      // НОВОЕ: Разрешаем звуки клика для меню И для игровой кнопки MENU
+      if (!e.target.closest('#start-menu, #btn-in-game-menu')) {
+        return; 
+      }
+
+      // Добавили #btn-in-game-menu к кнопкам, которые издают звук 'start'
+      const startBtn = e.target.closest('#btn-start-game, #btn-resume-game, #btn-in-game-menu');
+      if (startBtn) {
+        audioManager.playUI('start');
+        return; 
+      }
+      
+      const menuBtn = e.target.closest('.holo-glass-btn, .holo-back-tab, .exit-btn');
+      if (menuBtn) {
+        audioManager.playUI('click');
+      }
+    });
+
+    // --- СОБЫТИЯ ДЛЯ ИНСТРУМЕНТОВ И СЦЕНЫ ---
     window.addEventListener('mousedown', (e) => {
-      if (e.target.closest('#holo-wrapper') || e.target.closest('#hud-controls')) return;
+      // Чтобы мы не рисовали краской, пока кликаем по меню
+      if (e.target.closest('#holo-wrapper') || e.target.closest('#hud-controls') || e.target.closest('#loader-doors')) return;
 
       if (e.button === 0) {
         this.isPainting = true;
@@ -285,6 +429,7 @@ document.addEventListener('fullscreenchange', () => {
       }
     });
 
+    // --- КЛИКИ ПО ОСНОВНОМУ ИНТЕРФЕЙСУ (ПАНЕЛЬ ИНСТРУМЕНТОВ) ---
     document.addEventListener('click', (e) => {
       const btnOrLink = e.target.closest('button, .hud-btn, .icon-btn, .holo-btn, .mode-btn, .mag-main-btn, .palette-color-btn');
       if (btnOrLink) btnOrLink.blur();
@@ -299,7 +444,6 @@ document.addEventListener('fullscreenchange', () => {
       e.preventDefault();
       const action = target.dataset.action;
 
-      // Удалили старые события кнопок (mute, pause, reset и т.д.)
       switch (action) {
         case 'applyWord': this.triggerApplyWord(); break;
         case 'setModeLab': store.update({ mode: 'lab' }); break;
@@ -331,11 +475,13 @@ document.addEventListener('fullscreenchange', () => {
       }
     });
 
+    // --- СОБЫТИЯ ПОЛЯ ВВОДА СЛОВА ---
     this.elements.wordInput.addEventListener('focus', (e) => { e.target.value = ''; });
     this.elements.wordInput.addEventListener('keypress', (e) => { 
       if (e.key === 'Enter') { this.triggerApplyWord(); this.elements.wordInput.blur(); } 
     });
 
+    // --- ОТКРЫТИЕ/ЗАКРЫТИЕ ПРАВОЙ ПАНЕЛИ ---
     document.getElementById('terminal-handle').addEventListener('click', () => { 
       const wrapper = document.getElementById('holo-wrapper');
       wrapper.classList.toggle('open');
@@ -344,10 +490,10 @@ document.addEventListener('fullscreenchange', () => {
 
     document.getElementById('holo-wrapper').addEventListener('mouseleave', () => this.closePalette());
 
+    // --- ГОРЯЧИЕ КЛАВИШИ ---
     window.addEventListener('keydown', (e) => {
       if (document.activeElement === this.elements.wordInput) return;
       
-      // Исправили горячие клавиши, теперь они работают напрямую
       switch(e.code) {
         case 'Space': 
           e.preventDefault(); 
@@ -356,14 +502,9 @@ document.addEventListener('fullscreenchange', () => {
         case 'KeyR': 
           if(this.cb.onReset) this.cb.onReset(); 
           break; 
-      case 'KeyM': 
-          audioManager.toggleMute(); 
-          // НОВОЕ: Ищем кнопку звука в новом HTML по её содержимому
-          const btnSfx = document.getElementById('btn-toggle-sfx');
-          if (btnSfx) {
-             btnSfx.querySelector('.status').textContent = audioManager.isMuted ? 'OFF' : 'ON';
-             btnSfx.querySelector('.status').style.color = audioManager.isMuted ? '#666' : 'var(--neon-blue)';
-          }
+        case 'KeyM': 
+          // Старая функция Mute удалена (теперь у нас ползунки), 
+          // так что просто ничего не делаем, чтобы избежать ошибок.
           break;
         case 'KeyH': 
           document.body.classList.toggle('ui-hidden'); 

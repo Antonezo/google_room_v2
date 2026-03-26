@@ -1,15 +1,22 @@
 import { store } from "./state.js";
 import { audioManager } from "./audio.js";
+import { translations } from "./i18n.js";
 
 export class UIManager {
   constructor(callbacks) {
     this.cb = callbacks;
+    this.isMenuLocked = false;
     this.activePaletteTarget = null;
     this.mouseX = 0;
     this.mouseY = 0;
     this.isPainting = false;
     this.sprayLoop = null;
     this.blockHoverSound = false;
+    this.animTimers = {
+      enter1: null,
+      enter2: null,
+      exit: null
+    };
 
     // Кэшируем ВСЕ нужные элементы один раз
     this.elements = {
@@ -24,8 +31,7 @@ export class UIManager {
       btnPaint: document.getElementById("btn-paint-main"),
       toolHint: document.getElementById("tool-hint"),
 
-      // НОВЫЙ КОД:
-      startMenu: document.getElementById('futuristic-start-menu'), // <-- Change ID reference
+      startMenu: document.getElementById("futuristic-start-menu"),
       doors: document.getElementById("loader-doors"),
       centerHub: document.querySelector(".loader-center-hub"),
       viewMain: document.getElementById("view-main"),
@@ -45,34 +51,6 @@ export class UIManager {
       valMusic: document.getElementById("val-music"),
     };
 
-    // Словари для перевода
-    this.translations = {
-      EN: {
-        resume: "RESUME",
-        start: "NEW GAME",
-        settings: "SETTINGS",
-        exit: "EXIT",
-        exitJoke: "CLOSE THE BROWSER TAB :)",
-        back: "MAIN MENU",
-        sfx: "SFX VOLUME",
-        music: "MUSIC VOLUME",
-        langTitle: "LANGUAGE:",
-        inGameMenu: "MENU",
-      },
-      RU: {
-        resume: "ПРОДОЛЖИТЬ",
-        start: "НОВАЯ ИГРА",
-        settings: "НАСТРОЙКИ",
-        exit: "ВЫХОД",
-        exitJoke: "ПРОСТО ЗАКРОЙ ВКЛАДКУ :)",
-        back: "ГЛАВНОЕ МЕНЮ",
-        sfx: "ГРОМКОСТЬ ЭФФЕКТОВ",
-        music: "ГРОМКОСТЬ МУЗЫКИ",
-        langTitle: "ЯЗЫК:",
-        inGameMenu: "МЕНЮ",
-      },
-    };
-
     this.initBindings();
     this.initMenuSounds();
     this.initStoreSubscriptions();
@@ -83,8 +61,14 @@ export class UIManager {
     if (this.elements.loader) this.elements.loader.style.display = "none";
   }
 
+clearAnimTimers() {
+    if (this.animTimers.enter1) clearTimeout(this.animTimers.enter1);
+    if (this.animTimers.enter2) clearTimeout(this.animTimers.enter2);
+    if (this.animTimers.exit) clearTimeout(this.animTimers.exit);
+  }
+
   updateLanguage(lang) {
-    const t = this.translations[lang];
+    const t = translations[lang];
     const el = this.elements;
 
     if (el.btnResume)
@@ -128,15 +112,18 @@ export class UIManager {
 
     let currentLang = "EN";
     const el = this.elements;
-// ЩИТ ОТ ФАНТОМНЫХ КЛИКОВ: 
+
+    // ЩИТ ОТ ФАНТОМНЫХ КЛИКОВ:
     // Двери перехватывают все взаимодействия и не пускают их в Three.js
-    ['pointerdown', 'mousedown', 'wheel', 'touchstart', 'contextmenu'].forEach(evt => {
-      el.doors.addEventListener(evt, (e) => {
-        if (!el.doors.classList.contains('loaded')) {
-          e.stopPropagation(); // Убиваем всплытие события!
-        }
-      });
-    });
+    ["pointerdown", "mousedown", "wheel", "touchstart", "contextmenu"].forEach(
+      (evt) => {
+        el.doors.addEventListener(evt, (e) => {
+          if (!el.doors.classList.contains("loaded")) {
+            e.stopPropagation(); // Убиваем всплытие события!
+          }
+        });
+      },
+    );
 
     // 1. Язык
     if (el.btnLang) {
@@ -196,36 +183,41 @@ export class UIManager {
       });
     };
 
-    // Передаем имена методов строкой, чтобы не ловить ошибку undefined.bind
     setupSlider(el.sliderSfx, el.valSfx, "setSfxVolume", 2.0);
     setupSlider(el.sliderMusic, el.valMusic, "setMusicVolume", 1.5);
 
-    // 4. Вход в игру
+ // 4. Безопасный вход в игру
     const enterGame = () => {
-      if (audioManager && audioManager.resumeContext)
-        audioManager.resumeContext();
+      this.isMenuLocked = true;
+      this.clearAnimTimers(); // Убиваем любые конфликтующие анимации
+      
+      if (audioManager && audioManager.resumeContext) audioManager.resumeContext();
+      
       const htmlElem = document.documentElement;
-      if (htmlElem.requestFullscreen && !document.fullscreenElement)
+      if (htmlElem.requestFullscreen && !document.fullscreenElement) {
         htmlElem.requestFullscreen();
+      }
 
       if (el.startMenu) el.startMenu.classList.add("game-started");
 
       if (el.centerHub && el.doors) {
-        el.centerHub.classList.remove("fade-in-volumetric");
-        setTimeout(() => {
+        el.centerHub.classList.remove("fade-in-volumetric", "hub-hidden");
+        
+        this.animTimers.enter1 = setTimeout(() => {
           el.centerHub.classList.add("fade-out-fast");
-          setTimeout(() => {
+          
+          this.animTimers.enter2 = setTimeout(() => {
             if (audioManager && audioManager.fadeIn) audioManager.fadeIn(1.0);
             el.doors.classList.add("loaded");
             document.body.classList.remove("loading");
           }, 600);
+          
         }, 500);
       }
     };
 
     if (el.btnStart) {
       el.btnStart.addEventListener("click", () => {
-        // Добавил защиту this.cb
         if (
           el.btnResume &&
           el.btnResume.style.display === "flex" &&
@@ -239,43 +231,62 @@ export class UIManager {
     }
     if (el.btnResume) el.btnResume.addEventListener("click", enterGame);
 
-    // 5. Выход в меню
+// 5. Безопасный выход в меню
+    const returnToMainMenu = () => {
+      this.isMenuLocked = false; 
+      this.clearAnimTimers(); // Жёстко отменяем анимации входа, если они шли
+      
+      document.body.classList.add("loading"); // Возвращаем состояние загрузки HUD
+
+      if (audioManager && audioManager.fadeOut) audioManager.fadeOut(1.4);
+      if (el.doors) el.doors.classList.remove("loaded");
+
+      // Сброс центрального хаба
+      if (el.centerHub) {
+        el.centerHub.classList.remove("fade-out-fast", "fade-in-volumetric");
+        el.centerHub.classList.add("hub-hidden");
+        
+        // 1400мс — это время закрытия дверей из твоего CSS (transition: 1.4s)
+        this.animTimers.exit = setTimeout(() => {
+          el.centerHub.classList.remove("hub-hidden");
+          el.centerHub.classList.add("fade-in-volumetric");
+        }, 1400); 
+      }
+
+    // Возврат интерфейса
+      if (el.startMenu) {
+        el.startMenu.classList.remove("game-started");
+        if (el.viewMain && el.viewSettings) {
+          el.viewSettings.classList.remove("active");
+          el.viewMain.classList.add("active"); 
+        }
+      }
+
+      if (el.btnResume) el.btnResume.style.display = "flex";
+      if (el.btnStart) el.btnStart.classList.remove("pulse-glow-volumetric");
+    };
+
+    // Слушатель клика по кнопке "MENU" в игре
     if (el.btnInGameMenu) {
       el.btnInGameMenu.addEventListener("click", () => {
+        returnToMainMenu(); // Отрабатываем логику интерфейса
+
+        // Если мы в полном экране — выходим из него
         if (document.fullscreenElement) {
           document.exitFullscreen();
-        } else {
-          if (el.doors) el.doors.classList.remove("loaded");
-          if (el.startMenu) el.startMenu.classList.remove("game-started");
-          if (el.btnResume) el.btnResume.style.display = "flex";
         }
       });
     }
 
+    // Слушатель браузерного события (если игрок нажал ESC на клавиатуре)
     document.addEventListener("fullscreenchange", () => {
-      if (!document.fullscreenElement) {
-        if (audioManager && audioManager.fadeOut) audioManager.fadeOut(1.4);
-        if (el.doors) el.doors.classList.remove("loaded");
-
-        if (el.centerHub) {
-          el.centerHub.classList.remove("fade-out-fast", "fade-in-volumetric");
-          el.centerHub.classList.add("hub-hidden");
-          setTimeout(() => {
-            el.centerHub.classList.remove("hub-hidden");
-            el.centerHub.classList.add("fade-in-volumetric");
-          }, 1400);
-        }
-
-        if (el.startMenu) {
-          el.startMenu.classList.remove("game-started");
-          if (el.viewMain && el.viewSettings) {
-            el.viewSettings.classList.remove("active");
-            el.viewMain.classList.add("active");
-          }
-        }
-
-        if (el.btnResume) el.btnResume.style.display = "flex";
-        if (el.btnStart) el.btnStart.classList.remove("pulse-glow-volumetric");
+      // Проверяем: если фуллскрин закрылся, А двери всё еще открыты (игра идет)
+      if (
+        !document.fullscreenElement &&
+        el.doors &&
+        el.doors.classList.contains("loaded")
+      ) {
+        returnToMainMenu();
       }
     });
 
@@ -290,31 +301,51 @@ export class UIManager {
 
   initMenuSounds() {
     const menuButtons = document.querySelectorAll(
-      "#start-menu .holo-glass-btn, #start-menu .holo-back-tab, #start-menu .exit-btn",
+      "#futuristic-start-menu .sk-btn, #futuristic-start-menu .holo-back-tab, #futuristic-start-menu .exit-btn",
     );
 
     menuButtons.forEach((btn) => {
       btn.addEventListener("mouseenter", () => {
+        if (this.isMenuLocked) return; // Защита от звуков при открывающихся дверях
         if (!this.blockHoverSound && audioManager && audioManager.playUI) {
           audioManager.playUI("mouse_menu");
         }
       });
     });
 
- window.addEventListener('mousedown', (e) => {
-      if (!e.target.closest('#start-menu, #btn-in-game-menu')) return; 
+    window.addEventListener(
+      "mousedown",
+      (e) => {
+        // Исправленная архитектура: Блокируем звуки ТОЛЬКО для стартового меню во время анимации
+        if (this.isMenuLocked && e.target.closest("#futuristic-start-menu"))
+          return;
 
-      const startBtn = e.target.closest('#btn-start-game, #btn-resume-game, #btn-in-game-menu');
-      if (startBtn) {
-        if(audioManager && audioManager.playUI) audioManager.playUI('start');
-        return; 
-      }
-      
-      const menuBtn = e.target.closest('.holo-glass-btn, .holo-back-tab, .exit-btn');
-      if (menuBtn) {
-        if(audioManager && audioManager.playUI) audioManager.playUI('click');
-      }
-    }, true); // <-- Главное отличие здесь! 'window' и 'true' в конце.
+        if (
+          !e.target.closest(
+            "#futuristic-start-menu, #btn-in-game-menu, .lang-options",
+          )
+        )
+          return;
+
+        // Звук старта (Новая игра, Продолжить, Выход в меню)
+        const startBtn = e.target.closest(
+          "#btn-start-game, #btn-resume-game, #btn-in-game-menu",
+        );
+        if (startBtn) {
+          if (audioManager && audioManager.playUI) audioManager.playUI("start");
+          return;
+        }
+
+        // Звук обычного клика (Настройки, Назад, Языки, Выход)
+        const menuBtn = e.target.closest(
+          ".sk-btn, .holo-back-tab, .exit-btn, .lang-btn",
+        );
+        if (menuBtn) {
+          if (audioManager && audioManager.playUI) audioManager.playUI("click");
+        }
+      },
+      true,
+    );
   }
 
   startSprayEffect() {
@@ -334,7 +365,11 @@ export class UIManager {
   }
 
   createSprayParticle(mouseX, mouseY, colorIndex) {
-    // Интеграция с Three.js частицами
+    // Чистая архитектура: UI не лезет в движок, а только передает данные.
+    // Если в main.js передали функцию onSpray, мы отправляем ей координаты.
+    if (this.cb && typeof this.cb.onSpray === "function") {
+      this.cb.onSpray(mouseX, mouseY, colorIndex);
+    }
   }
 
   updateBeadCounter(current, max) {
@@ -398,6 +433,7 @@ export class UIManager {
   }
 
   initBindings() {
+    // Отслеживание мыши
     window.addEventListener("mousemove", (e) => {
       this.mouseX = e.clientX;
       this.mouseY = e.clientY;
@@ -425,6 +461,7 @@ export class UIManager {
       }
     });
 
+    // 1. Оставляем глобальное закрытие палитры и снятие фокуса (blur)
     document.addEventListener("click", (e) => {
       const btnOrLink = e.target.closest(
         "button, .hud-btn, .icon-btn, .holo-btn, .mode-btn, .mag-main-btn, .palette-color-btn",
@@ -434,67 +471,73 @@ export class UIManager {
       if (this.activePaletteTarget && !e.target.closest(".equipment-rack")) {
         this.closePalette();
       }
-
-      const target = e.target.closest("[data-action]");
-      if (!target) return;
-
-      e.preventDefault();
-      const action = target.dataset.action;
-
-      switch (action) {
-        case "applyWord":
-          this.triggerApplyWord();
-          break;
-        case "setModeLab":
-          store.update({ mode: "lab" });
-          break;
-        case "setModeDisco":
-          store.update({ mode: "disco" });
-          break;
-        case "toggleLetters":
-          const isEnabled =
-            this.cb && this.cb.onToggleLetters
-              ? this.cb.onToggleLetters()
-              : false;
-          this.elements.btnLetters.classList.toggle("active-state", isEnabled);
-          break;
-        case "returnLetters":
-          if (this.cb && this.cb.onReturnLetters) this.cb.onReturnLetters();
-          break;
-        case "spawnBalls":
-          if (this.cb && this.cb.onSpawnBalls) this.cb.onSpawnBalls();
-          break;
-        case "clearBalls":
-          if (this.cb && this.cb.onShrinkBalls) this.cb.onShrinkBalls();
-          break;
-        case "toggleSlowMo":
-          store.update({ isSlowMo: !store.get().isSlowMo });
-          break;
-        case "toggleFans":
-          if (this.cb && this.cb.onToggleFans) this.cb.onToggleFans();
-          break;
-        case "togglePaletteMag":
-          this.activePaletteTarget === "mag"
-            ? this.closePalette()
-            : this.openPalette("mag");
-          break;
-        case "togglePalettePaint":
-          this.activePaletteTarget === "paint"
-            ? this.closePalette()
-            : this.openPalette("paint");
-          break;
-        case "selectPaletteColor":
-          const colorVal = parseInt(target.dataset.color);
-          if (this.activePaletteTarget === "mag") {
-            store.update({ paintToolColor: -1, currentTool: colorVal });
-          } else {
-            store.update({ currentTool: -1, paintToolColor: colorVal });
-          }
-          this.closePalette();
-          break;
-      }
     });
 
+    // 2. Функция-помощник для чистой привязки действий
+    const bindAction = (selector, handler) => {
+      const el = document.querySelector(selector);
+      if (el) {
+        el.addEventListener("click", (e) => {
+          e.preventDefault();
+          handler();
+        });
+      }
+    };
+
+    // 3. Явные привязки (теперь код читается легко и работает быстрее)
+    bindAction('[data-action="applyWord"]', () => this.triggerApplyWord());
+    bindAction('[data-action="setModeLab"]', () =>
+      store.update({ mode: "lab" }),
+    );
+    bindAction('[data-action="setModeDisco"]', () =>
+      store.update({ mode: "disco" }),
+    );
+    bindAction('[data-action="toggleSlowMo"]', () =>
+      store.update({ isSlowMo: !store.get().isSlowMo }),
+    );
+
+    bindAction('[data-action="toggleLetters"]', () => {
+      const isEnabled = this.cb?.onToggleLetters
+        ? this.cb.onToggleLetters()
+        : false;
+      this.elements.btnLetters.classList.toggle("active-state", isEnabled);
+    });
+
+    bindAction('[data-action="returnLetters"]', () =>
+      this.cb?.onReturnLetters?.(),
+    );
+    bindAction('[data-action="spawnBalls"]', () => this.cb?.onSpawnBalls?.());
+    bindAction('[data-action="clearBalls"]', () => this.cb?.onShrinkBalls?.());
+    bindAction('[data-action="toggleFans"]', () => this.cb?.onToggleFans?.());
+
+    bindAction('[data-action="togglePaletteMag"]', () =>
+      this.activePaletteTarget === "mag"
+        ? this.closePalette()
+        : this.openPalette("mag"),
+    );
+    bindAction('[data-action="togglePalettePaint"]', () =>
+      this.activePaletteTarget === "paint"
+        ? this.closePalette()
+        : this.openPalette("paint"),
+    );
+
+    // Палитры (оставляем делегирование, но только внутри палитры, а не на весь document)
+    document.querySelectorAll(".palette-item").forEach((item) => {
+      item.addEventListener("click", (e) => {
+        const target = e.target.closest(".palette-item");
+        if (!target || !target.dataset.color) return;
+
+        const colorVal = parseInt(target.dataset.color);
+        if (this.activePaletteTarget === "mag") {
+          store.update({ paintToolColor: -1, currentTool: colorVal });
+        } else {
+          store.update({ currentTool: -1, paintToolColor: colorVal });
+        }
+        this.closePalette();
+      });
+    });
+
+    // Логика поля ввода
     this.elements.wordInput.addEventListener("focus", (e) => {
       e.target.value = "";
     });
@@ -505,6 +548,7 @@ export class UIManager {
       }
     });
 
+    // Логика открытия боковой панели
     document.getElementById("terminal-handle").addEventListener("click", () => {
       const wrapper = document.getElementById("holo-wrapper");
       wrapper.classList.toggle("open");
@@ -515,6 +559,7 @@ export class UIManager {
       .getElementById("holo-wrapper")
       .addEventListener("mouseleave", () => this.closePalette());
 
+    // Горячие клавиши
     window.addEventListener("keydown", (e) => {
       if (document.activeElement === this.elements.wordInput) return;
       switch (e.code) {

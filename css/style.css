@@ -1061,7 +1061,8 @@ body.loading #holo-wrapper {
   gap: 20px;
   z-index: 10;
 }
-.futuristic-start-menu.game-started {
+.futuristic-start-menu.game-started,
+.futuristic-start-menu.game-started * {
   pointer-events: none !important;
 }
 

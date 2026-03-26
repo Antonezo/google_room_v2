@@ -1,134 +1,277 @@
-:root { 
-  
+/* ==========================================================================
+   1. ГЛОБАЛЬНЫЕ ПЕРЕМЕННЫЕ И ТЕМЫ
+   ========================================================================== */
+:root {
+  /* Цвета */
   --neon-blue: #00f3ff;
-  --glass-bg: rgba(10, 20, 30, 0.40); 
-  --border-color: rgba(0, 243, 255, 0.3); 
+  --neon-blue-rgb: 0, 243, 255;
+  --neon-green: #00ff66; /* Добавлен зеленый для Resume */
+  --neon-green-rgb: 0, 255, 102;
+  --glass-bg: rgba(10, 20, 30, 0.4);
+  --border-color: rgba(var(--neon-blue-rgb), 0.3);
 
-  /* === ПУТИ К ИЗОБРАЖЕНИЯМ (ПАПКА Image) === */
-  
-  /* Новые системные курсоры */
-  --cur-hand:      url('../Image/cur_hand.png') 7 0, auto;
-  --cur-fist:      url('../Image/cur_fist.png') 7 0, auto;
-  --cur-ui-arrow:  url('../Image/cur_ui_arrow.png') 0 0, auto;
-  
-  /* Иконки главных кнопок в покое */
-  --btn-mag-off: url('../Image/mag_off.png');
-  --btn-paint-off: url('../Image/paint_off.png');
+  /* Системные курсоры */
+  --cur-hand: url("../Image/cur_hand.png") 7 0, auto;
+  --cur-fist: url("../Image/cur_fist.png") 7 0, auto;
+  --cur-ui-arrow: url("../Image/cur_ui_arrow.png") 0 0, auto;
 
-  /* Магниты (цвета 0,1,2,3) */
-  --btn-mag-0: url('../Image/mag_green.png');
-  --btn-mag-1: url('../Image/mag_yellow.png');
-  --btn-mag-2: url('../Image/mag_red.png');
-  --btn-mag-3: url('../Image/mag_blue.png');
+  /* Иконки кнопок в покое */
+  --btn-mag-off: url("../Image/mag_off.png");
+  --btn-paint-off: url("../Image/paint_off.png");
 
-  /* Баллончики с краской (цвета 0,1,2,3) */
-  --btn-paint-0: url('../Image/paint_green.png');
-  --btn-paint-1: url('../Image/paint_yellow.png');
-  --btn-paint-2: url('../Image/paint_red.png');
-  --btn-paint-3: url('../Image/paint_blue.png');
+  /* Магниты */
+  --btn-mag-0: url("../Image/mag_green.png");
+  --btn-mag-1: url("../Image/mag_yellow.png");
+  --btn-mag-2: url("../Image/mag_red.png");
+  --btn-mag-3: url("../Image/mag_blue.png");
 
-  /* Курсоры (ВАЖНО: Иконки должны быть небольшими, 32x32) */
-  --cur-mag-0: url('../Image/cur_mag_green.png'), auto;
-  --cur-mag-1: url('../Image/cur_mag_yellow.png'), auto;
-  --cur-mag-2: url('../Image/cur_mag_red.png'), auto;
-  --cur-mag-3: url('../Image/cur_mag_blue.png'), auto;
-  
-  --cur-paint-0: url('../Image/cur_paint_green.png'), auto;
-  --cur-paint-1: url('../Image/cur_paint_yellow.png'), auto;
-  --cur-paint-2: url('../Image/cur_paint_red.png'), auto;
-  --cur-paint-3: url('../Image/cur_paint_blue.png'), auto;
+  /* Краски */
+  --btn-paint-0: url("../Image/paint_green.png");
+  --btn-paint-1: url("../Image/paint_yellow.png");
+  --btn-paint-2: url("../Image/paint_red.png");
+  --btn-paint-3: url("../Image/paint_blue.png");
+
+  /* Курсоры инструментов */
+  --cur-mag-0: url("../Image/cur_mag_green.png"), auto;
+  --cur-mag-1: url("../Image/cur_mag_yellow.png"), auto;
+  --cur-mag-2: url("../Image/cur_mag_red.png"), auto;
+  --cur-mag-3: url("../Image/cur_mag_blue.png"), auto;
+
+  --cur-paint-0: url("../Image/cur_paint_green.png"), auto;
+  --cur-paint-1: url("../Image/cur_paint_yellow.png"), auto;
+  --cur-paint-2: url("../Image/cur_paint_red.png"), auto;
+  --cur-paint-3: url("../Image/cur_paint_blue.png"), auto;
+
+  /* Переменные для стеклянного меню */
+  --glass-cyan-primary: rgba(var(--neon-blue-rgb), 1);
+  --glass-cyan-dim: rgba(var(--neon-blue-rgb), 0.4);
+  --glass-cyan-bg: rgba(0, 150, 180, 0.1);
 }
 
-/* Назначаем курсор сразу и на body, и на canvas */
-body, canvas { 
-  margin: 0; 
-  overflow: hidden; 
-  font-family: 'Segoe UI', sans-serif; 
-  background: #0b0f17; 
-  user-select: none; 
-  /* Обрати внимание: я заменил auto на crosshair для теста! */
-  cursor: url('../Image/cur_hand.png') 7 0, crosshair !important; 
+/* 
+   СЕКРЕТНОЕ ОРУЖИЕ: Локальные переменные тем. 
+   Мы привязываем их к твоим существующим классам, чтобы не дублировать код! 
+*/
+.mag-color-0,
+.paint-color-0,
+.item-0 {
+  --theme-hex: #34a853;
+  --theme-rgb: 52, 168, 83;
+  --theme-rot: -60deg;
+}
+.mag-color-1,
+.paint-color-1,
+.item-1 {
+  --theme-hex: #fbbc05;
+  --theme-rgb: 251, 188, 5;
+  --theme-rot: -20deg;
+}
+.mag-color-2,
+.paint-color-2,
+.item-2 {
+  --theme-hex: #ea4335;
+  --theme-rgb: 234, 67, 53;
+  --theme-rot: 20deg;
+}
+.mag-color-3,
+.paint-color-3,
+.item-3 {
+  --theme-hex: #4285f4;
+  --theme-rgb: 66, 133, 244;
+  --theme-rot: 60deg;
 }
 
-/* === ЛОГИКА КУРСОРОВ И ПРОЗРАЧНОСТИ КОНТЕЙНЕРОВ === */
-
-/* 1. Делаем так, чтобы пустые области интерфейса не блокировали 3D сцену */
-#hud-controls, 
-#holo-wrapper { 
-  pointer-events: none !important; 
+/* ==========================================================================
+   2. БАЗОВЫЕ СТИЛИ, СЛОИ И КУРСОРЫ (БЕЗ !IMPORTANT)
+   ========================================================================== */
+body,
+canvas {
+  margin: 0;
+  overflow: hidden;
+  font-family: "Segoe UI", sans-serif;
+  background: #0b0f17;
+  user-select: none;
+  cursor: var(--cur-hand);
+  opacity: 1; /* Жестко держим видимость сцены */
 }
 
-/* 2. UI - Возвращаем кликабельность кнопкам и ставим им синюю стрелку */
-.hud-btn, 
-.holo-btn, 
-.palette-item, 
-#terminal-handle, 
+/* Кэшируем кулак, чтобы не моргал */
+body::after {
+  content: "";
+  position: absolute;
+  width: 0;
+  height: 0;
+  overflow: hidden;
+  z-index: -1;
+  background-image: var(--cur-fist);
+}
+
+/* Сквозные слои: контейнеры прозрачны для клика */
+#hud-controls,
+#holo-wrapper,
+.palette-container,
+#loader-doors.loaded {
+  pointer-events: none;
+}
+
+/* Группа всех интерактивных UI элементов (возвращаем клики и стрелку) */
+.hud-btn,
+.holo-btn,
+.palette-item:not(.palette-off-btn),
+#terminal-handle,
 #holo-panel,
-#word-input, 
-.icon-btn, 
+#word-input,
+.icon-btn,
 .mode-btn,
 #btn-reset,
 .combo-main-btn,
 .combo-reset-btn,
 .mag-main-btn,
-.paint-btn { 
-  pointer-events: auto !important; 
-  cursor: var(--cur-ui-arrow) !important; 
+.paint-btn,
+.sk-btn, /* Обновлено для новых кнопок */
+.holo-back-tab,
+.cyber-slider,
+.lang-btn,
+#btn-in-game-menu,
+#loader-doors:not(.loaded) {
+  pointer-events: auto;
+  cursor: var(--cur-ui-arrow);
 }
 
-/* 3. Если выбран инструмент, сохраняем его курсор даже над интерфейсом */
-body[class*="tool-"] #holo-wrapper, 
-body[class*="tool-"] #holo-wrapper *,
-body[class*="tool-"] #hud-controls, 
-body[class*="tool-"] #hud-controls * { 
-  cursor: inherit !important; 
+/* Логика состояний курсора (каскад решает всё) */
+body.is-pressing canvas {
+  cursor: var(--cur-fist);
+}
+body.is-dragging,
+body.is-dragging * {
+  cursor: var(--cur-fist);
 }
 
-/* 4. ЗАХВАТ - КУЛАК */
-body.is-dragging, body.is-dragging * { 
-  cursor: var(--cur-fist) !important; 
+/* Курсоры инструментов (работают и над canvas, и над UI) */
+body.tool-mag-0 canvas,
+body.tool-mag-0 .hud-btn {
+  cursor: var(--cur-mag-0);
+}
+body.tool-mag-1 canvas {
+  cursor: var(--cur-mag-1);
+}
+body.tool-mag-2 canvas {
+  cursor: var(--cur-mag-2);
+}
+body.tool-mag-3 canvas {
+  cursor: var(--cur-mag-3);
 }
 
-/* Кулак сработает только если НЕ выбран инструмент (магнит или краска) */
-body.is-pressing:not([class*="tool-"]) canvas { 
-  cursor: var(--cur-fist) !important; 
+body.tool-paint-0 canvas {
+  cursor: var(--cur-paint-0);
+}
+body.tool-paint-1 canvas {
+  cursor: var(--cur-paint-1);
+}
+body.tool-paint-2 canvas {
+  cursor: var(--cur-paint-2);
+}
+body.tool-paint-3 canvas {
+  cursor: var(--cur-paint-3);
 }
 
-/* Привязка курсоров магнита */
-body.tool-mag-0, body.tool-mag-0 canvas { cursor: var(--cur-mag-0) !important; }
-body.tool-mag-1, body.tool-mag-1 canvas { cursor: var(--cur-mag-1) !important; }
-body.tool-mag-2, body.tool-mag-2 canvas { cursor: var(--cur-mag-2) !important; }
-body.tool-mag-3, body.tool-mag-3 canvas { cursor: var(--cur-mag-3) !important; }
-
-/* Привязка курсоров краски */
-body.tool-paint-0, body.tool-paint-0 canvas { cursor: var(--cur-paint-0) !important; }
-body.tool-paint-1, body.tool-paint-1 canvas { cursor: var(--cur-paint-1) !important; }
-body.tool-paint-2, body.tool-paint-2 canvas { cursor: var(--cur-paint-2) !important; }
-body.tool-paint-3, body.tool-paint-3 canvas { cursor: var(--cur-paint-3) !important; }
-
-
-/* === СТИЛИ ЭЛЕМЕНТОВ ИНТЕРФЕЙСА === */
-
-#loader { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); color: #333; font-size: 18px; font-weight: bold; background: rgba(255,255,255,0.9); padding: 20px; border-radius: 10px; box-shadow: 0 10px 30px rgba(0,0,0,0.1); text-align: center; z-index: 100; pointer-events: none; }
-
-#hud-controls { 
-  position: absolute; 
-  top: 20px; 
-  right: 20px; 
-  display: flex; 
-  gap: 12px; 
-  z-index: 1000; 
-  transition: opacity 0.3s; 
-  align-items: center; 
+/* ==========================================================================
+   3. ГЛОБАЛЬНЫЕ UI ЭЛЕМЕНТЫ (HUD, HOLO-PANEL)
+   ========================================================================== */
+#loader {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  color: #333;
+  font-size: 18px;
+  font-weight: bold;
+  background: rgba(255, 255, 255, 0.9);
+  padding: 20px;
+  border-radius: 10px;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
+  text-align: center;
+  z-index: 100;
+  pointer-events: none;
 }
 
-.hud-btn { position: relative; width: 44px; height: 44px; border-radius: 50%; background: var(--glass-bg); backdrop-filter: blur(10px); border: 1px solid var(--border-color); color: var(--neon-blue); display: flex; align-items: center; justify-content: center; transition: all 0.2s; box-shadow: 0 5px 15px rgba(0,0,0,0.3); }
-.hud-btn:hover { background: rgba(0, 243, 255, 0.15); box-shadow: 0 0 15px var(--neon-blue); transform: scale(1.05); }
-.hud-btn:active { transform: scale(0.95); }
-.hud-btn svg { width: 20px; height: 20px; fill: currentColor; }
+#hud-controls {
+  position: absolute;
+  top: 20px;
+  right: 20px;
+  display: flex;
+  gap: 12px;
+  z-index: 1000;
+  transition: opacity 0.3s;
+  align-items: center;
+}
+body.loading #hud-controls,
+body.loading #holo-wrapper {
+  opacity: 0;
+  pointer-events: none;
+}
+.ui-hidden #holo-wrapper {
+  opacity: 0;
+  pointer-events: none;
+}
+.ui-hidden #hud-controls .hud-btn:not(#btn-hide) {
+  opacity: 0;
+  pointer-events: none;
+}
+.ui-hidden #btn-hide {
+  opacity: 0.15;
+}
+.ui-hidden #btn-hide:hover {
+  opacity: 1;
+}
 
-#btn-reset { color: #ff4444; border-color: rgba(255, 68, 68, 0.5); background: var(--glass-bg); width: auto; padding: 0 14px; border-radius: 22px; font-size: 11px; font-weight: bold; letter-spacing: 1px; }
-#btn-reset:hover { background: rgba(255, 68, 68, 0.25); box-shadow: 0 0 15px #ff4444; border-color: #ff4444; transform: scale(1.05); color: #fff; }
+.hud-btn {
+  position: relative;
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  background: var(--glass-bg);
+  backdrop-filter: blur(10px);
+  border: 1px solid var(--border-color);
+  color: var(--neon-blue);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s;
+  box-shadow: 0 5px 15px rgba(0, 0, 0, 0.3);
+}
+.hud-btn:hover {
+  background: rgba(var(--neon-blue-rgb), 0.15);
+  box-shadow: 0 0 15px var(--neon-blue);
+  transform: scale(1.05);
+}
+.hud-btn:active {
+  transform: scale(0.95);
+}
+.hud-btn svg {
+  width: 20px;
+  height: 20px;
+  fill: currentColor;
+}
+
+#btn-reset {
+  color: #ff4444;
+  border-color: rgba(255, 68, 68, 0.5);
+  background: var(--glass-bg);
+  width: auto;
+  padding: 0 14px;
+  border-radius: 22px;
+  font-size: 11px;
+  font-weight: bold;
+  letter-spacing: 1px;
+}
+#btn-reset:hover {
+  background: rgba(255, 68, 68, 0.25);
+  box-shadow: 0 0 15px #ff4444;
+  border-color: #ff4444;
+  transform: scale(1.05);
+  color: #fff;
+}
 
 .ghost-hint {
   position: absolute;
@@ -136,302 +279,549 @@ body.tool-paint-3, body.tool-paint-3 canvas { cursor: var(--cur-paint-3) !import
   left: 50%;
   transform: translateX(-50%) translateY(5px);
   font-size: 9px;
-  color: rgba(0, 243, 255, 0.6);
+  color: rgba(var(--neon-blue-rgb), 0.6);
   opacity: 0;
   pointer-events: none;
   transition: all 0.2s ease;
   white-space: nowrap;
   letter-spacing: 1px;
 }
-.hud-btn:hover .ghost-hint { opacity: 1; transform: translateX(-50%) translateY(0); }
-
-#holo-wrapper { 
-  position: absolute; 
-  top: 50%; 
-  right: 0; 
-  display: flex; 
-  align-items: center; 
-  z-index: 1000; 
-  transition: transform 0.4s cubic-bezier(0.25, 0.8, 0.25, 1); 
-  transform: translateY(-50%) translateX(calc(100% - 40px)); 
-}
-#holo-wrapper.open, #holo-wrapper:hover { transform: translateY(-50%) translateX(0); }
-
-#terminal-handle { width: 40px; height: 140px; background: var(--glass-bg); backdrop-filter: blur(10px); border: 1px solid var(--border-color); border-right: none; border-radius: 10px 0 0 10px; display: flex; align-items: center; justify-content: center; box-shadow: -2px 0 15px rgba(0,0,0,0.5); }
-#handle-icon { writing-mode: vertical-rl; text-orientation: mixed; color: var(--neon-blue); font-weight: bold; font-size: 12px; letter-spacing: 3px; text-shadow: 0 0 5px var(--neon-blue); animation: pulse 3s infinite; transform: rotate(180deg); }
-
-#holo-panel { width: 300px; background: rgba(10, 20, 30, 0.25); backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px); border: 1px solid var(--border-color); border-right: none; padding: 25px; box-sizing: border-box; box-shadow: -10px 10px 40px rgba(0,0,0,0.6); border-radius: 0 0 0 20px; position: relative; overflow: hidden; }
-#holo-panel::before { content: ''; position: absolute; top: 0; left: 0; width: 100%; height: 100%; background-image: linear-gradient(rgba(0, 243, 255, 0.03) 1px, transparent 1px), linear-gradient(90deg, rgba(0, 243, 255, 0.03) 1px, transparent 1px); background-size: 30px 30px; pointer-events: none; z-index: -1; }
-
-.section-title { color: rgba(255,255,255,0.5); font-size: 10px; text-transform: uppercase; letter-spacing: 2px; margin-bottom: 10px; border-bottom: 1px solid rgba(255,255,255,0.1); padding-bottom: 4px; margin-top: 15px; }
-.section-title:first-child { margin-top: 0; }
-.word-control { display: flex; gap: 8px; margin-bottom: 20px; align-items: center; }
-#word-input { flex: 1; background: rgba(0,0,0,0.3); border: 1px solid rgba(0,243,255,0.2); color: var(--neon-blue); font-family: monospace; font-size: 16px; text-align: center; padding: 8px 0; border-radius: 4px; letter-spacing: 2px; outline: none; text-transform: uppercase; width: 100%; box-sizing: border-box; transition: all 0.2s; }
-#word-input:hover { background: rgba(0, 243, 255, 0.1); border-color: rgba(0, 243, 255, 0.5); }
-#word-input:focus { border-color: var(--neon-blue); box-shadow: 0 0 10px rgba(0, 243, 255, 0.3); background: rgba(0,0,0,0.5); }
-.icon-btn { width: 36px; height: 36px; background: rgba(0, 243, 255, 0.1); border: 1px solid var(--border-color); color: #fff; border-radius: 4px; display: flex; align-items: center; justify-content: center; transition: all 0.2s; font-size: 16px; }
-.icon-btn:hover { background: var(--neon-blue); color: #000; box-shadow: 0 0 10px var(--neon-blue); }
-.icon-btn:active { transform: scale(0.92); }
-
-.mode-switch-container { display: flex; background: rgba(0,0,0,0.4); border-radius: 8px; padding: 4px; margin-bottom: 25px; border: 1px solid rgba(255,255,255,0.05); }
-.mode-btn { flex: 1; background: transparent; border: none; color: #888; padding: 10px 0; font-size: 11px; font-weight: bold; border-radius: 6px; transition: all 0.3s; }
-.mode-btn.active { background: var(--neon-blue); color: #000; box-shadow: 0 0 15px var(--neon-blue); }
-.mode-btn:hover:not(.active) { color: #fff; background: rgba(255,255,255,0.1); }
-
-.actions-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 25px; }
-.holo-btn { background: rgba(0, 243, 255, 0.02); border: 1px solid rgba(0, 243, 255, 0.2); color: var(--neon-blue); padding: 15px 5px; font-size: 11px; font-weight: bold; text-transform: uppercase; transition: all 0.2s; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px; border-radius: 6px; position: relative; overflow: hidden; }
-.holo-btn:hover { background: rgba(0, 243, 255, 0.1); border-color: var(--neon-blue); box-shadow: inset 0 0 15px rgba(0, 243, 255, 0.15); }
-.holo-btn:active { transform: scale(0.96); }
-.holo-btn.active-state { background: rgba(0, 243, 255, 0.25); color: var(--neon-blue); border-color: var(--neon-blue); box-shadow: 0 0 15px rgba(0, 243, 255, 0.3); }
-#btn-fans.active-state { background: rgba(0, 243, 255, 0.02); }  
-
-.bead-counter { font-size: 9px; opacity: 0.7; letter-spacing: 1px; }
-.holo-btn span, .holo-btn .btn-icon { position: relative; z-index: 10; display: flex; align-items: center; justify-content: center; }
-.btn-icon svg { width: 22px; height: 22px; fill: currentColor; }
-.btn-icon svg.stroked { fill: none; stroke: currentColor; stroke-width: 2.5px; stroke-linecap: round; stroke-linejoin: round; }
-#btn-fans::after { content: ''; position: absolute; top: 0; left: 0; bottom: 0; width: var(--prog, 0%); background: rgba(0, 243, 255, 0.3); z-index: 1; transition: width 0.1s linear; }
-
-@keyframes pulse { 0% { opacity: 0.4; } 50% { opacity: 1; text-shadow: 0 0 10px var(--neon-blue); } 100% { opacity: 0.4; } }
-
-.ui-hidden #holo-wrapper { opacity: 0; pointer-events: none; }
-.ui-hidden #hud-controls .hud-btn:not(#btn-hide) { opacity: 0; pointer-events: none; }
-.ui-hidden #btn-hide { opacity: 0.15; }
-.ui-hidden #btn-hide:hover { opacity: 1.0; }
-
-button:focus, input:focus { outline: none; }
-body.loading #hud-controls, body.loading #holo-wrapper { opacity: 0 !important; pointer-events: none; }
-
-.btn-icon { width: 24px; height: 24px; font-size: 22px; display: flex; align-items: center; justify-content: center; }
-
-.combo-wrapper { position: relative; height: 110px; background: transparent; transition: all 0.3s; }
-.combo-wrapper.locked { opacity: 0.3; pointer-events: none; filter: grayscale(100%); }
-
-.combo-main-btn {
-  position: absolute; inset: 0;  background: rgba(0, 243, 255, 0.02); color: var(--neon-blue); border: 1px solid rgba(0, 243, 255, 0.2); border-radius: 6px;
-  clip-path: polygon( 0% 0%,  calc(100% - 70px) 0%,  calc(100% - 70px) 30px,  100% 30px,  100% 100%,  0% 100% );
-  display: flex; flex-direction: column; align-items: center; justify-content: center; padding-top: 15px;  gap: 8px; transition: all 0.2s;
-}
-.combo-main-btn.active-state { background: rgba(0, 243, 255, 0.25); }
-.combo-main-btn:hover { background: rgba(0, 243, 255, 0.1); }
-
-.combo-reset-btn {
-  position: absolute; top: 0; right: 0; width: 65px;  height: 25px; background: rgba(0, 243, 255, 0.05); border: 1px solid rgba(0, 243, 255, 0.2);
-  border-radius: 4px; color: var(--neon-blue); font-size: 9px; font-weight: bold; display: flex; align-items: center; justify-content: center; transition: all 0.2s;
-}
-.combo-main-btn.active-state + .combo-reset-btn { background: rgba(0, 243, 255, 0.25); box-shadow: inset 0 0 10px rgba(0, 243, 255, 0.15); }
-.combo-reset-btn:hover { background: rgba(255, 68, 68, 0.2); border-color: #ff4444; color: #ff4444; }
-#btn-balls:active { transform: scale(0.96); }
-
-
-/* === КОНТЕЙНЕР ДВЕРЕЙ (И ЖЕЛЕЗОБЕТОННЫЙ КУРСОР ВЕЗДЕ) === */
-#loader-doors, 
-#loader-doors * {
-  cursor: var(--cur-ui-arrow) !important;
-}
-
-#loader-doors {
-  position: fixed;
-  top: 0; left: 0;
-  width: 100vw; height: 100vh;
-  z-index: 10000;
-  display: flex;
-  background: transparent;
-  pointer-events: all;
-  overflow: hidden;
-  transition: visibility 1.4s;
-}
-
-/* Темный фон, который плавно исчезает при открытии (эффект проявления комнаты) */
-#loader-doors::before {
-  content: '';
-  position: absolute;
-  inset: 0;
-  background: black;
+.hud-btn:hover .ghost-hint {
   opacity: 1;
-  z-index: -1;
-  transition: opacity 0.8s ease-out;
-}
-#loader-doors.loaded::before {
-  opacity: 0;
+  transform: translateX(-50%) translateY(0);
 }
 
-/* === СТВОРКИ === */
-.door {
-  width: 50%; height: 100%;
-  background: #111; 
-  position: relative;
-  transition: transform 1.4s cubic-bezier(0.8, 0, 0.2, 1);
-  overflow: hidden;
-  border: 1px solid rgba(0, 243, 255, 0.05);
+/* Holo Panel */
+#holo-wrapper {
+  position: absolute;
+  top: 50%;
+  right: 0;
   display: flex;
   align-items: center;
+  z-index: 1000;
+  transition: transform 0.4s cubic-bezier(0.25, 0.8, 0.25, 1);
+  transform: translateY(-50%) translateX(calc(100% - 40px));
+}
+#holo-wrapper.open,
+#holo-wrapper:hover {
+  transform: translateY(-50%) translateX(0);
 }
 
-/* Гексагональная сетка на дверях */
-.hex-pattern {
+#terminal-handle {
+  width: 40px;
+  height: 140px;
+  background: var(--glass-bg);
+  backdrop-filter: blur(10px);
+  border: 1px solid var(--border-color);
+  border-right: none;
+  border-radius: 10px 0 0 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: -2px 0 15px rgba(0, 0, 0, 0.5);
+}
+#handle-icon {
+  writing-mode: vertical-rl;
+  text-orientation: mixed;
+  color: var(--neon-blue);
+  font-weight: bold;
+  font-size: 12px;
+  letter-spacing: 3px;
+  text-shadow: 0 0 5px var(--neon-blue);
+  animation: pulse-text 3s infinite;
+  transform: rotate(180deg);
+}
+
+#holo-panel {
+  width: 300px;
+  background: rgba(10, 20, 30, 0.25);
+  backdrop-filter: blur(8px);
+  border: 1px solid var(--border-color);
+  border-right: none;
+  padding: 25px;
+  box-sizing: border-box;
+  box-shadow: -10px 10px 40px rgba(0, 0, 0, 0.6);
+  border-radius: 0 0 0 20px;
+  position: relative;
+  overflow: hidden;
+}
+#holo-panel::before {
+  content: "";
   position: absolute;
   inset: 0;
-  opacity: 0.15;
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='56' height='100' viewBox='0 0 56 100'%3E%3Cpath d='M28 66L0 50L0 16L28 0L56 16L56 50L28 66L28 100' fill='none' stroke='%2300f3ff' stroke-width='1'/%3E%3C/svg%3E");
-  background-size: 56px 100px;
+  pointer-events: none;
+  z-index: -1;
+  background-image:
+    linear-gradient(rgba(var(--neon-blue-rgb), 0.03) 1px, transparent 1px),
+    linear-gradient(
+      90deg,
+      rgba(var(--neon-blue-rgb), 0.03) 1px,
+      transparent 1px
+    );
+  background-size: 30px 30px;
 }
 
-/* Вертикальный светящийся паз на стыке */
-.door-joint {
-  position: absolute;
-  top: 0; width: 2px; height: 100%;
-  background: var(--neon-blue);
-  box-shadow: 0 0 20px var(--neon-blue), 0 0 40px var(--neon-blue);
+.section-title {
+  color: rgba(255, 255, 255, 0.5);
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 2px;
+  margin-bottom: 10px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  padding-bottom: 4px;
+  margin-top: 15px;
 }
-.left-door .door-joint { right: 0; }
-.right-door .door-joint { left: 0; }
+.section-title:first-child {
+  margin-top: 0;
+}
 
-/* === РОДИТЕЛЬ: ТУТ МАГИЯ СВЕЧЕНИЯ И ПОЗИЦИОНИРОВАНИЯ === */
-.loader-center-hub {
-  position: absolute;
-  /* Жестко центрируем его по центру главного контейнера */
-  top: 50%;
-  left: 50%;
-  transform: translate(-50%, -50%);
-  
+.word-control {
   display: flex;
-  gap: 15px;
-  z-index: 10001 !important; /* Делаем поверх всего, чтобы не прятался за дверями */
-  
-  /* Стандартное свечение */
-  filter: drop-shadow(0 0 10px rgba(0, 243, 255, 0.4));
-  
-  opacity: 1;
-  transition: opacity 0.4s ease;
-  pointer-events: none; 
+  gap: 8px;
+  margin-bottom: 20px;
+  align-items: center;
 }
-
-/* === НОВЫЕ КЛАССЫ АНИМАЦИЙ РОМБА ДЛЯ JS === */
-.loader-center-hub.fade-out-fast { 
-  opacity: 0 !important; 
-  transition: opacity 1.2s ease !important; 
-}
-
-.loader-center-hub.hub-hidden { 
-  opacity: 0 !important; 
-  transition: none !important; 
-}
-
-.loader-center-hub.fade-in-volumetric { 
-  animation: fadeInSimple 0.6s ease forwards; 
-}
-
-@keyframes fadeInSimple {
-  from { opacity: 0; filter: drop-shadow(0 0 0 rgba(0, 243, 255, 0)); }
-  to { opacity: 1; filter: drop-shadow(0 0 10px rgba(0, 243, 255, 0.4)); }
-}
-
-/* === САМА ПЛАШКА: ТЕМНАЯ, ОБЪЕМНАЯ, УГЛУБЛЕННАЯ (ТВОЙ КОД) === */
-.cyber-panel {
- width: 30vw; /* 30% ширины экрана */
-  max-width: 460px; /* Твой оригинальный размер как предел */
+#word-input {
+  flex: 1;
+  background: rgba(0, 0, 0, 0.3);
+  border: 1px solid rgba(var(--neon-blue-rgb), 0.2);
+  color: var(--neon-blue);
+  font-family: monospace;
+  font-size: 16px;
+  text-align: center;
+  padding: 8px 0;
+  border-radius: 4px;
+  letter-spacing: 2px;
+  outline: none;
+  text-transform: uppercase;
+  width: 100%;
   box-sizing: border-box;
-  aspect-ratio: 460 / 240; 
-  height: auto;
-  padding: 3vw 4vw;
+  transition: all 0.2s;
+}
+#word-input:hover {
+  background: rgba(var(--neon-blue-rgb), 0.1);
+  border-color: rgba(var(--neon-blue-rgb), 0.5);
+}
+#word-input:focus {
+  border-color: var(--neon-blue);
+  box-shadow: 0 0 10px rgba(var(--neon-blue-rgb), 0.3);
+  background: rgba(0, 0, 0, 0.5);
+}
 
-  /* ОБЪЕМНЫЙ ГРАДИЕНТ: темный, глубокий сине-серый */
-  background: radial-gradient(circle at center, #1c2533 0%, #0d1117 100%); 
-  
-  /* Яркая тонкая линия по краю */
-  border: 2px solid var(--neon-blue);
-  
-  /* Внутренние тени для эффекта "вдавленности" и объема */
-  box-shadow: 
-    inset 0 0 30px rgba(0, 0, 0, 0.8),
-    inset 0 0 10px rgba(0, 243, 255, 0.2);
+.icon-btn {
+  width: 36px;
+  height: 36px;
+  background: rgba(var(--neon-blue-rgb), 0.1);
+  border: 1px solid var(--border-color);
+  color: #fff;
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s;
+  font-size: 16px;
+}
+.icon-btn:hover {
+  background: var(--neon-blue);
+  color: #000;
+  box-shadow: 0 0 10px var(--neon-blue);
+}
+.icon-btn:active {
+  transform: scale(0.92);
+}
 
-  /* Форма ромба */
-  clip-path: polygon(50% 0%, 100% 50%, 50% 100%, 0% 50%);
-  
-  padding: 50px 60px; 
+.mode-switch-container {
+  display: flex;
+  background: rgba(0, 0, 0, 0.4);
+  border-radius: 8px;
+  padding: 4px;
+  margin-bottom: 25px;
+  border: 1px solid rgba(255, 255, 255, 0.05);
+}
+.mode-btn {
+  flex: 1;
+  background: transparent;
+  border: none;
+  color: #888;
+  padding: 10px 0;
+  font-size: 11px;
+  font-weight: bold;
+  border-radius: 6px;
+  transition: all 0.3s;
+}
+.mode-btn.active {
+  background: var(--neon-blue);
+  color: #000;
+  box-shadow: 0 0 15px var(--neon-blue);
+}
+.mode-btn:hover:not(.active) {
+  color: #fff;
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.actions-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  margin-bottom: 25px;
+}
+.holo-btn {
+  background: rgba(var(--neon-blue-rgb), 0.02);
+  border: 1px solid rgba(var(--neon-blue-rgb), 0.2);
+  color: var(--neon-blue);
+  padding: 15px 5px;
+  font-size: 11px;
+  font-weight: bold;
+  text-transform: uppercase;
+  transition: all 0.2s;
   display: flex;
   flex-direction: column;
   align-items: center;
-  text-align: center;
-  justify-content: space-between; 
+  justify-content: center;
+  gap: 8px;
+  border-radius: 6px;
+  position: relative;
+  overflow: hidden;
+}
+.holo-btn:hover {
+  background: rgba(var(--neon-blue-rgb), 0.1);
+  border-color: var(--neon-blue);
+  box-shadow: inset 0 0 15px rgba(var(--neon-blue-rgb), 0.15);
+}
+.holo-btn:active {
+  transform: scale(0.96);
+}
+.holo-btn.active-state {
+  background: rgba(var(--neon-blue-rgb), 0.25);
+  color: var(--neon-blue);
+  border-color: var(--neon-blue);
+  box-shadow: 0 0 15px rgba(var(--neon-blue-rgb), 0.3);
 }
 
-/* Элементы внутри */
-.panel-header {
-  color: #dcefff; /* Светлый техно-цвет */
-  font-size: 11px;
-  letter-spacing: 2px;
-  margin-bottom: 5px; /* Минимальный отступ */
-  text-shadow: 0 0 8px var(--neon-blue);
+/* Оптимизированный прогресс-бар (работает через transform) */
+#btn-fans.active-state {
+  background: rgba(var(--neon-blue-rgb), 0.02);
+}
+#btn-fans::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: rgba(var(--neon-blue-rgb), 0.3);
+  z-index: 1;
+  transform-origin: left;
+  transform: scaleX(var(--prog, 0));
+  transition: transform 0.1s linear;
 }
 
-.panel-logo {
-  width: 70px;
-  height: 70px;
-  background-image: url('../Image/logo.png'); /* Путь к твоему лого */
-  background-size: contain;
-  background-position: center;
-  background-repeat: no-repeat;
-  margin-bottom: 5px;
-  border-radius: 50%;
-  box-shadow: 0 0 20px var(--neon-blue);
-  animation: pulseLogo 2s infinite alternate ease-in-out;
-}
-
-.panel-info {
-  color: #dcefff; /* Очень светлый синий */
-  font-size: 8px;
-  line-height: 1.6;
+.bead-counter {
+  font-size: 9px;
+  opacity: 0.7;
   letter-spacing: 1px;
-  margin-bottom: 5px;
-  text-align: center; 
+}
+.holo-btn span,
+.holo-btn .btn-icon {
+  position: relative;
+  z-index: 10;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.btn-icon {
+  width: 24px;
+  height: 24px;
+  font-size: 22px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.btn-icon svg {
+  width: 22px;
+  height: 22px;
+  fill: currentColor;
+}
+.btn-icon svg.stroked {
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2.5px;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.combo-wrapper {
+  position: relative;
+  height: 110px;
+  background: transparent;
+  transition: all 0.3s;
+}
+.combo-wrapper.locked {
+  opacity: 0.3;
+  pointer-events: none;
+  filter: grayscale(100%);
+}
+
+.combo-main-btn {
+  position: absolute;
+  inset: 0;
+  background: rgba(var(--neon-blue-rgb), 0.02);
+  color: var(--neon-blue);
+  border: 1px solid rgba(var(--neon-blue-rgb), 0.2);
+  border-radius: 6px;
+  clip-path: polygon(
+    0% 0%,
+    calc(100% - 70px) 0%,
+    calc(100% - 70px) 30px,
+    100% 30px,
+    100% 100%,
+    0% 100%
+  );
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding-top: 15px;
+  gap: 8px;
+  transition: all 0.2s;
+}
+.combo-main-btn.active-state {
+  background: rgba(var(--neon-blue-rgb), 0.25);
+}
+.combo-main-btn:hover {
+  background: rgba(var(--neon-blue-rgb), 0.1);
+}
+
+.combo-reset-btn {
+  position: absolute;
+  top: 0;
+  right: 0;
+  width: 65px;
+  height: 25px;
+  background: rgba(var(--neon-blue-rgb), 0.05);
+  border: 1px solid rgba(var(--neon-blue-rgb), 0.2);
+  border-radius: 4px;
+  color: var(--neon-blue);
+  font-size: 9px;
+  font-weight: bold;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s;
+}
+.combo-main-btn.active-state + .combo-reset-btn {
+  background: rgba(var(--neon-blue-rgb), 0.25);
+  box-shadow: inset 0 0 10px rgba(var(--neon-blue-rgb), 0.15);
+}
+.combo-reset-btn:hover {
+  background: rgba(255, 68, 68, 0.2);
+  border-color: #ff4444;
+  color: #ff4444;
+}
+
+/* ==========================================================================
+   4. ПАНЕЛЬ ИНСТРУМЕНТОВ И ПАЛИТРА (DRY Рефакторинг)
+   ========================================================================== */
+.equipment-rack {
   width: 100%;
-  text-transform: uppercase;
-}
-
-.panel-footer {
-  color: #ffffff;
-  font-size: 14px;
-  letter-spacing: 1px;
-  border-top: 1px solid rgba(0, 243, 255, 0.2);
-  padding-top: 5px;
-  text-shadow: 0 0 10px var(--neon-blue);
-  margin-top: auto; /* Прижимаем к низу */
-}
-
-/* АНИМАЦИЯ ЛОГОТИПА (Оставил одну копию) */
-@keyframes pulseLogo {
-  0% { filter: drop-shadow(0 0 5px var(--neon-blue)); transform: scale(0.95); }
-  100% { filter: drop-shadow(0 0 20px var(--neon-blue)); transform: scale(1.05); }
-}
-
-/* === АНИМАЦИЯ ОТКРЫТИЯ === */
-#loader-doors.loaded .left-door { transform: translateX(-100%); }
-#loader-doors.loaded .right-door { transform: translateX(100%); }
-#loader-doors.loaded .loader-center-hub { opacity: 0; }
-#loader-doors.loaded { pointer-events: none; visibility: hidden; transition-delay: 1.4s; }
-/* === ПАНЕЛЬ ИНСТРУМЕНТОВ === */
-.equipment-rack { 
-  width: 100%; 
-  height: 80px; 
-  display: flex; 
-  align-items: center; 
+  height: 80px;
+  display: flex;
+  align-items: center;
   justify-content: center;
   gap: 45px;
-  margin-top: 15px; 
-  margin-bottom: 25px; 
+  margin-top: 15px;
+  margin-bottom: 25px;
 }
-
 .tool-wrapper {
-  position: relative; 
+  position: relative;
   display: flex;
   justify-content: center;
-  padding-bottom: 20px; 
+  padding-bottom: 20px;
   margin-bottom: -20px;
 }
 
-/* Базовый стиль для UI капель краски */
+/* 
+   Универсальный класс кнопок инструментов. 
+   Цвета и свечение берутся из переменных --theme-hex/rgb!
+*/
+.mag-main-btn,
+.paint-btn {
+  position: relative;
+  width: 60px;
+  height: 60px;
+  border-radius: 50%;
+  z-index: 10;
+  transition: all 0.2s cubic-bezier(0.25, 0.8, 0.25, 1);
+  overflow: hidden;
+  /* Дефолтный цвет - синий неон, если тема не задана */
+  border: 1px solid var(--theme-hex, var(--border-color));
+  background-color: rgba(var(--theme-rgb, var(--neon-blue-rgb)), 0.2);
+  box-shadow: 0 0 15px rgba(var(--theme-rgb, var(--neon-blue-rgb)), 0.1);
+}
+
+.mag-main-btn {
+  background-image: var(--btn-mag-off);
+  background-position: center;
+  background-size: 40px;
+  background-repeat: no-repeat;
+}
+.paint-btn {
+  background-image: var(--btn-paint-off);
+  background-position: center;
+  background-size: 46px;
+  background-repeat: no-repeat;
+}
+
+/* Ховер и актив эффекты используют переменные темы */
+.mag-main-btn:hover,
+.paint-btn:hover {
+  box-shadow: 0 0 20px var(--theme-hex, var(--neon-blue));
+  transform: scale(1.03);
+}
+.mag-main-btn:active,
+.paint-btn:active {
+  transform: scale(0.92);
+  filter: brightness(0.8);
+}
+.mag-main-btn.is-selecting {
+  transform: scale(0.92);
+  border-color: #fff;
+  box-shadow: 0 0 25px rgba(var(--neon-blue-rgb), 0.5);
+}
+
+/* Подключение конкретных картинок */
+.mag-color-0 {
+  background-image: var(--btn-mag-0);
+}
+.mag-color-1 {
+  background-image: var(--btn-mag-1);
+}
+.mag-color-2 {
+  background-image: var(--btn-mag-2);
+}
+.mag-color-3 {
+  background-image: var(--btn-mag-3);
+}
+
+.paint-color-0 {
+  background-image: var(--btn-paint-0);
+}
+.paint-color-1 {
+  background-image: var(--btn-paint-1);
+}
+.paint-color-2 {
+  background-image: var(--btn-paint-2);
+}
+.paint-color-3 {
+  background-image: var(--btn-paint-3);
+}
+
+/* Палитра (Тоже на переменных) */
+.palette-container {
+  position: absolute;
+  bottom: 50px;
+  left: 50%;
+  transform: translateX(-50%) scale(0.1);
+  transform-origin: bottom center;
+  width: 140px;
+  height: 95px;
+  display: flex;
+  justify-content: center;
+  align-items: flex-end;
+  opacity: 0;
+  z-index: 5;
+  transition:
+    transform 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.15),
+    opacity 0.2s;
+}
+.palette-container.open {
+  transform: translateX(-50%) scale(1);
+  opacity: 1;
+}
+
+.palette-item {
+  position: absolute;
+  bottom: 0px;
+  width: 50px;
+  height: 90px;
+  transform-origin: bottom center;
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+  transition:
+    transform 0.2s cubic-bezier(0.25, 0.8, 0.25, 1),
+    filter 0.2s;
+  transform: rotate(var(--theme-rot, 0deg));
+  background: linear-gradient(
+    to top,
+    rgba(var(--theme-rgb), 0.05),
+    rgba(var(--theme-rgb), 0.4)
+  );
+  clip-path: polygon(
+    50% 100%,
+    0% 25%,
+    3% 15%,
+    8% 8%,
+    18% 3%,
+    30% 0.5%,
+    50% 0%,
+    70% 0.5%,
+    82% 3%,
+    92% 8%,
+    97% 15%,
+    100% 25%
+  );
+}
+.palette-item:not(.palette-off-btn):hover {
+  transform: rotate(var(--theme-rot, 0deg));
+  z-index: 10;
+  filter: drop-shadow(0 0 15px var(--theme-hex)) brightness(1.5);
+}
+
+/* Иконки на палитре */
+.palette-item::after {
+  content: "";
+  position: absolute;
+  top: 10px;
+  left: 50%;
+  width: 24px;
+  height: 24px;
+  margin-left: -12px;
+  background-position: center;
+  background-size: contain;
+  background-repeat: no-repeat;
+}
+.mag-palette .item-0::after {
+  background-image: var(--btn-mag-0);
+}
+.mag-palette .item-1::after {
+  background-image: var(--btn-mag-1);
+}
+.mag-palette .item-2::after {
+  background-image: var(--btn-mag-2);
+}
+.mag-palette .item-3::after {
+  background-image: var(--btn-mag-3);
+}
+
+.paint-palette .item-0::after {
+  background-image: var(--btn-paint-0);
+  transform: rotate(calc(var(--theme-rot) * -1));
+  width: 28px;
+}
+.paint-palette .item-1::after {
+  background-image: var(--btn-paint-1);
+  transform: rotate(calc(var(--theme-rot) * -1));
+  width: 28px;
+}
+.paint-palette .item-2::after {
+  background-image: var(--btn-paint-2);
+  transform: rotate(calc(var(--theme-rot) * -1));
+  width: 28px;
+}
+.paint-palette .item-3::after {
+  background-image: var(--btn-paint-3);
+  transform: rotate(calc(var(--theme-rot) * -1));
+  width: 28px;
+}
+
 .paint-drop-ui {
   position: fixed;
   border-radius: 50%;
@@ -441,646 +831,625 @@ body.loading #hud-controls, body.loading #holo-wrapper { opacity: 0 !important; 
   animation: paintDropFadeIn 0.1s ease-out forwards;
   will-change: transform, opacity;
 }
-
 @keyframes paintDropFadeIn {
-  0% { opacity: 0; }
-  100% { opacity: 1; } 
+  0% {
+    opacity: 0;
+  }
+  100% {
+    opacity: 1;
+  }
 }
 
-/* === СТИЛИ ГЛАВНЫХ КНОПОК === */
-.mag-main-btn { 
-  position: relative; 
-  width: 60px; height: 60px; 
-  border-radius: 50%; 
-  border: 1px solid var(--border-color); 
-  z-index: 10; 
-  transition: all 0.2s cubic-bezier(0.25, 0.8, 0.25, 1); 
-  box-shadow: 0 0 15px rgba(0,243,255,0.1); 
-  background: var(--glass-bg) var(--btn-mag-off) center/40px no-repeat; 
-  overflow: hidden;
-}
-
-.mag-main-btn:hover { box-shadow: 0 0 20px var(--neon-blue); transform: scale(1.03); }
-.mag-main-btn:active { transform: scale(0.92) !important; filter: brightness(0.8); }
-
-.mag-main-btn.mag-color-0 { border-color: #34A853; box-shadow: 0 0 25px rgba(52, 168, 83, 0.6); background-color: rgba(52, 168, 83, 0.2); background-image: var(--btn-mag-0); }
-.mag-main-btn.mag-color-1 { border-color: #FBBC05; box-shadow: 0 0 25px rgba(251, 188, 5, 0.6); background-color: rgba(251, 188, 5, 0.2); background-image: var(--btn-mag-1); }
-.mag-main-btn.mag-color-2 { border-color: #EA4335; box-shadow: 0 0 25px rgba(234, 67, 53, 0.6); background-color: rgba(234, 67, 53, 0.2); background-image: var(--btn-mag-2); }
-.mag-main-btn.mag-color-3 { border-color: #4285F4; box-shadow: 0 0 25px rgba(66, 133, 244, 0.6); background-color: rgba(66, 133, 244, 0.2); background-image: var(--btn-mag-3); } 
-
-.paint-btn { 
-  background-image: var(--btn-paint-off); 
-  background-size: 46px;
-  border-color: var(--border-color); 
-}
-
-.paint-btn.paint-color-0 { border-color: #34A853; box-shadow: 0 0 25px rgba(52, 168, 83, 0.6); background-color: rgba(52, 168, 83, 0.2); background-image: var(--btn-paint-0); }
-.paint-btn.paint-color-1 { border-color: #FBBC05; box-shadow: 0 0 25px rgba(251, 188, 5, 0.6); background-color: rgba(251, 188, 5, 0.2); background-image: var(--btn-paint-1); }
-.paint-btn.paint-color-2 { border-color: #EA4335; box-shadow: 0 0 25px rgba(234, 67, 53, 0.6); background-color: rgba(234, 67, 53, 0.2); background-image: var(--btn-paint-2); }
-.paint-btn.paint-color-3 { border-color: #4285F4; box-shadow: 0 0 25px rgba(66, 133, 244, 0.6); background-color: rgba(66, 133, 244, 0.2); background-image: var(--btn-paint-3); }
-
-/* RADIAL PALETTE UX */
-.palette-container {
-  position: absolute;
-  bottom: 50px; 
-  left: 50%;
-  transform: translateX(-50%) scale(0.1);
-  transform-origin: bottom center;
-  width: 140px;  
-  height: 95px;  
-  display: flex;
-  justify-content: center;
-  align-items: flex-end;
-  pointer-events: none;
-  opacity: 0;
-  z-index: 5;
-  transition: transform 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.15), opacity 0.2s;
-}
-
-.palette-container.open {
-  transform: translateX(-50%) scale(1);
-  opacity: 1;
-  pointer-events: auto;
-}
-
-.mag-main-btn.is-selecting {
-  transform: scale(0.92);
-  border-color: #fff;
-  box-shadow: 0 0 25px rgba(0, 243, 255, 0.5);
-}
-
-.palette-item {
-  position: absolute;
-  bottom: 0px; 
-  width: 50px; 
-  height: 90px; 
-  transform-origin: bottom center;
-  display: flex;
-  justify-content: center;
-  align-items: flex-start;
-  transition: transform 0.2s cubic-bezier(0.25, 0.8, 0.25, 1), filter 0.2s;
-  
-  clip-path: polygon(
-    50% 100%, 0% 25%, 3% 15%, 8% 8%, 18% 3%, 30% 0.5%, 
-    50% 0%, 70% 0.5%, 82% 3%, 92% 8%, 97% 15%, 100% 25% 
-  );
-}
-
-.palette-item.item-0 { --rot: -60deg; --clr: #34A853; transform: rotate(var(--rot)); }
-.palette-item.item-1 { --rot: -20deg; --clr: #FBBC05; transform: rotate(var(--rot)); }
-.palette-item.item-2 { --rot:  20deg; --clr: #EA4335; transform: rotate(var(--rot)); }
-.palette-item.item-3 { --rot:  60deg; --clr: #4285F4; transform: rotate(var(--rot)); }
-
-.mag-palette .item-0 { background: linear-gradient(to top, rgba(52, 168, 83, 0.05), rgba(52, 168, 83, 0.4)); }
-.mag-palette .item-1 { background: linear-gradient(to top, rgba(251, 188, 5, 0.05), rgba(251, 188, 5, 0.4)); }
-.mag-palette .item-2 { background: linear-gradient(to top, rgba(234, 67, 53, 0.05), rgba(234, 67, 53, 0.4)); }
-.mag-palette .item-3 { background: linear-gradient(to top, rgba(66, 133, 244, 0.05), rgba(66, 133, 244, 0.4)); }
-
-.paint-palette .item-0 { background: linear-gradient(to top, rgba(52, 168, 83, 0.05), rgba(52, 168, 83, 0.4)); }
-.paint-palette .item-1 { background: linear-gradient(to top, rgba(251, 188, 5, 0.05), rgba(251, 188, 5, 0.4)); }
-.paint-palette .item-2 { background: linear-gradient(to top, rgba(234, 67, 53, 0.05), rgba(234, 67, 53, 0.4)); }
-.paint-palette .item-3 { background: linear-gradient(to top, rgba(66, 133, 244, 0.05), rgba(66, 133, 244, 0.4)); }
-
-.palette-item::after {
-  content: '';
-  position: absolute;
-  top: 10px; 
-  left: 50%;
-  width: 24px; 
-  height: 24px; 
-  margin-left: -12px; 
-  background-position: center;
-  background-size: contain;
-  background-repeat: no-repeat;
-}
-
-.mag-palette .item-0::after { background-image: var(--btn-mag-0); }
-.mag-palette .item-1::after { background-image: var(--btn-mag-1); }
-.mag-palette .item-2::after { background-image: var(--btn-mag-2); }
-.mag-palette .item-3::after { background-image: var(--btn-mag-3); }
-
-.paint-palette .item-0::after { background-image: var(--btn-paint-0); transform: rotate(calc(var(--rot) * -1)); background-size: contain; width: 28px; }
-.paint-palette .item-1::after { background-image: var(--btn-paint-1); transform: rotate(calc(var(--rot) * -1)); background-size: contain; width: 28px; }
-.paint-palette .item-2::after { background-image: var(--btn-paint-2); transform: rotate(calc(var(--rot) * -1)); background-size: contain; width: 28px; }
-.paint-palette .item-3::after { background-image: var(--btn-paint-3); transform: rotate(calc(var(--rot) * -1)); background-size: contain; width: 28px; }
-
-
-.palette-item:not(.palette-off-btn):hover {
-  transform: rotate(var(--rot)); 
-  z-index: 10;
-  filter: drop-shadow(0 0 15px var(--clr)) brightness(1.5); 
-}
-
-/* === СТАТИЧНАЯ ПОДСКАЗКА === */
 #tool-hint {
   margin-top: 15px;
   text-align: center;
-  color: rgba(0, 243, 255, 0.6);
+  color: rgba(var(--neon-blue-rgb), 0.6);
   font-size: 10px;
   font-weight: bold;
   letter-spacing: 2px;
   text-transform: uppercase;
   opacity: 0;
   transition: opacity 0.3s;
-  min-height: 15px; 
+  min-height: 15px;
 }
-
 #tool-hint.visible {
   opacity: 1;
 }
 
-@keyframes flash-pulse {
-  0%, 100% {
-    background-color: rgba(0, 243, 255, 0.05);
-    border-color: rgba(0, 243, 255, 0.3);
-    color: var(--neon-blue);
-    box-shadow: 0 0 0 rgba(0, 243, 255, 0), inset 0 0 0 rgba(255, 255, 255, 0);
-    text-shadow: none;
-  }
-  50% {
-    background-color: rgba(0, 243, 255, 0.4); 
-    border-color: #ffffff; 
-    color: #ffffff; 
-    box-shadow: 0 0 25px rgba(0, 243, 255, 0.6), inset 0 0 20px rgba(255, 255, 255, 0.6); 
-    text-shadow: 0 0 8px rgba(255, 255, 255, 1); 
-  }
-}
-
+/* GPU-ускоренная пульсация (Внимание: анимация перенесена на ::after) */
 .needs-attention {
-  animation: flash-pulse 0.9s infinite ease-in-out !important;
+  position: relative;
   z-index: 20;
 }
-
+.needs-attention::after {
+  content: "";
+  position: absolute;
+  inset: -1px;
+  border-radius: inherit;
+  border: 1px solid #fff;
+  box-shadow:
+    0 0 25px rgba(var(--neon-blue-rgb), 0.6),
+    inset 0 0 20px rgba(255, 255, 255, 0.6);
+  pointer-events: none;
+  opacity: 0;
+  animation: flash-gpu 0.9s infinite ease-in-out;
+}
+@keyframes flash-gpu {
+  0%,
+  100% {
+    opacity: 0;
+  }
+  50% {
+    opacity: 1;
+  }
+}
 .needs-attention .btn-icon {
-  color: #fff !important;
+  color: #fff;
   filter: drop-shadow(0 0 5px rgba(255, 255, 255, 0.8));
   transition: all 0.2s;
 }
 
-/* Предзагрузка курсоров (чтобы не было белой стрелки при первом клике) */
-body::after {
-  content: '';
-  position: absolute;
-  width: 0;
-  height: 0;
+/* ==========================================================================
+   5. ЗАГРУЗОЧНЫЙ ЭКРАН И ДВЕРИ (НОВЫЙ ФУТУРИСТИЧНЫЙ ДИЗАЙН)
+   ========================================================================== */
+#loader-doors {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  z-index: 10000;
+  display: flex;
+  background: transparent;
   overflow: hidden;
-  z-index: -1;
-  /* Добавляем сюда картинку кулака (и другие, если они тоже мигают) */
-  background-image: url('../Image/cur_fist.png'); 
+  transition: visibility 1.4s;
 }
-/* Разрешаем центральной панели "вылезать" за пределы левой двери */
+
+.door {
+  width: 50%;
+  height: 100%;
+  background: #0b0f17; /* Изменено */
+  position: relative;
+  transition: transform 1.4s cubic-bezier(0.8, 0, 0.2, 1);
+  display: flex;
+  align-items: center;
+  /* Убрана рамка */
+}
+
 .left-door {
-  overflow: visible !important;
-  z-index: 2; /* Гарантируем, что панель будет лежать ПОВЕРХ правой створки */
-}
-/* === ОБЪЕМНОЕ СТЕКЛЯННОЕ МЕНЮ (ПО КОНЦЕПТУ) === */
-
-/* Переменные холодного синего неона */
-:root {
-  --glass-cyan-primary: rgba(0, 243, 255, 1); /* Яркий неон */
-  --glass-cyan-dim: rgba(0, 243, 255, 0.4);   /* Приглушенный неон для покоя */
-  --glass-cyan-bg: rgba(0, 150, 180, 0.1);    /* Очень прозрачный фон */
+  overflow: visible;
+  z-index: 2;
 }
 
-/* Главный контейнер (Стеклянная панель) */
-.holo-start-menu {
+.hex-pattern {
+  position: absolute;
+  inset: 0;
+  opacity: 0.1; /* Сделано чуть прозрачнее */
+  background-size: 56px 100px;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='56' height='100' viewBox='0 0 56 100'%3E%3Cpath d='M28 66L0 50L0 16L28 0L56 16L56 50L28 66L28 100' fill='none' stroke='%2300f3ff' stroke-width='1.5'/%3E%3C/svg%3E");
+}
+
+.door-joint {
+  position: absolute;
+  top: 0;
+  width: 2px;
+  height: 100%;
+  background: var(--neon-blue);
+  box-shadow:
+    0 0 20px var(--neon-blue),
+    0 0 40px var(--neon-blue);
+}
+.left-door .door-joint {
+  right: 0;
+}
+.right-door .door-joint {
+  left: 0;
+}
+
+/* Центральный Хаб (Новый дизайн ядра) */
+.loader-center-hub {
   position: absolute;
   top: 50%;
-  transform: translateY(-50%);
-  
-  /* АДАПТИВ В ПРОЦЕНТАХ ЭКРАНА (vw) */
-  left: 3vw; 
-  width: 24vw; /* Строго 24% от ширины экрана */
-  max-width: 380px; /* Чтобы на огромных мониторах меню не стало гигантским */
-  
-  padding: 2vw; /* Внутренние отступы тоже резиновые */
-  
-  /* ЭФФЕКТ СТЕКЛА */
-  background: rgba(0, 30, 40, 0.4); 
-  backdrop-filter: blur(15px); /* Сильное размытие фона за панелью */
-  -webkit-backdrop-filter: blur(15px);
-  
-  /* ТОНКИЙ ХОЛОДНЫЙ КОНТУР */
-  border: 1px solid rgba(0, 243, 255, 0.2);
-  border-radius: 15px; /* Скругления! */
-  padding: 30px;
-  
-  /* ВНУТРЕННИЙ ОБЪЕМ И ВНЕШНЕЕ ХОЛОДНОЕ СВЕЧЕНИЕ */
-  box-shadow: 
-    inset 0 0 20px rgba(0, 243, 255, 0.05), /* Очень мягкий внутренний свет */
-    0 0 40px rgba(0, 243, 255, 0.1);       /* Мягкий внешний свет на дверь */
-    
-  z-index: 10;
+  left: 50%;
+  transform: translate(-50%, -50%);
   display: flex;
   flex-direction: column;
-  pointer-events: auto; 
+  align-items: center;
+  z-index: 10001;
+  pointer-events: none;
   transition: opacity 0.5s ease;
 }
 
-.holo-start-menu.game-started {
-  pointer-events: none;
-}
-
-/* === УПРАВЛЕНИЕ ЭКРАНАМИ МЕНЮ === */
-.menu-view {
-  display: none; 
-  flex-direction: column;
-  width: 100%;
-  gap: 30px; /* Большое расстояние между объемными кнопками */
-}
-
-.menu-view.active {
-  display: flex;
-  animation: fadeIn 0.3s ease forwards;
-}
-
-@keyframes fadeIn {
-  from { opacity: 0; transform: translateX(-15px); }
-  to { opacity: 1; transform: translateX(0); }
-}
-
-/* Wrapper для настроек, чтобы дышали */
-.settings-list {
-  display: flex;
-  flex-direction: column;
-  gap: 30px;
-}
-
-/* === СТЕКЛЯННАЯ ОБЪЕМНАЯ КНОПКА (ОСНОВНАЯ) === */
-.holo-glass-btn {
-  position: relative;
-  background: var(--glass-cyan-bg); /* Очень прозрачный фон */
-  border: 1px solid var(--glass-cyan-dim); /* Тонкий, приглушенный неон */
-  color: #fff;
-  padding: 1.5vw 2vw;
-  
-  /* ШРИФТ ORBITRON */
-  font-family: 'Orbitron', sans-serif;
-  font-size: 15px; 
-  font-weight: 700;
-  letter-spacing: 3px;
-  text-transform: uppercase;
-  
-  cursor: var(--cur-ui-arrow) !important;
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  text-align: left;
-  width: 100%;
-  box-sizing: border-box; 
-  border-radius: 8px; /* Небольшое скругление */
-  
-  /* БАЗОВОЕ ВНУТРЕННЕЕ И ВНЕШНЕЕ СВЕЧЕНИЕ (ОБЪЕМ) */
-  box-shadow: 
-    inset 0 0 10px rgba(0, 243, 255, 0.1), /* Мягкий внутренний свет */
-    0 0 10px rgba(0, 243, 255, 0.1);        /* Тонкий внешний свет */
-    
-  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-  overflow: hidden; /* Чтобы блик не вылезал */
-}
-
-/* ЭФФЕКТ "БЛИКА" СТЕКЛА НА ВЕРХНЕЙ ГРАНИ */
-.holo-glass-btn::before {
-  content: "";
-  position: absolute;
-  top: 0; left: 0; right: 0;
-  height: 40%;
-  background: linear-gradient(to bottom, rgba(255, 255, 255, 0.05) 0%, rgba(255, 255, 255, 0) 100%);
-  pointer-events: none;
-}
-
-/* === ЭФФЕКТЫ ПРИ НАВЕДЕНИИ (HOVER - ХОЛОДНЫЙ НЕОН ЗАГОРАЕТСЯ) === */
-.holo-glass-btn:hover {
-  transform: scale(1.02); /* Легкое увеличение для объема */
-  background: rgba(0, 150, 180, 0.15); /* Фон чуть плотнее */
-  border-color: var(--glass-cyan-primary); /* Контур загорается */
-  
-  /* МОЩНОЕ ОБЪЕМНОЕ СВЕЧЕНИЕ ПРИ НАВЕДЕНИИ */
-  box-shadow: 
-    inset 0 0 15px rgba(0, 243, 255, 0.4), /* Ярче внутри */
-    0 0 25px rgba(0, 243, 255, 0.6);       /* Яркий неон снаружи */
-}
-
-.holo-glass-btn .status {
-  color: var(--glass-cyan-primary);
-  text-shadow: 0 0 10px var(--glass-cyan-primary);
-  font-weight: bold;
-}
-
-/* Уникальный стиль для New Game (более интенсивное свечение) */
-.pulse-glow-volumetric {
-  animation: pulse-border-volumetric 2s infinite;
-}
-@keyframes pulse-border-volumetric {
-  0% { 
-    box-shadow: inset 0 0 10px rgba(0, 243, 255, 0.1), 0 0 10px rgba(0, 243, 255, 0.1); 
-    transform: scale(1);
-  }
-  50% { 
-    box-shadow: inset 0 0 15px rgba(0, 243, 255, 0.3), 0 0 25px rgba(0, 243, 255, 0.5); 
-    transform: scale(1.03); /* Легкое физическое увеличение */
-    border-color: rgba(0, 243, 255, 0.8);
-  }
-  100% { 
-    box-shadow: inset 0 0 10px rgba(0, 243, 255, 0.1), 0 0 10px rgba(0, 243, 255, 0.1); 
-    transform: scale(1);
-  }
-}
-
-/* Уникальный стиль для Resume (Стеклянный неон-зеленый) */
-.holo-glass-btn.btn-resume {
-  border-color: rgba(0, 255, 100, 0.4);
-  background: rgba(0, 80, 40, 0.15);
-  box-shadow: inset 0 0 10px rgba(0, 255, 100, 0.1), 0 0 10px rgba(0, 255, 100, 0.1);
-}
-.holo-glass-btn.btn-resume .btn-text, .holo-glass-btn.btn-resume .btn-dec {
-  color: #00ff66;
-  text-shadow: 0 0 10px rgba(0, 255, 100, 0.7);
-}
-.holo-glass-btn.btn-resume:hover {
-  border-color: #00ff66;
-  box-shadow: inset 0 0 15px rgba(0, 255, 100, 0.4), 0 0 25px rgba(0, 255, 100, 0.6);
-}
-
-/* === ЭЛЕГАНТНАЯ ВКЛАДКА BACK (Сниженный приоритет) === */
-.holo-back-tab {
-  background: transparent;
-  border: none;
-  border-top: 1px solid var(--glass-cyan-dim); /* Тонкий верхний контур */
-  color: #fff;
-  padding: 10px 20px;
-  font-family: 'Orbitron', sans-serif;
-  font-size: 11px; /* Намного меньше */
-  letter-spacing: 4px;
-  text-transform: uppercase;
-  cursor: var(--cur-ui-arrow) !important;
-  display: flex;
-  gap: 10px;
-  align-items: center;
-  align-self: flex-start; /* Прижата к левому краю */
-  border-radius: 0 15px 0 0; /* Острый угол */
-  
-  /* Очень легкое свечение */
-  filter: drop-shadow(0 0 3px rgba(0, 243, 255, 0.2));
-  transition: all 0.2s ease;
-  margin-bottom: -15px; /* Чтобы приблизилась к списку */
-  opacity: 0.6; /* Полупрозрачная по умолчанию */
-}
-
-.holo-back-tab:hover {
-  opacity: 1; /* Загорается при наведении */
-  filter: drop-shadow(0 0 8px rgba(0, 243, 255, 0.5));
-}
-.holo-back-tab .btn-dec {
-  color: var(--glass-cyan-primary);
-}
-
-/* === ШУТОЧНАЯ КНОПКА EXIT (СТЕКЛО) === */
-.exit-btn {
-  cursor: default !important; 
-  /* Оставляем старую логику выезда шутки, но применяем стеклянный дизайн кнопок */
-}
-
-.exit-joke {
-  font-family: 'Orbitron', sans-serif;
-  position: absolute;
-  left: 0; right: 0;
-  bottom: 10px; /* Спрятана ПОД объемным фоном */
-  text-align: center;
-  color: var(--neon-blue);
-  font-size: 13px;
-  letter-spacing: 2px;
-  opacity: 0;
-  z-index: -3; /* Прячем за слоями фона кнопки */
-  transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
-  pointer-events: none;
-}
-
-/* Класс, который будет добавляться по клику (из JS) */
-.exit-btn.show-joke .exit-joke {
-  bottom: -40px; /* Выезжает вниз */
-  opacity: 1;
-}
-
-/* Убираем затемнение комнаты за дверьми (сохраняем) */
-#loader-doors {
-  /* Мы форсируем курсор-стрелку (ui_arrow.png) для всего контейнера */
-  cursor: url('../Image/ui_arrow.png'), auto !important; 
-}
-
-/* СВЕТ В КОМНАТЕ ВСЕГДА ВКЛЮЧЕН (сохраняем) */
-canvas, #holo-wrapper {
-  opacity: 1 !important;
-  transition: none !important;
-}
-
-/* ПОЛНОСТЬЮ ОТКЛЮЧАЕМ ЧЕРНУЮ ПОДЛОЖКУ ДВЕРЕЙ */
-#loader-doors::before {
-  display: none !important;
-}
-
-/* === УПРАВЛЕНИЕ ЦЕНТРАЛЬНЫМ РОМБОМ (ХАБОМ) === */
-
-/* Стандартный ромб (в покое) */
-.loader-center-hub {
-  opacity: 1;
-  transition: opacity 0.5s ease;
-}
-
-/* 1. Плавное растворение без вспышек (перед открытием дверей) */
 .loader-center-hub.fade-out-fast {
-  opacity: 0 !important;
-  filter: drop-shadow(0 0 0 rgba(0, 243, 255, 0)) !important;
-  transition: all 0.4s ease !important; /* Растворяется за 0.4 сек */
+  opacity: 0;
+  filter: drop-shadow(0 0 0 rgba(var(--neon-blue-rgb), 0));
+  transition: all 0.4s ease;
 }
-
-/* 2. Жесткая невидимость (чтобы ромб не "ехал" на левой двери при закрытии) */
 .loader-center-hub.hub-hidden {
-  opacity: 0 !important;
-  filter: none !important;
-  transition: none !important;
+  opacity: 0;
+  filter: none;
+  transition: none;
 }
-
-/* 3. Плавное появление после того, как двери сомкнулись */
 .loader-center-hub.fade-in-volumetric {
   animation: fadeInSimple 0.6s ease forwards;
 }
-
 @keyframes fadeInSimple {
-  0% { 
-    opacity: 0; 
-    filter: drop-shadow(0 0 0 rgba(0, 243, 255, 0)); 
+  0% {
+    opacity: 0;
   }
-  100% { 
-    opacity: 1; 
-    filter: drop-shadow(0 0 10px rgba(0, 243, 255, 0.4)); 
+  100% {
+    opacity: 1;
   }
 }
 
-/* === КУРСОР ДЛЯ ЗАКРЫТЫХ ДВЕРЕЙ И МЕНЮ === */
-#loader-doors, #start-menu {
-  cursor: var(--cur-ui-arrow), auto !important;
+/* Переделанный ромб */
+.cyber-panel {
+  width: 100px;
+  height: 100px;
+  background: #0d1117;
+  border: 2px solid var(--neon-blue);
+  transform: rotate(45deg);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow:
+    0 0 30px rgba(0, 243, 255, 0.4),
+    inset 0 0 15px rgba(0, 243, 255, 0.2);
+  /* Сброс старых отступов */
+  padding: 0;
+  max-width: none;
+  aspect-ratio: auto;
+  clip-path: none;
 }
 
-/* === СТИЛИ ДЛЯ ПОЛЗУНКОВ ГРОМКОСТИ === */
-.slider-group {
+.panel-logo {
+  width: 60px;
+  height: 60px;
+  transform: rotate(-45deg); /* Возвращаем логотип прямо */
+  background: url("../Image/logo.png") center/contain no-repeat;
+  filter: drop-shadow(0 0 10px var(--neon-blue));
+  animation: pulseLogo 2s infinite alternate ease-in-out;
+  /* Сброс старых стилей */
+  margin-bottom: 0;
+  border-radius: 0;
+  box-shadow: none;
+}
+
+@keyframes pulseLogo {
+  from {
+    transform: rotate(-45deg) scale(0.9);
+    opacity: 0.8;
+  }
+  to {
+    transform: rotate(-45deg) scale(1.05);
+    opacity: 1;
+  }
+}
+
+/* Убрали старые тексты панели, если они остались в HTML, скроем их тут на всякий случай, либо ты их удалил в HTML */
+.panel-header,
+.panel-info,
+.panel-footer {
+  display: none;
+}
+
+#loader-doors.loaded .left-door {
+  transform: translateX(-100%);
+}
+#loader-doors.loaded .right-door {
+  transform: translateX(100%);
+}
+#loader-doors.loaded .loader-center-hub {
+  opacity: 0;
+}
+#loader-doors.loaded {
+  visibility: hidden;
+  transition-delay: 1.4s;
+}
+
+/* ==========================================================================
+   6. ФУТУРИСТИЧЕСКОЕ СТАРТОВОЕ МЕНЮ (НА ЛЕВОЙ ДВЕРИ)
+   ========================================================================== */
+.futuristic-start-menu {
+  position: absolute;
+  top: 50%;
+  right: 260px; /* Прижато к правому краю левой двери */
+  transform: translateY(-50%);
+  width: 500px;
   display: flex;
   flex-direction: column;
-  gap: 15px;
-  cursor: default !important; /* Убираем курсор-стрелку с самой панели */
+  gap: 20px;
+  z-index: 10;
+}
+.futuristic-start-menu.game-started {
+  pointer-events: none !important;
+}
+
+.menu-view {
+  display: none;
+  flex-direction: column;
+  gap: 25px;
+  width: 100%;
+}
+.menu-view.active {
+  display: flex;
+  animation: fadeInMenu 0.4s ease forwards;
+}
+@keyframes fadeInMenu {
+  from {
+    opacity: 0;
+    transform: translateX(-30px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+.settings-list {
+  display: flex;
+  flex-direction: column;
+  gap: 25px;
+}
+
+/* Базовый стиль скошенной кнопки */
+.sk-btn {
+  position: relative;
+  width: 100%;
+  height: 65px;
+  background: transparent;
+  border: none;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end; /* Текст прижат вправо */
+  font-family: "Orbitron", sans-serif;
+  font-size: 17px;
+  font-weight: 700;
+  color: #fff;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  overflow: visible;
+  outline: none;
+}
+
+/* Панель со скосом и градиентом растворения */
+.sk-btn::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  transform: skewX(-20deg);
+  transform-origin: right center;
+  /* Градиент растворения влево */
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    rgba(var(--neon-blue-rgb), 0.03) 40%,
+    rgba(var(--neon-blue-rgb), 0.15) 100%
+  );
+  border-right: 3px solid var(--neon-blue);
+  box-shadow: inset -10px 0 20px rgba(0, 243, 255, 0.05);
+  transition: all 0.3s;
+}
+
+.sk-btn .btn-text {
+  position: relative;
+  z-index: 2;
+  margin-right: 35px;
+  letter-spacing: 3px;
+}
+.sk-btn .btn-dec {
+  position: relative;
+  z-index: 2;
+  margin-right: 15px;
+  color: var(--neon-blue);
+}
+
+.sk-btn:hover::before {
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    rgba(var(--neon-blue-rgb), 0.1) 40%,
+    rgba(var(--neon-blue-rgb), 0.3) 100%
+  );
+  border-right-color: #fff;
+  box-shadow: 0 0 25px rgba(0, 243, 255, 0.4);
+}
+.sk-btn:hover .btn-text {
+  text-shadow: 0 0 10px var(--neon-blue);
+  transform: translateX(-5px);
+}
+
+/* Хайлайт RESUME (Зеленый неон) */
+.sk-btn.resume-highlight::before {
+  border-right-color: var(--neon-green);
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    rgba(var(--neon-green-rgb), 0.05) 40%,
+    rgba(var(--neon-green-rgb), 0.2) 100%
+  );
+}
+.sk-btn.resume-highlight .btn-text {
+  text-shadow: 0 0 10px var(--neon-green);
+  color: #fff;
+}
+.sk-btn.resume-highlight .btn-dec {
+  color: var(--neon-green);
+}
+
+/* ==========================================================================
+   ОБНОВЛЕННЫЕ НАСТРОЙКИ (В СТИЛЕ ГЛАВНОГО МЕНЮ)
+   ========================================================================== */
+
+/* ==========================================================================
+   ОБНОВЛЕННЫЕ НАСТРОЙКИ (ПО image_11.png И image_12.png)
+   ========================================================================== */
+
+/* Кнопка "НАЗАД" (<< MAIN MENU) */
+.holo-back-tab {
+  position: relative;
+  width: 100%;
+  height: 50px;
+  background: transparent;
+  border: none;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end; /* Текст прижат вправо */
+  font-family: "Orbitron", sans-serif;
+  font-size: 14px;
+  font-weight: 700;
+  letter-spacing: 3px;
+  color: #fff;
+  cursor: var(--cur-ui-arrow);
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  outline: none;
+  z-index: 1;
+  margin-bottom: 20px; /* Больше отступ, как в главном меню */
+}
+.holo-back-tab::before {
+  content: ""; position: absolute; inset: 0;
+  transform: skewX(-20deg); transform-origin: right center;
+  background: linear-gradient(90deg, transparent 0%, rgba(var(--neon-blue-rgb), 0.03) 40%, rgba(var(--neon-blue-rgb), 0.2) 100%);
+  
+  /* --- ФИКС: Тонкая грань по умолчанию --- */
+  border-right: 1px solid rgba(var(--neon-blue-rgb), 0.5);
+  box-shadow: inset -10px 0 20px rgba(0, 243, 255, 0.05);
+  
+  z-index: -1; transition: all 0.3s;
+}
+.holo-back-tab:hover::before {
+  background: linear-gradient(90deg, transparent 0%, rgba(var(--neon-blue-rgb), 0.1) 40%, rgba(var(--neon-blue-rgb), 0.4) 100%);
+  
+  /* --- ФИКС: Все еще тонкая, но ярче --- */
+  border-right-color: rgba(var(--neon-blue-rgb), 0.8);
+  box-shadow: 0 0 10px var(--neon-blue);
+}
+.holo-back-tab .btn-dec { margin-right: 15px; color: var(--neon-blue); }
+.holo-back-tab .btn-text { margin-right: 35px; transition: 0.3s; text-shadow: 0 0 5px var(--neon-blue); }
+.holo-back-tab:hover .btn-text { text-shadow: 0 0 10px var(--neon-blue); transform: translateX(-5px); }
+
+/* Панели ползунков и языка (slider-group) */
+.settings-list { display: flex; flex-direction: column; gap: 20px; }
+
+.slider-group {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 10px; /* Было 15px. Уменьшили расстояние между текстом и ползунком */
+  min-height: 60px; /* БЫЛО 80px. Теперь они такие же стройные, как кнопки меню */
+  justify-content: center;
+  padding: 10px 35px 10px 15px; /* Уменьшили отступы сверху и снизу */
+  background: transparent;
+  border: none;
+  z-index: 1;
+}
+
+.slider-group::before {
+  content: ""; position: absolute; inset: 0;
+  transform: skewX(-20deg); transform-origin: right center;
+  background: linear-gradient(90deg, transparent 0%, rgba(var(--neon-blue-rgb), 0.05) 40%, rgba(var(--neon-blue-rgb), 0.2) 100%);
+  
+  /* --- ФИКС: Жирная грань по умолчанию --- */
+  border-right: 3px solid var(--neon-blue);
+  box-shadow: inset -10px 0 20px rgba(0, 243, 255, 0.05);
+  
+  z-index: -1; transition: all 0.3s;
+}
+.slider-group:hover::before {
+  background: linear-gradient(90deg, transparent 0%, rgba(var(--neon-blue-rgb), 0.1) 40%, rgba(var(--neon-blue-rgb), 0.3) 100%);
+  
+  /* --- ФИКС: Яркая грань --- */
+  border-right-color: #fff;
+  box-shadow: 0 0 25px rgba(0, 243, 255, 0.4);
 }
 
 .slider-header {
   display: flex;
-  justify-content: space-between;
+  justify-content: flex-end; /* Текст прижат вправо */
+  gap: 15px;
   width: 100%;
+  font-family: "Orbitron", sans-serif;
+  font-size: 13px;
+  color: #fff;
+  letter-spacing: 2px;
+  text-shadow: 0 0 5px var(--neon-blue);
 }
+.slider-value { color: var(--neon-blue); font-weight: bold; }
 
-.slider-value {
-  color: var(--glass-cyan-primary);
-  text-shadow: 0 0 10px var(--glass-cyan-primary);
-  font-weight: bold;
-}
-
-/* Сброс стандартных стилей ползунка */
+/* Сами ползунки */
 .cyber-slider {
-  -webkit-appearance: none;
-  width: 100%;
-  height: 4px;
-  background: rgba(0, 243, 255, 0.2);
-  border-radius: 2px;
-  outline: none;
-  cursor: var(--cur-ui-arrow) !important;
-}
-
-/* Свечение полосы при наведении */
-.cyber-slider:hover {
-  background: rgba(0, 243, 255, 0.4);
-  box-shadow: 0 0 10px rgba(0, 243, 255, 0.2);
-}
-
-/* Ползунок (Кружочек/Квадратик) - WebKit (Chrome, Safari, Edge) */
-.cyber-slider::-webkit-slider-thumb {
-  -webkit-appearance: none;
+  /* --- ФИКС: Добавлено стандартное свойство appearance для VS Code --- */
+  -webkit-appearance: none; 
   appearance: none;
-  width: 16px;
-  height: 16px;
-  background: #fff;
-  border: 2px solid var(--neon-blue);
-  border-radius: 50%;
-  cursor: var(--cur-hand) !important;
-  box-shadow: 0 0 10px var(--neon-blue), inset 0 0 5px var(--neon-blue);
-  transition: transform 0.1s;
+  
+  width: 100%; height: 4px; background: rgba(var(--neon-blue-rgb), 0.2);
+  border-radius: 2px; outline: none;
 }
-
-.cyber-slider::-webkit-slider-thumb:hover {
-  transform: scale(1.3);
-  background: var(--neon-blue);
-  box-shadow: 0 0 15px var(--neon-blue);
+.cyber-slider:hover { background: rgba(var(--neon-blue-rgb), 0.4); box-shadow: 0 0 10px rgba(var(--neon-blue-rgb), 0.2); }
+.cyber-slider::-webkit-slider-thumb {
+  -webkit-appearance: none; appearance: none; width: 16px; height: 16px;
+  background: #fff; border: 2px solid var(--neon-blue); border-radius: 50%;
+  cursor: var(--cur-hand); box-shadow: 0 0 10px var(--neon-blue); transition: transform 0.1s;
 }
+.cyber-slider::-webkit-slider-thumb:hover { transform: scale(1.3); background: var(--neon-blue); box-shadow: 0 0 15px var(--neon-blue); }
 
-/* Ползунок - Firefox */
-.cyber-slider::-moz-range-thumb {
-  width: 16px;
-  height: 16px;
-  background: #fff;
-  border: 2px solid var(--neon-blue);
-  border-radius: 50%;
-  cursor: var(--cur-hand) !important;
-  box-shadow: 0 0 10px var(--neon-blue), inset 0 0 5px var(--neon-blue);
-  transition: transform 0.1s;
-}
-
-.cyber-slider::-moz-range-thumb:hover {
-  transform: scale(1.3);
-  background: var(--neon-blue);
-}
-
-/* === ФИКСЫ МЕНЮ === */
-
-/* Разрешаем тексту вылезать из кнопки Exit */
-.exit-btn {
-  overflow: visible !important; 
-}
-
-/* Исправленная анимация шутки Exit */
-.exit-joke {
-  bottom: -15px; /* Стартует сразу под нижней гранью кнопки */
-  transform: translateY(-5px); /* Чуть приподнята, чтобы казалось, что выезжает из-под неё */
-  opacity: 0;
-  z-index: -1; 
-  transition: all 0.3s ease-out;
-}
-
-.exit-btn.show-joke .exit-joke {
-  bottom: -25px; /* Выезжает аккуратно вниз, не пробивая главную рамку меню */
-  transform: translateY(0);
-  opacity: 1;
-}
-
-/* Снимаем жесткую высоту со всех кнопок в настройках (возвращаем размер главного меню) */
-.settings-list .holo-glass-btn {
-  min-height: auto; 
-}
-
-/* Применяем высоту 85px ТОЛЬКО к ползункам звука */
-.slider-group {
-  min-height: 85px;
-  justify-content: space-between !important;
-}
-
-/* === ИСПРАВЛЕННОЕ ВЫПАДАЮЩЕЕ МЕНЮ ЯЗЫКА === */
-.lang-group {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  justify-content: flex-start !important;
-  gap: 0px; /* ВАЖНО: Убрали gap в закрытом состоянии, чтобы кнопка была тонкой */
-  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-}
-
-.lang-group.open {
-  gap: 12px; /* Появляется отступ только при открытии */
-  min-height: 85px; /* Ровно размер кнопок ползунков */
-}
+/* Языковое меню */
+.lang-group { cursor: var(--cur-ui-arrow); transition: all 0.3s; }
+.lang-group.open { min-height: 95px; }
 
 .lang-options {
   display: flex;
-  width: 100%;
-  gap: 10px;
-  opacity: 0;
-  pointer-events: none;
+  justify-content: flex-end; 
+  gap: 0px; /* БЫЛО 15px. Это расстояние между кнопками. Можешь поставить 0px, если хочешь вплотную */
+  overflow: visible;
+  width: auto;
+  opacity: 0; 
+  pointer-events: none; 
   height: 0;
-  overflow: hidden;
+  transition: all 0.3s;
+}
+
+.lang-group.open .lang-options { opacity: 1; pointer-events: auto; height: 35px; margin-top: 5px; }
+
+/* === НОВЫЕ КНОПКИ ЯЗЫКОВ (ПЕРЕДЕЛАННЫЕ БЕЗ clip-path) === */
+.lang-btn {
+  position: relative; 
+  width: 200px; /* <-- ВОТ ОНА! Меняй это число (160px, 180px, 200px), чтобы настроить идеальную длину */
+  height: 35px;
+  background: transparent; 
+  border: none; 
+  padding: 0;
+  display: flex; 
+  align-items: center; 
+  justify-content: flex-end; /* Текст справа */
+  font-family: "Orbitron", sans-serif; 
+  color: rgba(255, 255, 255, 0.6);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  cursor: var(--cur-ui-arrow);
   transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  outline: none;
 }
 
-.lang-group.open .lang-options {
-  opacity: 1;
-  pointer-events: auto;
-  height: 30px; /* Уменьшили высоту внутренних кнопок, чтобы они не раздували главную */
+.lang-btn .btn-text {
+  position: relative; 
+  z-index: 2;
+  margin-right: 45px;
+  transition: all 0.3s;
 }
 
-.lang-options .lang-btn {
-  flex: 1;
-  min-height: 30px !important; /* Было 40px */
-  padding: 5px;
-  font-size: 10px; /* Чуть уменьшили шрифт, чтобы влезло ровно */
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  text-align: center;
-  border-color: rgba(0, 243, 255, 0.2);
-}
-
-.lang-options .lang-btn.active-lang {
-  background: rgba(0, 243, 255, 0.25);
-  border-color: var(--neon-blue);
-  box-shadow: inset 0 0 10px rgba(0, 243, 255, 0.4);
+.lang-btn:hover .btn-text, .lang-btn.active-lang .btn-text {
   color: #fff;
+  text-shadow: 0 0 10px var(--neon-blue);
 }
 
-/* Возвращаем кликабельность кнопке МЕНЮ поверх 3D-сцены */
+/* === КНОПКИ ЯЗЫКОВ (ПЕРЕДЕЛАННЫЕ ПО image_14.png) === */
+
+.lang-btn::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  transform: skewX(-20deg); transform-origin: right center;
+  
+  /* Градиент растворения влево */
+  background: linear-gradient(90deg, transparent 0%, transparent 20%, rgba(var(--neon-blue-rgb), 0.05) 50%, rgba(var(--neon-blue-rgb), 0.2) 100%);
+  
+  /* === АРХИТЕКТУРНЫЙ ФИКС: Приглушенная тонкая грань по умолчанию === */
+  border-right: 1px solid rgba(var(--neon-blue-rgb), 0.5); /* 1px толщина, 0.5 прозрачность - как у main menu */
+  box-shadow: inset -10px 0 20px rgba(0, 243, 255, 0.05); /* Мягкая внутренняя тень */
+  
+  /* Маска растворения левого края (бронебойный метод) */
+  -webkit-mask-image: linear-gradient(to right, transparent 0%, black 40%);
+  mask-image: linear-gradient(to right, transparent 0%, black 40%);
+  
+  z-index: -1; transition: all 0.3s;
+}
+
+/* Эффекты при наведении ИЛИ если язык активен */
+.lang-btn:hover::before, .lang-btn.active-lang::before {
+  background: linear-gradient(90deg, transparent 0%, transparent 20%, rgba(var(--neon-blue-rgb), 0.1) 50%, rgba(var(--neon-blue-rgb), 0.3) 100%);
+  
+  /* === АРХИТЕКТУРНЫЙ ФИКС: Грань загорается неоном === */
+  border-right-color: var(--neon-blue); /* На ховере/активе грань становится яркой */
+  border-right-width: 1px; /* Оставляем тонкой, чтобы не ломать геометрию */
+  
+  /* Яркое свечение (box-shadow смещен вправо 10px) */
+  box-shadow: inset -15px 0 20px rgba(0, 243, 255, 0.1), 10px 0 15px rgba(0, 243, 255, 0.3);
+}
+/* Шутка Exit */
+.exit-btn {
+  overflow: visible;
+  cursor: default;
+}
+.exit-joke {
+  position: absolute;
+  right: 35px;
+  bottom: -12px;
+  font-size: 11px;
+  color: var(--neon-blue);
+  opacity: 0;
+  letter-spacing: 1px;
+  transition: 0.3s;
+  pointer-events: none;
+  font-family: "Orbitron", sans-serif;
+}
+.exit-btn.show-joke .exit-joke {
+  opacity: 0.8;
+  transform: translateY(5px);
+}
+
+/* Анимации текста пульсации */
+@keyframes pulse-text {
+  0%,
+  100% {
+    opacity: 0.4;
+    text-shadow: none;
+  }
+  50% {
+    opacity: 1;
+    text-shadow: 0 0 10px var(--neon-blue);
+  }
+}
+
+/* --- ФИКС КНОПКИ МЕНЮ В ИГРЕ --- */
 #btn-in-game-menu {
-  pointer-events: auto !important;
+  position: relative;
+  background: transparent;
+  border: none;
+  color: #fff;
+  font-family: "Orbitron", sans-serif;
+  font-size: 13px;
+  font-weight: bold;
+  letter-spacing: 2px;
+  padding: 10px 30px;
+  cursor: var(--cur-ui-arrow);
+  overflow: visible;
+  outline: none;
+  z-index: 1000;
+}
+#btn-in-game-menu::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  transform: skewX(-20deg);
+  background: linear-gradient(90deg, rgba(0, 243, 255, 0.1) 0%, rgba(0, 243, 255, 0.3) 100%);
+  border-right: 3px solid var(--neon-blue);
+  box-shadow: inset -5px 0 10px rgba(0, 243, 255, 0.1);
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  z-index: -1;
+}
+#btn-in-game-menu:hover::before {
+  background: linear-gradient(90deg, rgba(0, 243, 255, 0.2) 0%, rgba(0, 243, 255, 0.6) 100%);
+  border-right-color: #fff;
+  box-shadow: 0 0 15px var(--neon-blue);
+}
+#btn-in-game-menu .btn-text {
+  text-shadow: 0 0 5px var(--neon-blue);
+  transition: 0.3s;
+}
+#btn-in-game-menu:hover .btn-text {
+  text-shadow: 0 0 10px #fff;
 }

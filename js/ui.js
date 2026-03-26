@@ -15,7 +15,7 @@ export class UIManager {
     this.animTimers = {
       enter1: null,
       enter2: null,
-      exit: null
+      exit: null,
     };
 
     // Кэшируем ВСЕ нужные элементы один раз
@@ -49,6 +49,10 @@ export class UIManager {
       valSfx: document.getElementById("val-sfx"),
       sliderMusic: document.getElementById("slider-music"),
       valMusic: document.getElementById("val-music"),
+
+      confirmModal: document.getElementById("confirm-modal"),
+      btnConfirmYes: document.getElementById("btn-confirm-yes"),
+      btnConfirmNo: document.getElementById("btn-confirm-no"),
     };
 
     this.initBindings();
@@ -61,10 +65,11 @@ export class UIManager {
     if (this.elements.loader) this.elements.loader.style.display = "none";
   }
 
-clearAnimTimers() {
+  clearAnimTimers() {
     if (this.animTimers.enter1) clearTimeout(this.animTimers.enter1);
     if (this.animTimers.enter2) clearTimeout(this.animTimers.enter2);
     if (this.animTimers.exit) clearTimeout(this.animTimers.exit);
+    if (this.animTimers.light) clearTimeout(this.animTimers.light);
   }
 
   updateLanguage(lang) {
@@ -186,13 +191,14 @@ clearAnimTimers() {
     setupSlider(el.sliderSfx, el.valSfx, "setSfxVolume", 2.0);
     setupSlider(el.sliderMusic, el.valMusic, "setMusicVolume", 1.5);
 
- // 4. Безопасный вход в игру
+    // 4. Безопасный вход в игру
     const enterGame = () => {
       this.isMenuLocked = true;
-      this.clearAnimTimers(); // Убиваем любые конфликтующие анимации
-      
-      if (audioManager && audioManager.resumeContext) audioManager.resumeContext();
-      
+      this.clearAnimTimers();
+
+      if (audioManager && audioManager.resumeContext)
+        audioManager.resumeContext();
+
       const htmlElem = document.documentElement;
       if (htmlElem.requestFullscreen && !document.fullscreenElement) {
         htmlElem.requestFullscreen();
@@ -202,63 +208,96 @@ clearAnimTimers() {
 
       if (el.centerHub && el.doors) {
         el.centerHub.classList.remove("fade-in-volumetric", "hub-hidden");
-        
+
         this.animTimers.enter1 = setTimeout(() => {
+          // Убрали отсюда lights-on, теперь ядро просто гаснет
           el.centerHub.classList.add("fade-out-fast");
-          
+
           this.animTimers.enter2 = setTimeout(() => {
             if (audioManager && audioManager.fadeIn) audioManager.fadeIn(1.0);
-            el.doors.classList.add("loaded");
+
+            el.doors.classList.add("loaded"); // Двери начали разъезжаться
             document.body.classList.remove("loading");
+
+            // ИСПРАВЛЕНИЕ: Ждем 400мс, пока появится щель, и только потом плавно даем свет
+            this.animTimers.light = setTimeout(() => {
+              document.body.classList.add("lights-on");
+            }, 400);
           }, 600);
-          
         }, 500);
       }
-    };
+    }; // === ЭТОТ БЛОК СТАВИМ ВМЕСТО СТАРОГО if (el.btnStart) ===
+    // Логика запуска Новой Игры (сброс + светлая комната + анимация входа)
+
+    // ... здесь заканчивается твой const enterGame = () => { ... };
+
+    const executeNewGame = () => {
+      if (this.cb && this.cb.onReset) this.cb.onReset();
+      if (store && typeof store.update === "function") {
+        store.update({ mode: "lab" });
+      }
+      enterGame();
+    }; // Слушатель главной кнопки NEW GAME
 
     if (el.btnStart) {
       el.btnStart.addEventListener("click", () => {
-        if (
-          el.btnResume &&
-          el.btnResume.style.display === "flex" &&
-          this.cb &&
-          this.cb.onReset
-        ) {
-          this.cb.onReset();
+        // Проверяем: если кнопка RESUME отображается, значит прогресс уже есть
+        if (el.btnResume && el.btnResume.style.display === "flex") {
+          // Показываем окно подтверждения
+          el.confirmModal.classList.remove("hidden");
+          if (audioManager && audioManager.playUI) audioManager.playUI("click");
+        } else {
+          // Это первый запуск, модалка не нужна
+          executeNewGame();
         }
-        enterGame();
+      });
+    } // Обработчик кнопки "YES" в модалке
+
+    if (el.btnConfirmYes) {
+      el.btnConfirmYes.addEventListener("click", () => {
+        el.confirmModal.classList.add("hidden");
+        executeNewGame();
+      });
+    } // Обработчик кнопки "CANCEL" в модалке
+
+    if (el.btnConfirmNo) {
+      el.btnConfirmNo.addEventListener("click", () => {
+        el.confirmModal.classList.add("hidden");
+        if (audioManager && audioManager.playUI) audioManager.playUI("click");
       });
     }
+
     if (el.btnResume) el.btnResume.addEventListener("click", enterGame);
 
-// 5. Безопасный выход в меню
+    // 5. Безопасный выход в меню
     const returnToMainMenu = () => {
-      this.isMenuLocked = false; 
-      this.clearAnimTimers(); // Жёстко отменяем анимации входа, если они шли
-      
-      document.body.classList.add("loading"); // Возвращаем состояние загрузки HUD
+      this.isMenuLocked = false;
+      this.clearAnimTimers();
+      document.body.classList.add("loading");
+
+      // ДОБАВЛЕНО: Снимаем флаг, чтобы свет начал плавно гаснуть вместе с закрытием дверей
+      document.body.classList.remove("lights-on");
 
       if (audioManager && audioManager.fadeOut) audioManager.fadeOut(1.4);
-      if (el.doors) el.doors.classList.remove("loaded");
-
+      if (el.doors) el.doors.classList.remove("loaded"); // Двери поехали закрываться
       // Сброс центрального хаба
       if (el.centerHub) {
         el.centerHub.classList.remove("fade-out-fast", "fade-in-volumetric");
         el.centerHub.classList.add("hub-hidden");
-        
+
         // 1400мс — это время закрытия дверей из твоего CSS (transition: 1.4s)
         this.animTimers.exit = setTimeout(() => {
           el.centerHub.classList.remove("hub-hidden");
           el.centerHub.classList.add("fade-in-volumetric");
-        }, 1400); 
+        }, 1400);
       }
 
-    // Возврат интерфейса
+      // Возврат интерфейса
       if (el.startMenu) {
         el.startMenu.classList.remove("game-started");
         if (el.viewMain && el.viewSettings) {
           el.viewSettings.classList.remove("active");
-          el.viewMain.classList.add("active"); 
+          el.viewMain.classList.add("active");
         }
       }
 

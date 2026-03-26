@@ -1,7 +1,7 @@
 // Файл: i18n.js
 export const translations = {
   EN: {
-    resume: "RESUME",
+    resume: "Continue",
     start: "NEW GAME",
     settings: "SETTINGS",
     exit: "EXIT",

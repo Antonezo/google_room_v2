@@ -158,7 +158,7 @@ export class GoogleRoomApp {
 
     this.setupStateReactions();
 
-  const fontLoader = new FontLoader();
+    const fontLoader = new FontLoader();
     fontLoader.load(
       "https://threejs.org/examples/fonts/helvetiker_bold.typeface.json",
       (font) => {
@@ -172,16 +172,19 @@ export class GoogleRoomApp {
     // ФИЗИКА СВЕТА: Настройка экспозиции камеры
     // ==========================================
     // Запоминаем дефолтную яркость сцены (обычно 1.0)
-    this.baseExposure = this.renderer.toneMappingExposure > 0 ? this.renderer.toneMappingExposure : 1.0;
-    
-    // Если ToneMapping был выключен, включаем линейный 
+    this.baseExposure =
+      this.renderer.toneMappingExposure > 0
+        ? this.renderer.toneMappingExposure
+        : 1.0;
+
+    // Если ToneMapping был выключен, включаем линейный
     // (он не меняет оригинальные цвета, но дает управлять светом)
     if (this.renderer.toneMapping === THREE.NoToneMapping) {
       this.renderer.toneMapping = THREE.LinearToneMapping;
     }
-    
+
     // Игра начинается в абсолютной темноте
-    this.currentExposure = 0.0; 
+    this.currentExposure = 0.0;
     this.renderer.toneMappingExposure = this.currentExposure;
 
     requestAnimationFrame(this.tick);
@@ -945,14 +948,16 @@ export class GoogleRoomApp {
 
     this.updateLetterAnimations(currentTime);
     this.updateBallInstances(currentTime);
-    const isDoorsOpen = this.uiManager.elements.doors.classList.contains("loaded");
-    
-    // Целевая яркость: если двери открыты — норма, если закрыты — тьма
-    const targetExposure = isDoorsOpen ? this.baseExposure : 0.0;
+    // ДОБАВЛЕНО: Смотрим на независимый флаг, а не на анимацию дверей
+    const isLightsOn = document.body.classList.contains("lights-on");
+    const targetExposure = isLightsOn ? this.baseExposure : 0.0; // Снизил lerp с 0.015 до 0.01. Свет будет разгораться более "лениво" и плавно.
 
-    // Плавно приближаем текущую яркость к целевой (0.015 - скорость адаптации глаза)
-    this.currentExposure = THREE.MathUtils.lerp(this.currentExposure, targetExposure, 0.015);
-    this.renderer.toneMappingExposure = this.currentExposure;
+    this.currentExposure = THREE.MathUtils.lerp(
+      this.currentExposure,
+      targetExposure,
+      0.01,
+    );
+    this.renderer.toneMappingExposure = this.currentExposure; // Эту строку ни в коем случае не трогаем, она рисует кадр!
     this.composer.render();
   }
 
@@ -1067,10 +1072,6 @@ export class GoogleRoomApp {
       store.get().paintToolColor !== undefined
         ? store.get().paintToolColor
         : -1;
-
-    // === В файле main.js (внутри updatePhysics) ===
-
-    // === В файле main.js (внутри updatePhysics) ===
 
     if (
       isPaintingStreamActive &&

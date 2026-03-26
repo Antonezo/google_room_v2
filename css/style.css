@@ -1209,29 +1209,57 @@ body.loading #holo-wrapper {
   margin-bottom: 20px; /* Больше отступ, как в главном меню */
 }
 .holo-back-tab::before {
-  content: ""; position: absolute; inset: 0;
-  transform: skewX(-20deg); transform-origin: right center;
-  background: linear-gradient(90deg, transparent 0%, rgba(var(--neon-blue-rgb), 0.03) 40%, rgba(var(--neon-blue-rgb), 0.2) 100%);
-  
+  content: "";
+  position: absolute;
+  inset: 0;
+  transform: skewX(-20deg);
+  transform-origin: right center;
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    rgba(var(--neon-blue-rgb), 0.03) 40%,
+    rgba(var(--neon-blue-rgb), 0.2) 100%
+  );
+
   /* --- ФИКС: Тонкая грань по умолчанию --- */
   border-right: 1px solid rgba(var(--neon-blue-rgb), 0.5);
   box-shadow: inset -10px 0 20px rgba(0, 243, 255, 0.05);
-  
-  z-index: -1; transition: all 0.3s;
+
+  z-index: -1;
+  transition: all 0.3s;
 }
 .holo-back-tab:hover::before {
-  background: linear-gradient(90deg, transparent 0%, rgba(var(--neon-blue-rgb), 0.1) 40%, rgba(var(--neon-blue-rgb), 0.4) 100%);
-  
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    rgba(var(--neon-blue-rgb), 0.1) 40%,
+    rgba(var(--neon-blue-rgb), 0.4) 100%
+  );
+
   /* --- ФИКС: Все еще тонкая, но ярче --- */
   border-right-color: rgba(var(--neon-blue-rgb), 0.8);
   box-shadow: 0 0 10px var(--neon-blue);
 }
-.holo-back-tab .btn-dec { margin-right: 15px; color: var(--neon-blue); }
-.holo-back-tab .btn-text { margin-right: 35px; transition: 0.3s; text-shadow: 0 0 5px var(--neon-blue); }
-.holo-back-tab:hover .btn-text { text-shadow: 0 0 10px var(--neon-blue); transform: translateX(-5px); }
+.holo-back-tab .btn-dec {
+  margin-right: 15px;
+  color: var(--neon-blue);
+}
+.holo-back-tab .btn-text {
+  margin-right: 35px;
+  transition: 0.3s;
+  text-shadow: 0 0 5px var(--neon-blue);
+}
+.holo-back-tab:hover .btn-text {
+  text-shadow: 0 0 10px var(--neon-blue);
+  transform: translateX(-5px);
+}
 
 /* Панели ползунков и языка (slider-group) */
-.settings-list { display: flex; flex-direction: column; gap: 20px; }
+.settings-list {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
 
 .slider-group {
   position: relative;
@@ -1247,19 +1275,33 @@ body.loading #holo-wrapper {
 }
 
 .slider-group::before {
-  content: ""; position: absolute; inset: 0;
-  transform: skewX(-20deg); transform-origin: right center;
-  background: linear-gradient(90deg, transparent 0%, rgba(var(--neon-blue-rgb), 0.05) 40%, rgba(var(--neon-blue-rgb), 0.2) 100%);
-  
+  content: "";
+  position: absolute;
+  inset: 0;
+  transform: skewX(-20deg);
+  transform-origin: right center;
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    rgba(var(--neon-blue-rgb), 0.05) 40%,
+    rgba(var(--neon-blue-rgb), 0.2) 100%
+  );
+
   /* --- ФИКС: Жирная грань по умолчанию --- */
   border-right: 3px solid var(--neon-blue);
   box-shadow: inset -10px 0 20px rgba(0, 243, 255, 0.05);
-  
-  z-index: -1; transition: all 0.3s;
+
+  z-index: -1;
+  transition: all 0.3s;
 }
 .slider-group:hover::before {
-  background: linear-gradient(90deg, transparent 0%, rgba(var(--neon-blue-rgb), 0.1) 40%, rgba(var(--neon-blue-rgb), 0.3) 100%);
-  
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    rgba(var(--neon-blue-rgb), 0.1) 40%,
+    rgba(var(--neon-blue-rgb), 0.3) 100%
+  );
+
   /* --- ФИКС: Яркая грань --- */
   border-right-color: #fff;
   box-shadow: 0 0 25px rgba(0, 243, 255, 0.4);
@@ -1276,55 +1318,85 @@ body.loading #holo-wrapper {
   letter-spacing: 2px;
   text-shadow: 0 0 5px var(--neon-blue);
 }
-.slider-value { color: var(--neon-blue); font-weight: bold; }
+.slider-value {
+  color: var(--neon-blue);
+  font-weight: bold;
+}
 
 /* Сами ползунки */
 .cyber-slider {
   /* --- ФИКС: Добавлено стандартное свойство appearance для VS Code --- */
-  -webkit-appearance: none; 
+  -webkit-appearance: none;
   appearance: none;
-  
-  width: 100%; height: 4px; background: rgba(var(--neon-blue-rgb), 0.2);
-  border-radius: 2px; outline: none;
+
+  width: 100%;
+  height: 4px;
+  background: rgba(var(--neon-blue-rgb), 0.2);
+  border-radius: 2px;
+  outline: none;
 }
-.cyber-slider:hover { background: rgba(var(--neon-blue-rgb), 0.4); box-shadow: 0 0 10px rgba(var(--neon-blue-rgb), 0.2); }
+.cyber-slider:hover {
+  background: rgba(var(--neon-blue-rgb), 0.4);
+  box-shadow: 0 0 10px rgba(var(--neon-blue-rgb), 0.2);
+}
 .cyber-slider::-webkit-slider-thumb {
-  -webkit-appearance: none; appearance: none; width: 16px; height: 16px;
-  background: #fff; border: 2px solid var(--neon-blue); border-radius: 50%;
-  cursor: var(--cur-hand); box-shadow: 0 0 10px var(--neon-blue); transition: transform 0.1s;
+  -webkit-appearance: none;
+  appearance: none;
+  width: 16px;
+  height: 16px;
+  background: #fff;
+  border: 2px solid var(--neon-blue);
+  border-radius: 50%;
+  cursor: var(--cur-hand);
+  box-shadow: 0 0 10px var(--neon-blue);
+  transition: transform 0.1s;
 }
-.cyber-slider::-webkit-slider-thumb:hover { transform: scale(1.3); background: var(--neon-blue); box-shadow: 0 0 15px var(--neon-blue); }
+.cyber-slider::-webkit-slider-thumb:hover {
+  transform: scale(1.3);
+  background: var(--neon-blue);
+  box-shadow: 0 0 15px var(--neon-blue);
+}
 
 /* Языковое меню */
-.lang-group { cursor: var(--cur-ui-arrow); transition: all 0.3s; }
-.lang-group.open { min-height: 95px; }
+.lang-group {
+  cursor: var(--cur-ui-arrow);
+  transition: all 0.3s;
+}
+.lang-group.open {
+  min-height: 95px;
+}
 
 .lang-options {
   display: flex;
-  justify-content: flex-end; 
+  justify-content: flex-end;
   gap: 0px; /* БЫЛО 15px. Это расстояние между кнопками. Можешь поставить 0px, если хочешь вплотную */
   overflow: visible;
   width: auto;
-  opacity: 0; 
-  pointer-events: none; 
+  opacity: 0;
+  pointer-events: none;
   height: 0;
   transition: all 0.3s;
 }
 
-.lang-group.open .lang-options { opacity: 1; pointer-events: auto; height: 35px; margin-top: 5px; }
+.lang-group.open .lang-options {
+  opacity: 1;
+  pointer-events: auto;
+  height: 35px;
+  margin-top: 5px;
+}
 
 /* === НОВЫЕ КНОПКИ ЯЗЫКОВ (ПЕРЕДЕЛАННЫЕ БЕЗ clip-path) === */
 .lang-btn {
-  position: relative; 
+  position: relative;
   width: 200px; /* <-- ВОТ ОНА! Меняй это число (160px, 180px, 200px), чтобы настроить идеальную длину */
   height: 35px;
-  background: transparent; 
-  border: none; 
+  background: transparent;
+  border: none;
   padding: 0;
-  display: flex; 
-  align-items: center; 
+  display: flex;
+  align-items: center;
   justify-content: flex-end; /* Текст справа */
-  font-family: "Orbitron", sans-serif; 
+  font-family: "Orbitron", sans-serif;
   color: rgba(255, 255, 255, 0.6);
   font-size: 11px;
   font-weight: 700;
@@ -1336,13 +1408,14 @@ body.loading #holo-wrapper {
 }
 
 .lang-btn .btn-text {
-  position: relative; 
+  position: relative;
   z-index: 2;
   margin-right: 45px;
   transition: all 0.3s;
 }
 
-.lang-btn:hover .btn-text, .lang-btn.active-lang .btn-text {
+.lang-btn:hover .btn-text,
+.lang-btn.active-lang .btn-text {
   color: #fff;
   text-shadow: 0 0 10px var(--neon-blue);
 }
@@ -1353,32 +1426,51 @@ body.loading #holo-wrapper {
   content: "";
   position: absolute;
   inset: 0;
-  transform: skewX(-20deg); transform-origin: right center;
-  
+  transform: skewX(-20deg);
+  transform-origin: right center;
+
   /* Градиент растворения влево */
-  background: linear-gradient(90deg, transparent 0%, transparent 20%, rgba(var(--neon-blue-rgb), 0.05) 50%, rgba(var(--neon-blue-rgb), 0.2) 100%);
-  
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    transparent 20%,
+    rgba(var(--neon-blue-rgb), 0.05) 50%,
+    rgba(var(--neon-blue-rgb), 0.2) 100%
+  );
+
   /* === АРХИТЕКТУРНЫЙ ФИКС: Приглушенная тонкая грань по умолчанию === */
   border-right: 1px solid rgba(var(--neon-blue-rgb), 0.5); /* 1px толщина, 0.5 прозрачность - как у main menu */
   box-shadow: inset -10px 0 20px rgba(0, 243, 255, 0.05); /* Мягкая внутренняя тень */
-  
+
   /* Маска растворения левого края (бронебойный метод) */
   -webkit-mask-image: linear-gradient(to right, transparent 0%, black 40%);
   mask-image: linear-gradient(to right, transparent 0%, black 40%);
-  
-  z-index: -1; transition: all 0.3s;
+
+  z-index: -1;
+  transition: all 0.3s;
 }
 
 /* Эффекты при наведении ИЛИ если язык активен */
-.lang-btn:hover::before, .lang-btn.active-lang::before {
-  background: linear-gradient(90deg, transparent 0%, transparent 20%, rgba(var(--neon-blue-rgb), 0.1) 50%, rgba(var(--neon-blue-rgb), 0.3) 100%);
-  
+.lang-btn:hover::before,
+.lang-btn.active-lang::before {
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    transparent 20%,
+    rgba(var(--neon-blue-rgb), 0.1) 50%,
+    rgba(var(--neon-blue-rgb), 0.3) 100%
+  );
+
   /* === АРХИТЕКТУРНЫЙ ФИКС: Грань загорается неоном === */
-  border-right-color: var(--neon-blue); /* На ховере/активе грань становится яркой */
+  border-right-color: var(
+    --neon-blue
+  ); /* На ховере/активе грань становится яркой */
   border-right-width: 1px; /* Оставляем тонкой, чтобы не ломать геометрию */
-  
+
   /* Яркое свечение (box-shadow смещен вправо 10px) */
-  box-shadow: inset -15px 0 20px rgba(0, 243, 255, 0.1), 10px 0 15px rgba(0, 243, 255, 0.3);
+  box-shadow:
+    inset -15px 0 20px rgba(0, 243, 255, 0.1),
+    10px 0 15px rgba(0, 243, 255, 0.3);
 }
 /* Шутка Exit */
 .exit-btn {
@@ -1436,14 +1528,22 @@ body.loading #holo-wrapper {
   position: absolute;
   inset: 0;
   transform: skewX(-20deg);
-  background: linear-gradient(90deg, rgba(0, 243, 255, 0.1) 0%, rgba(0, 243, 255, 0.3) 100%);
+  background: linear-gradient(
+    90deg,
+    rgba(0, 243, 255, 0.1) 0%,
+    rgba(0, 243, 255, 0.3) 100%
+  );
   border-right: 3px solid var(--neon-blue);
   box-shadow: inset -5px 0 10px rgba(0, 243, 255, 0.1);
   transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
   z-index: -1;
 }
 #btn-in-game-menu:hover::before {
-  background: linear-gradient(90deg, rgba(0, 243, 255, 0.2) 0%, rgba(0, 243, 255, 0.6) 100%);
+  background: linear-gradient(
+    90deg,
+    rgba(0, 243, 255, 0.2) 0%,
+    rgba(0, 243, 255, 0.6) 100%
+  );
   border-right-color: #fff;
   box-shadow: 0 0 15px var(--neon-blue);
 }
@@ -1453,4 +1553,81 @@ body.loading #holo-wrapper {
 }
 #btn-in-game-menu:hover .btn-text {
   text-shadow: 0 0 10px #fff;
+}
+
+/* ==========================================================================
+   МОДАЛЬНОЕ ОКНО ПОДТВЕРЖДЕНИЯ
+   ========================================================================== */
+.modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  background: rgba(11, 15, 23, 0.85);
+  backdrop-filter: blur(5px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 20000; /* Поверх всех дверей и меню */
+  opacity: 1;
+  transition: opacity 0.3s ease;
+}
+.modal-overlay.hidden {
+  opacity: 0;
+  pointer-events: none;
+}
+.cyber-modal {
+  background: rgba(10, 20, 30, 0.85);
+  border: 1px solid var(--neon-blue);
+  padding: 35px;
+  box-shadow:
+    0 0 40px rgba(0, 243, 255, 0.15),
+    inset 0 0 20px rgba(0, 243, 255, 0.05);
+  text-align: center;
+  transform: scale(1);
+  transition: transform 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+}
+.modal-overlay.hidden .cyber-modal {
+  transform: scale(0.9);
+}
+.modal-title {
+  color: #ff4444; /* Красный цвет предупреждения */
+  font-family: "Orbitron", sans-serif;
+  font-size: 22px;
+  font-weight: bold;
+  margin-bottom: 15px;
+  letter-spacing: 3px;
+  text-shadow: 0 0 10px rgba(255, 68, 68, 0.5);
+}
+.modal-text {
+  color: #fff;
+  font-size: 14px;
+  margin-bottom: 30px;
+  line-height: 1.5;
+  opacity: 0.8;
+}
+.modal-actions {
+  display: flex;
+  gap: 20px;
+  justify-content: center;
+}
+.modal-actions .holo-btn {
+  width: 140px;
+  padding: 12px 0;
+  cursor: var(--cur-ui-arrow);
+}
+/* Делаем кнопку отмены красной при наведении */
+#btn-confirm-yes {
+  border-color: #ff4444;
+  color: #ff4444;
+}
+#btn-confirm-yes.active-state {
+  background: rgba(255, 68, 68, 0.15);
+  box-shadow: 0 0 15px rgba(255, 68, 68, 0.3);
+}
+#btn-confirm-yes:hover {
+  background: rgba(255, 68, 68, 0.3);
+  color: #fff;
+  text-shadow: 0 0 5px #fff;
 }

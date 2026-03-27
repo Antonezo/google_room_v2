@@ -26,7 +26,6 @@ export class UIManager {
       btnSlow: document.getElementById("btn-slow"),
       wordInput: document.getElementById("word-input"),
       beadCount: document.getElementById("bead-count"),
-      loader: document.getElementById("loader"),
       btnMag: document.getElementById("btn-mag-main"),
       btnPaint: document.getElementById("btn-paint-main"),
       toolHint: document.getElementById("tool-hint"),
@@ -59,10 +58,6 @@ export class UIManager {
     this.initMenuSounds();
     this.initStoreSubscriptions();
     this.initStartMenu();
-  }
-
-  hideLoader() {
-    if (this.elements.loader) this.elements.loader.style.display = "none";
   }
 
   clearAnimTimers() {

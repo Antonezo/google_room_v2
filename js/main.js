@@ -162,7 +162,6 @@ export class GoogleRoomApp {
     fontLoader.load(
       "https://threejs.org/examples/fonts/helvetiker_bold.typeface.json",
       (font) => {
-        this.uiManager.hideLoader();
         this.globalFont = font;
         this.spawnLetters(this.currentWord);
       },

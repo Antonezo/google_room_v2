@@ -178,22 +178,6 @@ body.tool-paint-3 canvas {
 /* ==========================================================================
    3. ГЛОБАЛЬНЫЕ UI ЭЛЕМЕНТЫ (HUD, HOLO-PANEL)
    ========================================================================== */
-#loader {
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  transform: translate(-50%, -50%);
-  color: #333;
-  font-size: 18px;
-  font-weight: bold;
-  background: rgba(255, 255, 255, 0.9);
-  padding: 20px;
-  border-radius: 10px;
-  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
-  text-align: center;
-  z-index: 100;
-  pointer-events: none;
-}
 
 #hud-controls {
   position: absolute;
@@ -946,93 +930,98 @@ body.loading #holo-wrapper {
   left: 0;
 }
 
-/* Центральный Хаб (Новый дизайн ядра) */
+/* ==========================================================================
+   ЦЕНТРАЛЬНЫЙ ХАБ (ВРАЩАЮЩЕЕСЯ ЯДРО АЙС)
+   ========================================================================== */
 .loader-center-hub {
   position: absolute;
-  top: 50%;
-  left: 50%;
+  top: 50%; left: 50%;
   transform: translate(-50%, -50%);
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  z-index: 10001;
-  pointer-events: none;
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  z-index: 10001; pointer-events: none;
   transition: opacity 0.5s ease;
 }
 
 .loader-center-hub.fade-out-fast {
   opacity: 0;
-  filter: drop-shadow(0 0 0 rgba(var(--neon-blue-rgb), 0));
-  transition: all 0.4s ease;
+  transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+  transform: translate(-50%, -50%) scale(1.5);
+  filter: blur(5px);
 }
-.loader-center-hub.hub-hidden {
-  opacity: 0;
-  filter: none;
-  transition: none;
-}
-.loader-center-hub.fade-in-volumetric {
-  animation: fadeInSimple 0.6s ease forwards;
-}
-@keyframes fadeInSimple {
-  0% {
-    opacity: 0;
-  }
-  100% {
-    opacity: 1;
-  }
+.loader-center-hub.hub-hidden { opacity: 0; transition: none; }
+.loader-center-hub.fade-in-volumetric { animation: fadeInCore 0.6s cubic-bezier(0.2, 0.8, 0.2, 1) forwards; }
+
+@keyframes fadeInCore {
+  0% { opacity: 0; transform: translate(-50%, -50%) scale(0.5); filter: blur(10px); }
+  100% { opacity: 1; transform: translate(-50%, -50%) scale(1); filter: blur(0); }
 }
 
-/* Переделанный ромб */
-.cyber-panel {
-  width: 100px;
-  height: 100px;
-  background: #0d1117;
-  border: 2px solid var(--neon-blue);
-  transform: rotate(45deg);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  box-shadow:
-    0 0 30px rgba(0, 243, 255, 0.4),
-    inset 0 0 15px rgba(0, 243, 255, 0.2);
-  /* Сброс старых отступов */
-  padding: 0;
-  max-width: none;
-  aspect-ratio: auto;
-  clip-path: none;
+/* --- САМО ЯДРО --- */
+.cyber-core {
+  position: relative;
+  width: 130px; height: 130px;
+  display: flex; align-items: center; justify-content: center;
 }
 
-.panel-logo {
-  width: 60px;
-  height: 60px;
-  transform: rotate(-45deg); /* Возвращаем логотип прямо */
-  background: url("../Image/logo.png") center/contain no-repeat;
-  filter: drop-shadow(0 0 10px var(--neon-blue));
-  animation: pulseLogo 2s infinite alternate ease-in-out;
-  /* Сброс старых стилей */
-  margin-bottom: 0;
-  border-radius: 0;
-  box-shadow: none;
+.core-ring {
+  position: absolute;
+  border-radius: 50%;
+  border: 2px solid transparent;
 }
 
-@keyframes pulseLogo {
-  from {
-    transform: rotate(-45deg) scale(0.9);
-    opacity: 0.8;
-  }
-  to {
-    transform: rotate(-45deg) scale(1.05);
-    opacity: 1;
-  }
+.outer-ring {
+  width: 100%; height: 100%;
+  border-top: 2px solid rgba(var(--neon-blue-rgb), 0.9);
+  border-bottom: 2px solid rgba(var(--neon-blue-rgb), 0.9);
+  border-right: 2px solid rgba(var(--neon-blue-rgb), 0.1);
+  border-left: 2px solid rgba(var(--neon-blue-rgb), 0.1);
+  animation: spin-right 6s linear infinite;
+  box-shadow: 0 0 15px rgba(var(--neon-blue-rgb), 0.3), inset 0 0 15px rgba(var(--neon-blue-rgb), 0.3);
 }
 
-/* Убрали старые тексты панели, если они остались в HTML, скроем их тут на всякий случай, либо ты их удалил в HTML */
-.panel-header,
-.panel-info,
-.panel-footer {
-  display: none;
+.inner-ring {
+  width: 75%; height: 75%;
+  border-left: 2px dashed var(--neon-blue);
+  border-right: 2px dashed var(--neon-blue);
+  animation: spin-left 10s linear infinite;
 }
 
+.core-center {
+  position: relative;
+  background: rgba(10, 15, 25, 0.9);
+  border: 1px solid rgba(var(--neon-blue-rgb), 0.5);
+  width: 55%; height: 55%;
+  border-radius: 50%;
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  box-shadow: 0 0 20px rgba(var(--neon-blue-rgb), 0.6);
+  overflow: hidden;
+}
+
+.core-center::before {
+  content: ""; position: absolute; inset: 0;
+  background: repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(var(--neon-blue-rgb), 0.1) 2px, rgba(var(--neon-blue-rgb), 0.1) 4px);
+  pointer-events: none;
+}
+
+.core-text {
+  font-family: "Orbitron", sans-serif;
+  color: #fff; font-size: 13px; font-weight: bold; letter-spacing: 2px;
+  text-shadow: 0 0 8px var(--neon-blue);
+  z-index: 2; margin-bottom: 2px;
+}
+
+.core-subtext {
+  font-family: "Segoe UI", sans-serif;
+  color: var(--neon-blue); font-size: 8px; letter-spacing: 3px; font-weight: bold;
+  z-index: 2; opacity: 0.8;
+}
+
+@keyframes spin-right { 100% { transform: rotate(360deg); } }
+@keyframes spin-left { 100% { transform: rotate(-360deg); } }
+
+/* ==========================================================================
+   ЛОГИКА ОТКРЫТИЯ ДВЕРЕЙ (НЕ ТРОГАТЬ!)
+   ========================================================================== */
 #loader-doors.loaded .left-door {
   transform: translateX(-100%);
 }
@@ -1053,7 +1042,7 @@ body.loading #holo-wrapper {
 .futuristic-start-menu {
   position: absolute;
   top: 50%;
-  right: 260px; /* Прижато к правому краю левой двери */
+  right: 360px; /* Прижато к правому краю левой двери */
   transform: translateY(-50%);
   width: 500px;
   display: flex;
@@ -1630,4 +1619,94 @@ body.loading #holo-wrapper {
   background: rgba(255, 68, 68, 0.3);
   color: #fff;
   text-shadow: 0 0 5px #fff;
+}
+
+/* ==========================================================================
+   ЗАГОЛОВОК ИГРЫ (НА ПРАВОЙ ДВЕРИ)
+   ========================================================================== */
+.title-container {
+  position: absolute;
+  top: 15%;
+  left: 300px; /* Отступ от центрального стыка вправо */
+  transform: translateY(-50%);
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  z-index: 10;
+  pointer-events: none; /* Чтобы текст случайно не перекрывал клики */
+}
+
+/* Крупный футуристичный шрифт со скосом */
+.cyber-title {
+  position: relative;
+  font-family: "Orbitron", sans-serif;
+  font-size: 56px;
+  font-weight: 700;
+  color: #fff;
+  margin: 0;
+  padding: 10px 40px 10px 25px;
+  letter-spacing: 6px;
+  text-shadow: 0 0 15px rgba(var(--neon-blue-rgb), 0.8);
+
+  /* Тот же угол скоса, что и у кнопок меню */
+  transform: skewX(-20deg);
+  transform-origin: left center;
+
+  /* ЗЕРКАЛЬНЫЙ ЭФФЕКТ: Градиент растворяется вправо, а яркая грань слева */
+  background: linear-gradient(
+    -90deg,
+    transparent 0%,
+    rgba(var(--neon-blue-rgb), 0.05) 50%,
+    rgba(var(--neon-blue-rgb), 0.25) 100%
+  );
+  border-left: 4px solid var(--neon-blue);
+  box-shadow: inset 10px 0 20px rgba(0, 243, 255, 0.05);
+}
+
+/* Мелкий технический текст под заголовком */
+.cyber-subtitle {
+  font-family: "Segoe UI", sans-serif;
+  color: rgba(var(--neon-blue-rgb), 0.7);
+  font-size: 13px;
+  letter-spacing: 8px;
+  text-transform: uppercase;
+  margin-left: 20px; /* Сдвигаем вправо, чтобы визуально выровнять со скошенным шрифтом */
+  text-shadow: 0 0 5px rgba(var(--neon-blue-rgb), 0.3);
+}
+
+/* ==========================================================================
+   ТЕКСТУРА ПЕЧАТНЫХ ПЛАТ (PCB) НА ДВЕРЯХ
+   ========================================================================== */
+.pcb-texture {
+  position: absolute;
+  inset: 0; /* Растянуть на всю дверь */
+  z-index: 1; /* Поверх гексагонов, но под текстом меню/заголовка */
+  
+  /* === ЧИСТАЯ ТЕКСТУРА ПЛАТ (SVG в коде, без внешних файлов) === */
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='100' height='100' viewBox='0 0 100 100'%3E%3Cg fill='none' stroke='%2300f3ff' stroke-width='0.5' stroke-opacity='1'%3E%3Cpath d='M20 20 L20 40 M20 20 L40 20 M60 20 L80 20 M80 20 L80 40 M20 60 L20 80 M20 80 L40 80 M60 80 L80 80 M80 60 L80 80'/%3E%3Ccircle cx='20' cy='20' r='1.5'/%3E%3Ccircle cx='80' cy='20' r='1.5'/%3E%3Ccircle cx='20' cy='80' r='1.5'/%3E%3Ccircle cx='80' cy='80' r='1.5'/%3E%3Cpath d='M40 40 L60 60 M40 60 L60 40' stroke-width='0.3'/%3E%3Ccircle cx='50' cy='50' r='0.8' fill='%2300f3ff'/%3E%3C/g%3E%3C/svg%3E");
+  background-size: 150px 150px;
+  
+  /* Дефолтное состояние: тусклое, как у гексагонов */
+  opacity: 0.1;
+  transition: opacity 0.3s ease;
+  
+  /* === ЗАПУСКАЕМ ПУЛЬСАЦИЮ === */
+  animation: pcbPulse 6s ease-in-out infinite;
+}
+
+/* На ховере (когда мышь над дверью) текстура становится ярче */
+.door:hover .pcb-texture {
+  opacity: 0.2;
+}
+
+/* === АНИМАЦИЯ НЕОНОВОЙ ПУЛЬСАЦИИ === */
+@keyframes pcbPulse {
+  0%, 100% {
+    opacity: 0.1; /* Тусклое */
+    filter: brightness(1);
+  }
+  50% {
+    opacity: 0.25; /* "Загорается" */
+    filter: brightness(1.5) drop-shadow(0 0 8px var(--neon-blue));
+  }
 }

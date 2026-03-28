@@ -29,6 +29,7 @@ export class UIManager {
       btnMag: document.getElementById("btn-mag-main"),
       btnPaint: document.getElementById("btn-paint-main"),
       toolHint: document.getElementById("tool-hint"),
+      btnRestart: document.getElementById("btn-restart-level"),
 
       startMenu: document.getElementById("futuristic-start-menu"),
       doors: document.getElementById("loader-doors"),
@@ -191,8 +192,9 @@ export class UIManager {
       this.isMenuLocked = true;
       this.clearAnimTimers();
 
-      if (audioManager && audioManager.resumeContext)
+      if (audioManager && audioManager.resumeContext) {
         audioManager.resumeContext();
+      }
 
       const htmlElem = document.documentElement;
       if (htmlElem.requestFullscreen && !document.fullscreenElement) {
@@ -205,7 +207,6 @@ export class UIManager {
         el.centerHub.classList.remove("fade-in-volumetric", "hub-hidden");
 
         this.animTimers.enter1 = setTimeout(() => {
-          // Убрали отсюда lights-on, теперь ядро просто гаснет
           el.centerHub.classList.add("fade-out-fast");
 
           this.animTimers.enter2 = setTimeout(() => {
@@ -214,17 +215,21 @@ export class UIManager {
             el.doors.classList.add("loaded"); // Двери начали разъезжаться
             document.body.classList.remove("loading");
 
-            // ИСПРАВЛЕНИЕ: Ждем 400мс, пока появится щель, и только потом плавно даем свет
+            // Свет плавно загорается
             this.animTimers.light = setTimeout(() => {
               document.body.classList.add("lights-on");
             }, 400);
+
+            // ==========================================
+            // МАГИЯ АЙСА: Таймер выезда робота на экран
+            // ==========================================
+            this.animTimers.aice = setTimeout(() => {
+              this.showAiceDialogue();
+            }, 2800);
           }, 600);
         }, 500);
       }
-    }; // === ЭТОТ БЛОК СТАВИМ ВМЕСТО СТАРОГО if (el.btnStart) ===
-    // Логика запуска Новой Игры (сброс + светлая комната + анимация входа)
-
-    // ... здесь заканчивается твой const enterGame = () => { ... };
+    };
 
     const executeNewGame = () => {
       if (this.cb && this.cb.onReset) this.cb.onReset();
@@ -269,10 +274,26 @@ export class UIManager {
       this.isMenuLocked = false;
       this.clearAnimTimers();
       document.body.classList.add("loading");
-
-      // ДОБАВЛЕНО: Снимаем флаг, чтобы свет начал плавно гаснуть вместе с закрытием дверей
       document.body.classList.remove("lights-on");
 
+      // === ПРЯЧЕМ И ГЛУШИМ АЙСА ===
+      const aicePanel = document.getElementById("aice-dialogue-container");
+      if (aicePanel) {
+        aicePanel.classList.add("hidden"); // Снова прячем Айса!
+      }
+
+      // Отменяем таймер появления (чтобы не выскочил за закрытой дверью)
+      if (this.animTimers && this.animTimers.aice) {
+        clearTimeout(this.animTimers.aice);
+      }
+
+      // Останавливаем набор текста, если игрок вышел прямо посреди диалога
+      if (this.typewriterTimer) {
+        clearInterval(this.typewriterTimer);
+      }
+      // ============================
+
+      if (audioManager && audioManager.fadeOut) audioManager.fadeOut(1.4);
       if (audioManager && audioManager.fadeOut) audioManager.fadeOut(1.4);
       if (el.doors) el.doors.classList.remove("loaded"); // Двери поехали закрываться
       // Сброс центрального хаба
@@ -466,6 +487,63 @@ export class UIManager {
     this.elements.btnPaint.classList.toggle("is-selecting", target === "paint");
   }
 
+  // ==========================================
+  // 1. ОБНОВЛЕННЫЙ ВЫЗОВ АЙСА
+  // ==========================================
+  showAiceDialogue(
+    textToShow = "Привет! Связь установлена. Готов к выполнению задач.",
+  ) {
+    // <--- МЕНЯЕМ ТЕКСТ
+    const aicePanel = document.getElementById("aice-dialogue-container");
+    const textElement = document.getElementById("aice-dialogue-text");
+
+    if (aicePanel && textElement) {
+      aicePanel.classList.remove("hidden");
+
+      if (typeof audioManager !== "undefined" && audioManager.playUI) {
+        audioManager.playUI("pop");
+      }
+
+      textElement.innerHTML = "";
+
+      setTimeout(() => {
+        // Ставим экстремальную скорость 500!
+        this.typeText(textElement, textToShow, 50);
+      }, 600);
+    }
+  }
+
+  // ==========================================
+  // 2. ДВИЖОК "ПЕЧАТНОЙ МАШИНКИ"
+  // ==========================================
+  typeText(element, text, speed = 30) {
+    return new Promise((resolve) => {
+      element.innerHTML = "";
+      let i = 0;
+
+      // Если текст уже печатался (игрок кликнул дважды), останавливаем старый таймер
+      if (this.typewriterTimer) clearInterval(this.typewriterTimer);
+
+      this.typewriterTimer = setInterval(() => {
+        if (i < text.length) {
+          // Добавляем по одной букве
+          element.innerHTML += text.charAt(i);
+
+          // Опционально: можно добавить тихий звук клика на каждую 3-ю букву
+          // if (i % 3 === 0 && text.charAt(i) !== ' ' && audioManager && audioManager.playUI) {
+          //   audioManager.playUI("click");
+          // }
+
+          i++;
+        } else {
+          // Текст закончился!
+          clearInterval(this.typewriterTimer);
+          resolve(); // Сообщаем игре, что печать завершена
+        }
+      }, speed);
+    });
+  }
+
   initBindings() {
     // Отслеживание мыши
     window.addEventListener("mousemove", (e) => {
@@ -554,6 +632,18 @@ export class UIManager {
         ? this.closePalette()
         : this.openPalette("paint"),
     );
+
+    // Логика кнопки RESTART (Сброс сцены уровня)
+    if (this.elements.btnRestart) {
+      this.elements.btnRestart.addEventListener("click", () => {
+        if (this.cb && this.cb.onReset) {
+          this.cb.onReset(); // Дергаем функцию сброса физики и краски
+        }
+        if (audioManager && audioManager.playUI) {
+          audioManager.playUI("click");
+        }
+      });
+    }
 
     // Палитры (оставляем делегирование, но только внутри палитры, а не на весь document)
     document.querySelectorAll(".palette-item").forEach((item) => {

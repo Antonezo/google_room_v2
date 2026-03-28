@@ -9,7 +9,7 @@ import { audioManager } from "./audio.js";
 import { store, isNight, isSlowMo } from "./state.js";
 import { PhysicsManager } from "./physics.js";
 import { SceneManager, heatTex } from "./scene.js";
-import { UIManager } from "./ui.js";
+import { UIManager } from './ui.js';
 import { InputManager } from "./input.js";
 import { ParticlePool, GameObject, MiniBeadPool } from "./utils.js";
 

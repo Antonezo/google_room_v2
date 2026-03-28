@@ -133,6 +133,7 @@ body::after {
 .cyber-slider,
 .lang-btn,
 #btn-in-game-menu,
+.hud-top-btn,
 #loader-doors:not(.loaded) {
   pointer-events: auto;
   cursor: var(--cur-ui-arrow);
@@ -221,22 +222,42 @@ body.loading #holo-wrapper {
   display: flex;
   align-items: center;
   justify-content: center;
-  transition: all 0.2s;
+  transition: all 0.3s ease; /* Сделали переход чуть более плавным */
   box-shadow: 0 5px 15px rgba(0, 0, 0, 0.3);
 }
+
 .hud-btn:hover {
-  background: rgba(var(--neon-blue-rgb), 0.15);
-  box-shadow: 0 0 15px var(--neon-blue);
-  transform: scale(1.05);
+  /* Усиливаем свечение и делаем фон более насыщенным (без желтого) */
+  background: rgba(var(--neon-blue-rgb), 0.2);
+  box-shadow: 0 0 25px rgba(var(--neon-blue-rgb), 0.7);
+  border-color: rgba(var(--neon-blue-rgb), 0.9);
 }
+
 .hud-btn:active {
   transform: scale(0.95);
 }
+
 .hud-btn svg {
   width: 20px;
   height: 20px;
   fill: currentColor;
 }
+
+/* === НОВЫЕ СТИЛИ ДЛЯ PNG-ИКОНКИ РЕСТАРТА === */
+.restart-img-icon {
+  width: 22px;
+  height: 22px;
+  opacity: 0.8; /* Чуть приглушена в покое */
+  transition: all 0.3s ease;
+  z-index: 2;
+  object-fit: contain;
+}
+
+.hud-btn:hover .restart-img-icon {
+  opacity: 1; /* Полная яркость */
+  filter: brightness(1.3) drop-shadow(0 0 5px #fff); /* Внутреннее свечение картинки */
+}
+/* =========================================== */
 
 #btn-reset {
   color: #ff4444;
@@ -249,6 +270,7 @@ body.loading #holo-wrapper {
   font-weight: bold;
   letter-spacing: 1px;
 }
+
 #btn-reset:hover {
   background: rgba(255, 68, 68, 0.25);
   box-shadow: 0 0 15px #ff4444;
@@ -270,6 +292,7 @@ body.loading #holo-wrapper {
   white-space: nowrap;
   letter-spacing: 1px;
 }
+
 .hud-btn:hover .ghost-hint {
   opacity: 1;
   transform: translateX(-50%) translateY(0);
@@ -1497,7 +1520,8 @@ body.loading #holo-wrapper {
 }
 
 /* --- ФИКС КНОПКИ МЕНЮ В ИГРЕ --- */
-#btn-in-game-menu {
+/* --- КНОПКИ ВЕРХНЕГО ХУДА В ИГРЕ (MENU / RESTART) --- */
+.hud-top-btn {
   position: relative;
   background: transparent;
   border: none;
@@ -1512,36 +1536,39 @@ body.loading #holo-wrapper {
   outline: none;
   z-index: 1000;
 }
-#btn-in-game-menu::before {
+.hud-top-btn::before {
   content: "";
   position: absolute;
   inset: 0;
   transform: skewX(-20deg);
-  background: linear-gradient(
-    90deg,
-    rgba(0, 243, 255, 0.1) 0%,
-    rgba(0, 243, 255, 0.3) 100%
-  );
+  background: linear-gradient(90deg, rgba(0, 243, 255, 0.1) 0%, rgba(0, 243, 255, 0.3) 100%);
   border-right: 3px solid var(--neon-blue);
   box-shadow: inset -5px 0 10px rgba(0, 243, 255, 0.1);
   transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
   z-index: -1;
 }
-#btn-in-game-menu:hover::before {
-  background: linear-gradient(
-    90deg,
-    rgba(0, 243, 255, 0.2) 0%,
-    rgba(0, 243, 255, 0.6) 100%
-  );
+.hud-top-btn:hover::before {
+  background: linear-gradient(90deg, rgba(0, 243, 255, 0.2) 0%, rgba(0, 243, 255, 0.6) 100%);
   border-right-color: #fff;
   box-shadow: 0 0 15px var(--neon-blue);
 }
-#btn-in-game-menu .btn-text {
+.hud-top-btn .btn-text {
   text-shadow: 0 0 5px var(--neon-blue);
   transition: 0.3s;
 }
-#btn-in-game-menu:hover .btn-text {
+.hud-top-btn:hover .btn-text {
   text-shadow: 0 0 10px #fff;
+}
+
+/* Сделаем кнопку рестарта чуть более "опасной" при наведении (желтой) */
+#btn-restart-level:hover {
+  background: rgba(251, 188, 5, 0.15);
+  box-shadow: 0 0 15px #fbbc05;
+  color: #fbbc05;
+  border-color: rgba(251, 188, 5, 0.5);
+}
+#btn-restart-level:hover .btn-text {
+  text-shadow: 0 0 10px #fbbc05;
 }
 
 /* ==========================================================================
@@ -1709,4 +1736,181 @@ body.loading #holo-wrapper {
     opacity: 0.25; /* "Загорается" */
     filter: brightness(1.5) drop-shadow(0 0 8px var(--neon-blue));
   }
+}
+
+/* ==========================================================================
+   АНИМАЦИЯ ПЕРСОНАЖА АЙС (МНОГОСЛОЙНАЯ)
+   ========================================================================== */
+
+/* Контейнер задает базовый размер портрета */
+.aice-portrait-wrap {
+  position: relative;
+  width: 500px;  /* Было 190px, стало 380px */
+  height: 500px; /* Было 190px, стало 380px */
+  flex-shrink: 0;
+  margin-bottom: -15px; /* Чуть опустили, чтобы он стоял на одном уровне с текстом */
+  /* Анимация плавного парения вверх-вниз */
+  animation: floatAice 4s ease-in-out infinite;
+}
+
+/* Все слои накладываются абсолютно точно друг на друга */
+.aice-layer {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: contain; /* Сохраняем пропорции, не обрезая */
+}
+
+/* --- АНИМАЦИЯ МАЯЧКА (БЫСТРАЯ) --- */
+.beacon-layer {
+  /* Было 1.5s, стало 0.6s - теперь мигает активно! */
+  animation: beaconPulse 0.6s infinite alternate ease-in-out; 
+}
+
+@keyframes beaconPulse {
+  0% { opacity: 0; filter: drop-shadow(0 0 0px #00ff00); }
+  100% { opacity: 1; filter: drop-shadow(0 0 10px #00ff00); } /* Добавляем легкое свечение зеленому маячку */
+}
+
+/* --- АНИМАЦИЯ МОРГАНИЯ --- */
+.eyes-layer {
+  opacity: 0; /* По умолчанию "вторые" глаза спрятаны */
+  animation: eyeBlink 5s infinite; /* Полный цикл - 5 секунд */
+}
+
+@keyframes eyeBlink {
+  0%, 88% { opacity: 0; }     /* Открытые глаза 88% времени */
+  90% { opacity: 1; }         /* Закрыл глаза */
+  92% { opacity: 0; }         /* Открыл */
+  94% { opacity: 1; }         /* Закрыл еще раз (двойное моргание для живости!) */
+  96%, 100% { opacity: 0; }   /* Открыл и ждет следующего цикла */
+}
+
+/* ==========================================================================
+   СТИЛИ ДИАЛОГОВОЙ ПАНЕЛИ АЙСА (ОТДЕЛЬНЫЙ РОБОТ + ПАРЕНИЕ)
+   ========================================================================== */
+
+/* Главный контейнер */
+#aice-dialogue-container {
+  position: fixed;
+  bottom: 40px; /* Чуть приподняли от дна */
+  left: 50%;
+  transform: translateX(-50%) translateY(0);
+  width: 90%;
+  max-width: 1250px; /* Сделали контейнер шире для крупного текста */
+  display: flex;
+  flex-direction: row;
+  align-items: flex-end; /* Робот и окно выровнены по нижнему краю */
+  gap: 30px; /* Отступ между парящим Айсом и окном */
+  z-index: 9999;
+  transition: all 0.6s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+  pointer-events: none;
+}
+
+#aice-dialogue-container.hidden {
+  transform: translateX(-50%) translateY(200px);
+  opacity: 0;
+}
+
+/* --- РОБОТ АЙС (ПАРЕНИЕ И РАЗМЕР) --- */
+.aice-portrait-wrap {
+  position: relative;
+  /* ИСПРАВЛЕНИЕ: Мы уменьшаем МИНИМАЛЬНУЮ ширину до 300px */
+  min-width: 350px; 
+  width: 350px;
+  /* Твоя рассчитанная высота 235px верна: 300 / 1.275 = ~235px */
+  height: 275px; 
+  flex-shrink: 0;
+  margin-bottom: -20px;
+  animation: floatAice 4s ease-in-out infinite;
+}
+
+@keyframes floatAice {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-18px); } /* Подлетает на 18px вверх */
+}
+
+.aice-layer {
+  position: absolute;
+  top: 0; 
+  left: 0;
+  width: 100%; 
+  height: 100%;
+  object-fit: contain; /* containment - гарантия от обрезки при смене размера */
+}
+
+/* Маячок */
+.beacon-layer {
+  /* 0.6s - теперь она должна мигать как стробоскоп! */
+  animation: beaconPulse 0.6s infinite alternate ease-in-out; 
+}
+
+@keyframes beaconPulse {
+  0% { opacity: 0; filter: drop-shadow(0 0 0px #00ff00); }
+  100% { opacity: 1; filter: drop-shadow(0 0 10px #00ff00); }
+}
+
+/* --- АНИМАЦИЯ ГЛАЗ (ПСЕВДО-РАНДОМ) --- */
+.eyes-layer {
+  opacity: 1; /* Глаза ВКЛЮЧЕНЫ по умолчанию */
+  animation: randomBlink 14s infinite; /* Очень длинный цикл для эффекта случайности */
+}
+
+/* CSS-хитрость: делаем длинную анимацию и расставляем "выключения" неравномерно */
+@keyframes randomBlink {
+  0%, 18% { opacity: 1; }
+  19% { opacity: 0; } /* Быстрое моргание */
+  20%, 45% { opacity: 1; }
+  46% { opacity: 0; } /* Двойное моргание - закрыл */
+  47% { opacity: 1; } /* открыл */
+  48% { opacity: 0; } /* закрыл */
+  49%, 82% { opacity: 1; }
+  83% { opacity: 0; } /* Ещё одно одиночное моргание */
+  84%, 100% { opacity: 1; }
+}
+
+/* --- ТЕКСТОВОЕ ОКНО --- */
+.aice-dialogue-content {
+  display: flex;
+  flex-direction: column;
+  flex-grow: 1;
+  background: rgba(10, 20, 30, 0.85);
+  backdrop-filter: blur(10px);
+  border: 2px solid var(--neon-blue);
+  border-radius: 15px 40px 15px 15px; /* Скругления */
+  padding: 25px 35px; /* Увеличили внутренние отступы */
+  box-shadow: 0 0 30px rgba(0, 243, 255, 0.15), inset 0 0 15px rgba(0, 243, 255, 0.05);
+  pointer-events: auto;
+}
+
+.aice-nameplate {
+  display: inline-block;
+  align-self: flex-start;
+  background: linear-gradient(90deg, rgba(0, 243, 255, 0.25) 0%, transparent 100%);
+  border-left: 4px solid var(--neon-blue);
+  padding: 5px 25px 5px 15px;
+  margin-bottom: 12px;
+  transform: skewX(-15deg);
+}
+
+.aice-nameplate .name-text {
+  display: block;
+  font-family: "Orbitron", sans-serif;
+  color: #fff;
+  font-weight: bold;
+  font-size: 18px; /* УВЕЛИЧИЛИ ИМЯ */
+  letter-spacing: 2px;
+  transform: skewX(15deg);
+  text-shadow: 0 0 8px var(--neon-blue);
+}
+
+.aice-dialogue-text {
+  font-family: "Segoe UI", Tahoma, sans-serif;
+  color: #e0f7fa;
+  font-size: 20px; /* УВЕЛИЧИЛИ ОСНОВНОЙ ТЕКСТ */
+  line-height: 1.5;
+  letter-spacing: 0.5px;
+  text-shadow: 0 0 3px rgba(0, 243, 255, 0.4);
 }

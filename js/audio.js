@@ -12,7 +12,7 @@ export class AudioManager {
     this.isMenuMuted = true;
 
     // Хранилище для звуков интерфейса
-    this.uiBuffers = { mouse_menu: null, start: null, click: null };
+    this.uiBuffers = { mouse_menu: null, start: null, click: null, pop: null };
     this.initPromise = null;
   }
 
@@ -64,7 +64,7 @@ export class AudioManager {
   }
 
 async loadUISounds() {
-    console.log("🔊 Попытка загрузки звуков UI..."); // Этот лог должен быть в консоли!
+    console.log("🔊 Попытка загрузки звуков UI..."); 
     
     const load = async (url) => {
       try {
@@ -81,15 +81,17 @@ async loadUISounds() {
     };
 
     // Загружаем всё параллельно для скорости
-    const [m, s, c] = await Promise.all([
+    const [m, s, c, p] = await Promise.all([
       load('audio/mouse_menu.mp3'),
       load('audio/start.mp3'),
-      load('audio/click.mp3')
+      load('audio/click.mp3'),
+      load('audio/gurgle.mp3') // <--- Вот тут важно не забыть запятую перед этой строкой!
     ]);
 
     this.uiBuffers.mouse_menu = m;
     this.uiBuffers.start = s; 
     this.uiBuffers.click = c; 
+    this.uiBuffers.pop = p; 
     
     console.log("📂 Все буферы UI обновлены", this.uiBuffers);
   }

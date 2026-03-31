@@ -148,34 +148,16 @@ body.is-dragging * {
   cursor: var(--cur-fist);
 }
 
-/* Курсоры инструментов (работают и над canvas, и над UI) */
-body.tool-mag-0 canvas,
-body.tool-mag-0 .hud-btn {
-  cursor: var(--cur-mag-0);
-}
-body.tool-mag-1 canvas {
-  cursor: var(--cur-mag-1);
-}
-body.tool-mag-2 canvas {
-  cursor: var(--cur-mag-2);
-}
-body.tool-mag-3 canvas {
-  cursor: var(--cur-mag-3);
-}
+/* Курсоры инструментов (перебиваем UI за счет веса селекторов, без !important) */
+body.tool-mag-0 :is(canvas, #holo-wrapper, #holo-wrapper *, #hud-controls, #hud-controls *) { cursor: var(--cur-mag-0); }
+body.tool-mag-1 :is(canvas, #holo-wrapper, #holo-wrapper *, #hud-controls, #hud-controls *) { cursor: var(--cur-mag-1); }
+body.tool-mag-2 :is(canvas, #holo-wrapper, #holo-wrapper *, #hud-controls, #hud-controls *) { cursor: var(--cur-mag-2); }
+body.tool-mag-3 :is(canvas, #holo-wrapper, #holo-wrapper *, #hud-controls, #hud-controls *) { cursor: var(--cur-mag-3); }
 
-body.tool-paint-0 canvas {
-  cursor: var(--cur-paint-0);
-}
-body.tool-paint-1 canvas {
-  cursor: var(--cur-paint-1);
-}
-body.tool-paint-2 canvas {
-  cursor: var(--cur-paint-2);
-}
-body.tool-paint-3 canvas {
-  cursor: var(--cur-paint-3);
-}
-
+body.tool-paint-0 :is(canvas, #holo-wrapper, #holo-wrapper *, #hud-controls, #hud-controls *) { cursor: var(--cur-paint-0); }
+body.tool-paint-1 :is(canvas, #holo-wrapper, #holo-wrapper *, #hud-controls, #hud-controls *) { cursor: var(--cur-paint-1); }
+body.tool-paint-2 :is(canvas, #holo-wrapper, #holo-wrapper *, #hud-controls, #hud-controls *) { cursor: var(--cur-paint-2); }
+body.tool-paint-3 :is(canvas, #holo-wrapper, #holo-wrapper *, #hud-controls, #hud-controls *) { cursor: var(--cur-paint-3); }
 /* ==========================================================================
    3. ГЛОБАЛЬНЫЕ UI ЭЛЕМЕНТЫ (HUD, HOLO-PANEL)
    ========================================================================== */
@@ -865,7 +847,6 @@ body.loading #holo-wrapper {
 
 /* GPU-ускоренная пульсация (Внимание: анимация перенесена на ::after) */
 .needs-attention {
-  position: relative;
   z-index: 20;
 }
 .needs-attention::after {

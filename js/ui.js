@@ -718,9 +718,9 @@ export class UIManager {
         .replace(/tool-mag-\d/g, "")
         .trim();
 
-      if (state.currentTool !== -1) {
+     if (state.currentTool !== -1) {
         document.body.classList.add(`tool-mag-${state.currentTool}`);
-        magMainBtn.classList.add(`color-theme-${state.currentTool}`);
+        magMainBtn.classList.add(`mag-color-${state.currentTool}`); // ТЕПЕРЬ СОВПАДАЕТ С CSS
       }
 
       const paintBtn = this.elements.btnPaint;
@@ -729,9 +729,9 @@ export class UIManager {
         .replace(/tool-paint-\d/g, "")
         .trim();
 
-      if (state.paintToolColor !== -1) {
+     if (state.paintToolColor !== -1) {
         document.body.classList.add(`tool-paint-${state.paintToolColor}`);
-        paintBtn.classList.add(`color-theme-${state.paintToolColor}`);
+        paintBtn.classList.add(`paint-color-${state.paintToolColor}`); // ТЕПЕРЬ СОВПАДАЕТ С CSS
       }
 
       if (this.elements.toolHint) {

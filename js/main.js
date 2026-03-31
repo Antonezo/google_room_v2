@@ -1345,10 +1345,7 @@ window.addEventListener("mousedown", (e) => {
   if (document.activeElement.tagName === "INPUT") {
     document.activeElement.blur();
   }
-
-  if (e.target.tagName === "CANVAS") {
-    document.body.classList.add("is-pressing");
-  }
+  // Фейковый кулак удален!
 });
 
 const app = new GoogleRoomApp();

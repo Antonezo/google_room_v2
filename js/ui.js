@@ -16,6 +16,7 @@ export class UIManager {
       enter1: null,
       enter2: null,
       exit: null,
+      scratch: null,
     };
 
     // Кэшируем ВСЕ нужные элементы один раз
@@ -51,6 +52,7 @@ export class UIManager {
       valMusic: document.getElementById("val-music"),
 
       confirmModal: document.getElementById("confirm-modal"),
+      aicePortrait: document.querySelector(".aice-portrait-wrap"),
       btnConfirmYes: document.getElementById("btn-confirm-yes"),
       btnConfirmNo: document.getElementById("btn-confirm-no"),
     };
@@ -248,7 +250,7 @@ export class UIManager {
       enterGame();
     }; // Слушатель главной кнопки NEW GAME
 
-    if (el.btnStart) {
+ if (el.btnStart) {
       el.btnStart.addEventListener("click", () => {
         // ВРЕМЕННО ОТКЛЮЧЕНО ОКНО ПОДТВЕРЖДЕНИЯ ДЛЯ ТЕСТОВ
         /*
@@ -261,7 +263,6 @@ export class UIManager {
         */
         
         // Сразу запускаем новую игру:
-        if (audioManager && audioManager.playUI) audioManager.playUI("click");
         executeNewGame();
       });
     }
@@ -706,6 +707,36 @@ export class UIManager {
       wrapper.classList.toggle("open");
       if (!wrapper.classList.contains("open")) this.closePalette();
     });
+
+// ==========================================
+    // INTERACTION: ICE SCRATCHING LOGIC
+    // ==========================================
+    const ice = this.elements.aicePortrait;
+    
+    if (ice) {
+      ice.addEventListener("mousedown", (e) => {
+        if (e.button !== 0) return; // Только ЛКМ
+
+        // Жестко блокируем клик, чтобы он не полетел дальше и не вызвал звуки меню
+        e.stopPropagation(); 
+
+        // 1. Показываем улыбку
+        ice.classList.add("is-smiling");
+
+        // 2. Сбрасываем старый таймер, если чешем без остановки
+        if (this.animTimers.scratch) {
+          clearTimeout(this.animTimers.scratch);
+        }
+
+        // 3. Запускаем новый таймер на одну секунду
+        this.animTimers.scratch = setTimeout(() => {
+          ice.classList.remove("is-smiling");
+          this.animTimers.scratch = null;
+        }, 1000); 
+
+        // Звуки полностью удалены! 🔇
+      });
+    }
 
     document
       .getElementById("holo-wrapper")

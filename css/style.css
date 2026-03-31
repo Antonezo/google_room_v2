@@ -91,8 +91,8 @@ canvas {
   font-family: "Segoe UI", sans-serif;
   background: #0b0f17;
   user-select: none;
-  cursor: var(--cur-hand);
-  opacity: 1; /* Жестко держим видимость сцены */
+  cursor: var(--cur-ui-arrow); /* <-- Теперь везде стильная стрелка */
+  opacity: 1; 
 }
 
 /* Кэшируем кулак, чтобы не моргал */
@@ -139,10 +139,7 @@ body::after {
   cursor: var(--cur-ui-arrow);
 }
 
-/* Логика состояний курсора (каскад решает всё) */
-body.is-pressing canvas {
-  cursor: var(--cur-fist);
-}
+
 body.is-dragging,
 body.is-dragging * {
   cursor: var(--cur-fist);
@@ -1920,4 +1917,56 @@ body.loading #holo-wrapper {
     transform: translateX(0); 
     filter: blur(0);
   }
+}
+/* ==========================================================================
+   INTERACTION: ICE SCRATCHING & SMILE
+   ========================================================================== */
+
+/* 1. Настройка овального хитбокса и курсоров */
+.aice-portrait-wrap {
+  position: relative;
+  /* Убеждаемся, что хитбокс парит вместе с роботом */
+  animation: floatAice 4s ease-in-out infinite;
+}
+
+/* Создаем невидимый ОВАЛЬНЫЙ слой поверх Айса */
+.aice-portrait-wrap::before {
+  content: '';
+  position: absolute;
+  top: 5%; left: 5%; /* Чуть меньше по краям */
+  width: 90%; height: 90%;
+  
+  border-radius: 50% / 35%; /* ЧИСТЫЙ ОВАЛ */
+  
+  /* Хитбокс должен быть прозрачным */
+  background: rgba(0, 0, 0, 0.001); /* Почти невидимый фон */
+  
+  z-index: 50; /* Поверх всех картинок */
+  cursor: pointer;
+  pointer-events: auto; /* Включаем клики */
+}
+
+/* 2. Задаем веса курсоров для овала Айса (перебиваем UI, без !important) */
+#aice-dialogue-container .aice-portrait-wrap:hover::before {
+  cursor: var(--cur-hand) !important; /* Увы,ID панели сильнее, пришлось важным */
+}
+
+#aice-dialogue-container .aice-portrait-wrap:active::before {
+  cursor: var(--cur-fist) !important;
+}
+
+/* 3. Поведение слоя улыбки */
+.smile-layer {
+  opacity: 0; /* Изначально улыбка скрыта */
+  z-index: 10; /* Поверх глаз и маячка */
+  transform: scale(0.9) translateY(5px); /* Чуть уменьшена и опущена */
+  /* Плавный переход для появления и исчезновения */
+  transition: opacity 0.1s ease-out, transform 0.15s cubic-bezier(0.34, 1.56, 0.64, 1);
+  pointer-events: none; /* Картинка улыбки не должна мешать кликать */
+}
+
+/* Класс, который JS повесит на РОДИТЕЛЯ (aice-portrait-wrap) */
+.aice-portrait-wrap.is-smiling .smile-layer {
+  opacity: 1; /* Улыбка появляется */
+  transform: scale(1) translateY(0); /* Становится нормальной */
 }

@@ -9,7 +9,7 @@ import { audioManager } from "./audio.js";
 import { store, isNight, isSlowMo } from "./state.js";
 import { PhysicsManager } from "./physics.js";
 import { SceneManager, heatTex } from "./scene.js";
-import { UIManager } from './ui.js';
+import { UIManager } from "./ui.js";
 import { InputManager } from "./input.js";
 import { ParticlePool, GameObject, MiniBeadPool } from "./utils.js";
 
@@ -31,7 +31,7 @@ export class GoogleRoomApp {
 
     this.currentWord = "GOOGLE";
     this.globalFont = null;
-    this.lettersEnabled = true;
+    this.lettersEnabled = false;
     this.fansActive = false;
     this.fanLevel = 0.0;
     this.lettersHiddenByMagnet = false;
@@ -86,7 +86,13 @@ export class GoogleRoomApp {
       onToggleFans: () => {
         if (!this.isPaused) {
           this.fansActive = !this.fansActive;
-          if (this.fansActive) audioManager.playFansWhoosh(isSlowMo());
+          if (
+            this.fansActive &&
+            typeof audioManager !== "undefined" &&
+            audioManager.playFansWhoosh
+          ) {
+            audioManager.playFansWhoosh(isSlowMo());
+          }
         }
       },
       onToggleLetters: () => {
@@ -94,8 +100,14 @@ export class GoogleRoomApp {
 
         this.lettersEnabled = !this.lettersEnabled;
 
+        // Универсальная функция-предохранитель
+        const setObjVisible = (obj, isVis) => {
+          if (obj.setVisible) obj.setVisible(isVis);
+          else if (obj.mesh) obj.mesh.visible = isVis;
+        };
+
         if (this.lettersEnabled) {
-          this.letterObjects.forEach((obj) => obj.setVisible(true));
+          this.letterObjects.forEach((obj) => setObjVisible(obj, true));
           this.showLettersSmoothly();
         } else {
           this.hideLettersSmoothly();
@@ -103,7 +115,7 @@ export class GoogleRoomApp {
           clearTimeout(this.lettersToggleTimeout);
           this.lettersToggleTimeout = setTimeout(() => {
             if (!this.lettersEnabled) {
-              this.letterObjects.forEach((obj) => obj.setVisible(false));
+              this.letterObjects.forEach((obj) => setObjVisible(obj, false));
             }
           }, 300);
         }
@@ -158,12 +170,22 @@ export class GoogleRoomApp {
 
     this.setupStateReactions();
 
-    const fontLoader = new FontLoader();
+  const fontLoader = new FontLoader();
     fontLoader.load(
       "https://threejs.org/examples/fonts/helvetiker_bold.typeface.json",
       (font) => {
         this.globalFont = font;
         this.spawnLetters(this.currentWord);
+        
+        // Сразу прячем буквы и отключаем им физику при старте
+        if (!this.lettersEnabled) {
+          this.letterObjects.forEach((obj) => {
+            if (obj.setVisible) obj.setVisible(false);
+            else if (obj.mesh) obj.mesh.visible = false;
+            
+            if (obj.body) obj.body.collisionFilterMask = 0; // Чтобы не было невидимых препятствий
+          });
+        }
       },
     );
 
@@ -270,20 +292,9 @@ export class GoogleRoomApp {
       body.userData.googleColor = palette[i % palette.length];
     });
 
-    if (!this.lettersEnabled) {
-      this.lettersEnabled = true;
-      if (
-        this.uiManager &&
-        typeof this.uiManager.setLettersActive === "function"
-      ) {
-        this.uiManager.setLettersActive(true);
-      }
-      this.letterObjects.forEach((obj) => {
-        if (obj.setVisible) obj.setVisible(true);
-        else obj.mesh.visible = true;
-      });
-      this.showLettersSmoothly();
-    } else {
+   // Если буквы уже открыты (по сюжету) — возвращаем их на старт.
+    // Если еще закрыты — не трогаем, пусть сидят в невидимости.
+    if (this.lettersEnabled) {
       this.returnLettersToStart();
     }
   }
@@ -627,8 +638,13 @@ export class GoogleRoomApp {
     if (this.ballInstancedMesh.instanceColor) {
       this.ballInstancedMesh.instanceColor.needsUpdate = true;
     }
-
-    if (Math.random() < 0.1) audioManager.playPuffSound(0.2);
+    if (
+      Math.random() < 0.1 &&
+      typeof audioManager !== "undefined" &&
+      audioManager.playPuffSound
+    ) {
+      audioManager.playPuffSound(0.2);
+    }
   }
 
   changeWordSmoothly(newWord) {
@@ -641,10 +657,17 @@ export class GoogleRoomApp {
 
     this.isChangingWord = true;
 
+    // Очищаем старые застрявшие таймеры
+    if (this.wordTimer1) clearTimeout(this.wordTimer1);
+    if (this.wordTimer2) clearTimeout(this.wordTimer2);
+
     if (!this.lettersEnabled) {
       this.currentWord = newWord;
       this.spawnLetters(this.currentWord);
-      this.letterObjects.forEach((obj) => obj.setVisible(false));
+      this.letterObjects.forEach((obj) => {
+        if (obj.setVisible) obj.setVisible(false);
+        else if (obj.mesh) obj.mesh.visible = false;
+      });
       this.isChangingWord = false;
       return;
     }
@@ -654,6 +677,8 @@ export class GoogleRoomApp {
 
     this.letterObjects.forEach((obj) => {
       const body = obj.body;
+      if (!body) return; // Защита от краша, если тело уже удалено
+
       body.userData.isShrinkingWord = true;
       body.userData.shrinkStartTime = now;
 
@@ -663,9 +688,9 @@ export class GoogleRoomApp {
       body.angularVelocity.set(0, 0, 0);
     });
 
-    setTimeout(() => {
+    this.wordTimer1 = setTimeout(() => {
       this.letterObjects.forEach((obj) => {
-        this.createDustExplosion(obj.body.position, 0.35);
+        if (obj.body) this.createDustExplosion(obj.body.position, 0.35);
       });
 
       this.currentWord = newWord;
@@ -675,6 +700,8 @@ export class GoogleRoomApp {
 
       this.letterObjects.forEach((obj) => {
         const body = obj.body;
+        if (!body) return;
+
         obj.mesh.scale.set(0, 0, 0);
 
         body.userData.isGrowingWord = true;
@@ -684,9 +711,11 @@ export class GoogleRoomApp {
         body.type = CANNON.Body.KINEMATIC;
       });
 
-      setTimeout(() => {
+      this.wordTimer2 = setTimeout(() => {
         this.letterObjects.forEach((obj) => {
           const body = obj.body;
+          if (!body) return;
+
           body.userData.isGrowingWord = false;
           obj.mesh.scale.set(1, 1, 1);
 
@@ -787,7 +816,9 @@ export class GoogleRoomApp {
             this.platformImpact = 1.0;
           }
         }
-        audioManager.playHitSound(v, isSlowMo());
+        if (typeof audioManager !== "undefined" && audioManager.playHitSound) {
+          audioManager.playHitSound(v, isSlowMo());
+        }
       });
 
       this.letterObjects.push(letterObj);

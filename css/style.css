@@ -1895,3 +1895,29 @@ body.loading #holo-wrapper {
   letter-spacing: 0.5px;
   text-shadow: 0 0 3px rgba(0, 243, 255, 0.4);
 }
+
+/* ==========================================================================
+   СИСТЕМА ОБУЧЕНИЯ (TUTORIAL UNLOCKS)
+   ========================================================================== */
+.locked-feature {
+  display: none !important;
+}
+
+.feature-reveal {
+  display: block; /* Или flex, в зависимости от содержимого, но block тут подойдет */
+  animation: featureFadeIn 0.6s cubic-bezier(0.2, 0.8, 0.2, 1) forwards;
+}
+
+/* Красивое голографическое появление */
+@keyframes featureFadeIn {
+  0% { 
+    opacity: 0; 
+    transform: translateX(15px); 
+    filter: blur(4px);
+  }
+  100% { 
+    opacity: 1; 
+    transform: translateX(0); 
+    filter: blur(0);
+  }
+}

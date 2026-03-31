@@ -158,171 +158,185 @@
         <span class="btn-text">MENU</span>
       </button>
     </div>
-    <div id="holo-wrapper">
+    <div id="holo-wrapper" class="locked-feature">
       <div id="terminal-handle"><div id="handle-icon">SYSTEM</div></div>
       <div id="holo-panel">
-        <div class="section-title">WORD SELECTOR</div>
-        <div class="word-control">
-          <input
-            type="text"
-            id="word-input"
-            value="GOOGLE"
-            maxlength="8"
-            autocomplete="off"
-            spellcheck="false"
-            placeholder="TYPE..."
-          />
-          <button id="btn-apply-word" class="icon-btn" data-action="applyWord">
-            ✔️
-          </button>
-        </div>
-
-        <div class="section-title">ATMOSPHERE MODE</div>
-        <div class="mode-switch-container">
-          <button
-            id="mode-lab"
-            class="mode-btn active"
-            data-action="setModeLab"
-          >
-            LAB
-          </button>
-          <button id="mode-disco" class="mode-btn" data-action="setModeDisco">
-            DISCO
-          </button>
-        </div>
-
-        <div class="section-title">PHYSICS CONTROL</div>
-        <div class="actions-grid">
-          <div class="combo-wrapper">
-            <button
-              id="btn-letters"
-              class="combo-main-btn active-state"
-              data-action="toggleLetters"
-            >
-              <span class="btn-icon">Ab</span>Letters
-            </button>
-            <button
-              id="btn-reset-letters"
-              class="combo-reset-btn"
-              data-action="returnLetters"
-            >
-              RETURN
+        
+        <!-- БЛОК 1: ВЫБОР СЛОВА -->
+        <div id="feature-word" class="locked-feature">
+          <div class="section-title">WORD SELECTOR</div>
+          <div class="word-control">
+            <input
+              type="text"
+              id="word-input"
+              value="GOOGLE"
+              maxlength="8"
+              autocomplete="off"
+              spellcheck="false"
+              placeholder="TYPE..."
+            />
+            <button id="btn-apply-word" class="icon-btn" data-action="applyWord">
+              ✔️
             </button>
           </div>
-          <div class="combo-wrapper">
+        </div>
+
+        <!-- БЛОК 2: АТМОСФЕРА -->
+        <div id="feature-mode" class="locked-feature">
+          <div class="section-title">ATMOSPHERE MODE</div>
+          <div class="mode-switch-container">
             <button
-              id="btn-balls"
-              class="combo-main-btn"
-              data-action="spawnBalls"
+              id="mode-lab"
+              class="mode-btn active"
+              data-action="setModeLab"
             >
+              LAB
+            </button>
+            <button id="mode-disco" class="mode-btn" data-action="setModeDisco">
+              DISCO
+            </button>
+          </div>
+        </div>
+
+        <!-- БЛОК 3: ФИЗИКА -->
+        <div id="feature-physics" class="locked-feature">
+          <div class="section-title">PHYSICS CONTROL</div>
+          <div class="actions-grid">
+            <div class="combo-wrapper">
+              <button
+                id="btn-letters"
+                class="combo-main-btn active-state"
+                data-action="toggleLetters"
+              >
+                <span class="btn-icon">Ab</span>Letters
+              </button>
+              <button
+                id="btn-reset-letters"
+                class="combo-reset-btn"
+                data-action="returnLetters"
+              >
+                RETURN
+              </button>
+            </div>
+            <div class="combo-wrapper">
+              <button
+                id="btn-balls"
+                class="combo-main-btn"
+                data-action="spawnBalls"
+              >
+                <span class="btn-icon"
+                  ><svg viewBox="0 0 24 24">
+                    <circle cx="6" cy="15" r="4" />
+                    <circle cx="18" cy="15" r="4" />
+                    <circle cx="12" cy="7" r="4" /></svg></span
+                >Beads
+                <div id="bead-count" class="bead-counter">0/200</div>
+              </button>
+              <button
+                id="btn-clear-balls"
+                class="combo-reset-btn"
+                title="Clear Beads"
+                data-action="clearBalls"
+              >
+                CLEAR
+              </button>
+            </div>
+            <button id="btn-slow" class="holo-btn" data-action="toggleSlowMo">
+              <span class="btn-icon">🐢</span>Slo-Mo
+            </button>
+            <button id="btn-fans" class="holo-btn" data-action="toggleFans">
               <span class="btn-icon"
-                ><svg viewBox="0 0 24 24">
-                  <circle cx="6" cy="15" r="4" />
-                  <circle cx="18" cy="15" r="4" />
-                  <circle cx="12" cy="7" r="4" /></svg></span
-              >Beads
-              <div id="bead-count" class="bead-counter">0/200</div>
-            </button>
-            <button
-              id="btn-clear-balls"
-              class="combo-reset-btn"
-              title="Clear Beads"
-              data-action="clearBalls"
-            >
-              CLEAR
+                ><svg class="stroked" viewBox="0 0 24 24">
+                  <path d="M6 20 Q4 16 6 12 T6 4" />
+                  <path d="M12 20 Q10 16 12 12 T12 4" />
+                  <path d="M18 20 Q16 16 18 12 T18 4" /></svg></span
+              >Air Floor
             </button>
           </div>
-          <button id="btn-slow" class="holo-btn" data-action="toggleSlowMo">
-            <span class="btn-icon">🐢</span>Slo-Mo
-          </button>
-          <button id="btn-fans" class="holo-btn" data-action="toggleFans">
-            <span class="btn-icon"
-              ><svg class="stroked" viewBox="0 0 24 24">
-                <path d="M6 20 Q4 16 6 12 T6 4" />
-                <path d="M12 20 Q10 16 12 12 T12 4" />
-                <path d="M18 20 Q16 16 18 12 T18 4" /></svg></span
-            >Air Floor
-          </button>
         </div>
 
-        <div class="section-title">EQUIPMENT</div>
-        <div class="equipment-rack">
-          <div class="tool-wrapper">
-            <button
-              id="btn-mag-main"
-              class="mag-main-btn"
-              data-action="togglePaletteMag"
-            ></button>
-            <div class="palette-container mag-palette">
-              <div
-                id="mag-btn-0"
-                class="palette-item item-0"
-                data-color="0"
-                data-action="selectPaletteColor"
-                title="Green"
-              ></div>
-              <div
-                id="mag-btn-1"
-                class="palette-item item-1"
-                data-color="1"
-                data-action="selectPaletteColor"
-                title="Yellow"
-              ></div>
-              <div
-                id="mag-btn-2"
-                class="palette-item item-2"
-                data-color="2"
-                data-action="selectPaletteColor"
-                title="Red"
-              ></div>
-              <div
-                id="mag-btn-3"
-                class="palette-item item-3"
-                data-color="3"
-                data-action="selectPaletteColor"
-                title="Blue"
-              ></div>
+        <!-- БЛОК 4: ИНСТРУМЕНТЫ -->
+        <div id="feature-equipment" class="locked-feature">
+          <div class="section-title">EQUIPMENT</div>
+          <div class="equipment-rack">
+            <div class="tool-wrapper">
+              <button
+                id="btn-mag-main"
+                class="mag-main-btn"
+                data-action="togglePaletteMag"
+              ></button>
+              <div class="palette-container mag-palette">
+                <div
+                  id="mag-btn-0"
+                  class="palette-item item-0"
+                  data-color="0"
+                  data-action="selectPaletteColor"
+                  title="Green"
+                ></div>
+                <div
+                  id="mag-btn-1"
+                  class="palette-item item-1"
+                  data-color="1"
+                  data-action="selectPaletteColor"
+                  title="Yellow"
+                ></div>
+                <div
+                  id="mag-btn-2"
+                  class="palette-item item-2"
+                  data-color="2"
+                  data-action="selectPaletteColor"
+                  title="Red"
+                ></div>
+                <div
+                  id="mag-btn-3"
+                  class="palette-item item-3"
+                  data-color="3"
+                  data-action="selectPaletteColor"
+                  title="Blue"
+                ></div>
+              </div>
             </div>
-          </div>
-          <div class="tool-wrapper">
-            <button
-              id="btn-paint-main"
-              class="mag-main-btn paint-btn"
-              data-action="togglePalettePaint"
-            ></button>
-            <div class="palette-container paint-palette">
-              <div
-                id="paint-btn-0"
-                class="palette-item item-0"
-                data-color="0"
-                data-action="selectPaletteColor"
-                title="Green"
-              ></div>
-              <div
-                id="paint-btn-1"
-                class="palette-item item-1"
-                data-color="1"
-                data-action="selectPaletteColor"
-                title="Yellow"
-              ></div>
-              <div
-                id="paint-btn-2"
-                class="palette-item item-2"
-                data-color="2"
-                data-action="selectPaletteColor"
-                title="Red"
-              ></div>
-              <div
-                id="paint-btn-3"
-                class="palette-item item-3"
-                data-color="3"
-                data-action="selectPaletteColor"
-                title="Blue"
-              ></div>
+            <div class="tool-wrapper">
+              <button
+                id="btn-paint-main"
+                class="mag-main-btn paint-btn"
+                data-action="togglePalettePaint"
+              ></button>
+              <div class="palette-container paint-palette">
+                <div
+                  id="paint-btn-0"
+                  class="palette-item item-0"
+                  data-color="0"
+                  data-action="selectPaletteColor"
+                  title="Green"
+                ></div>
+                <div
+                  id="paint-btn-1"
+                  class="palette-item item-1"
+                  data-color="1"
+                  data-action="selectPaletteColor"
+                  title="Yellow"
+                ></div>
+                <div
+                  id="paint-btn-2"
+                  class="palette-item item-2"
+                  data-color="2"
+                  data-action="selectPaletteColor"
+                  title="Red"
+                ></div>
+                <div
+                  id="paint-btn-3"
+                  class="palette-item item-3"
+                  data-color="3"
+                  data-action="selectPaletteColor"
+                  title="Blue"
+                ></div>
+              </div>
             </div>
           </div>
         </div>
-        <div id="tool-hint">[ПКМ] — СБРОСИТЬ ИНСТРУМЕНТ</div>
+        
+        <div id="tool-hint" class="locked-feature">[ПКМ] — СБРОСИТЬ ИНСТРУМЕНТ</div>
       </div>
     </div>
 

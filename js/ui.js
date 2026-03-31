@@ -231,8 +231,17 @@ export class UIManager {
       }
     };
 
-    const executeNewGame = () => {
+ const executeNewGame = () => {
       if (this.cb && this.cb.onReset) this.cb.onReset();
+      
+      // Сбрасываем слово на дефолтное при Новой Игре
+      if (this.elements.wordInput) {
+        this.elements.wordInput.value = "GOOGLE";
+      }
+      if (this.cb && this.cb.onApplyWord) {
+        this.cb.onApplyWord("GOOGLE");
+      }
+
       if (store && typeof store.update === "function") {
         store.update({ mode: "lab" });
       }
@@ -241,17 +250,21 @@ export class UIManager {
 
     if (el.btnStart) {
       el.btnStart.addEventListener("click", () => {
-        // Проверяем: если кнопка RESUME отображается, значит прогресс уже есть
+        // ВРЕМЕННО ОТКЛЮЧЕНО ОКНО ПОДТВЕРЖДЕНИЯ ДЛЯ ТЕСТОВ
+        /*
         if (el.btnResume && el.btnResume.style.display === "flex") {
-          // Показываем окно подтверждения
           el.confirmModal.classList.remove("hidden");
           if (audioManager && audioManager.playUI) audioManager.playUI("click");
         } else {
-          // Это первый запуск, модалка не нужна
           executeNewGame();
         }
+        */
+        
+        // Сразу запускаем новую игру:
+        if (audioManager && audioManager.playUI) audioManager.playUI("click");
+        executeNewGame();
       });
-    } // Обработчик кнопки "YES" в модалке
+    }
 
     if (el.btnConfirmYes) {
       el.btnConfirmYes.addEventListener("click", () => {
@@ -513,6 +526,21 @@ export class UIManager {
     }
   }
 
+  // ==========================================
+  // СИСТЕМА ОБУЧЕНИЯ: ОТКРЫТИЕ ИНТЕРФЕЙСА
+  // ==========================================
+  unlockFeature(featureId) {
+    const el = document.getElementById(featureId);
+    if (el && el.classList.contains("locked-feature")) {
+      el.classList.remove("locked-feature");
+      el.classList.add("feature-reveal");
+      
+      // Звук пик-пик при появлении новой панели (чтобы привлечь внимание игрока)
+      if (typeof audioManager !== "undefined" && audioManager.playUI) {
+        audioManager.playUI("click"); 
+      }
+    }
+  }
   // ==========================================
   // 2. ДВИЖОК "ПЕЧАТНОЙ МАШИНКИ"
   // ==========================================

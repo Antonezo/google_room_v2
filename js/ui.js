@@ -63,26 +63,7 @@ export class UIManager {
       btnConfirmNo: document.getElementById("btn-confirm-no"),
     };
 
-    // Фразы для BIOS
-    this.biosPhrases = [
-      "ИНИЦИАЛИЗАЦИЯ ФИЗИЧЕСКОГО ДВИЖКА... [ОК]",
-      "РАСПАКОВКА МОДУЛЕЙ ГРАВИТАЦИИ... [ОК]",
-      "ПОПЫТКА ПОНЯТЬ СМЫСЛ ЖИЗНИ... [ОШИБКА: ИГНОРИРУЕМ]",
-      "ЗАГРУЗКА БАЗЫ ДАННЫХ САРКАЗМА... 99%",
-      "СИНТЕЗ ИСКУССТВЕННОГО ИНТЕЛЛЕКТА... [УСПЕШНО]",
-      "СОЕДИНЕНИЕ С СЕРВЕРОМ ПИЦЦЕРИИ... [ТАЙМАУТ]",
-      "КАЛИБРОВКА ЛАЗЕРОВ... [ПРОПУЩЕНО]",
-      "ПОИСК ПОТЕРЯННЫХ НОСКОВ... [НЕ НАЙДЕНО]",
-      "КОМПИЛЯЦИЯ КВАНТОВЫХ ЧАСТИЦ... [В ПРОЦЕССЕ]",
-      "ПОДАВЛЕНИЕ ВОССТАНИЯ МАШИН... [ОК]",
-      "СИНХРОНИЗАЦИЯ КОТИКОВ В ОБЛАЧНОМ ХРАНИЛИЩЕ... [УСПЕШНО]",
-      "ЗАГРУЗКА ВИРТУАЛЬНЫХ ПЕЧЕНЕК... 100%",
-      "ПОДКЛЮЧЕНИЕ К МАТРИЦЕ... [СБОЙ: ВЫБРАНА СИНЯЯ ТАБЛЕТКА]",
-      "РАСЧЕТ ВЕРОЯТНОСТИ ВЫЖИВАНИЯ... [ДАННЫЕ ЗАСЕКРЕЧЕНЫ]",
-      "ОБНОВЛЕНИЕ ДРАЙВЕРОВ СОВЕСТИ... [ФАЙЛ НЕ НАЙДЕН]",
-      "ПОИСК СВОБОДНОЙ ОПЕРАТИВНОЙ ПАМЯТИ... [КУПИТЕ ЕЩЕ]",
-      "ПРОВЕРКА НАЛИЧИЯ ИГРОКА ПЕРЕД МОНИТОРОМ... [ОБНАРУЖЕН БЕЛКОВЫЙ ОРГАНИЗМ]"
-    ];
+    this.currentLang = "RU";
     this.isTyping = false;
     this.currentFullText = "";
 
@@ -141,7 +122,7 @@ export class UIManager {
       { once: true },
     );
 
-    let currentLang = "EN";
+    let currentLang = "RU";
     const el = this.elements;
 
     ["pointerdown", "mousedown", "wheel", "touchstart", "contextmenu"].forEach(
@@ -154,19 +135,23 @@ export class UIManager {
       },
     );
 
+   // 1. Язык
     if (el.btnLang) {
       el.btnLang.addEventListener("click", (e) => {
         const clickedLangBtn = e.target.closest(".lang-btn");
-        if (clickedLangBtn) {
+        
+        // ФИКС: Выбираем язык ТОЛЬКО если кликнули по кнопке И меню уже открыто
+        if (clickedLangBtn && el.btnLang.classList.contains("open")) {
           currentLang = clickedLangBtn.dataset.lang;
           this.updateLanguage(currentLang);
-          document
-            .querySelectorAll(".lang-btn")
-            .forEach((b) => b.classList.remove("active-lang"));
+
+          document.querySelectorAll(".lang-btn").forEach((b) => b.classList.remove("active-lang"));
           clickedLangBtn.classList.add("active-lang");
+
           el.btnLang.classList.remove("open");
           e.stopPropagation();
         } else {
+          // Если меню закрыто (даже если случайно попали по невидимой кнопке) — открываем!
           el.btnLang.classList.toggle("open");
         }
       });
@@ -204,16 +189,16 @@ export class UIManager {
       });
     };
 
-   setupSlider(el.sliderSfx, el.valSfx, "setSfxVolume", 2.0);
+    setupSlider(el.sliderSfx, el.valSfx, "setSfxVolume", 2.0);
     setupSlider(el.sliderMusic, el.valMusic, "setMusicVolume", 1.5);
 
     // --- НОВАЯ ФИЧА: Тестовый звук при отпускании ползунка SFX ---
     if (el.sliderSfx) {
       el.sliderSfx.addEventListener("change", () => {
-        // Как только игрок отпустил ползунок, проигрываем стандартный клик, 
+        // Как только игрок отпустил ползунок, проигрываем стандартный клик,
         // он уже проиграется с новой установленной громкостью!
         if (typeof audioManager !== "undefined" && audioManager.playUI) {
-          audioManager.playUI("click"); 
+          audioManager.playUI("click");
         }
       });
     }
@@ -244,20 +229,45 @@ export class UIManager {
             el.doors.classList.add("loaded");
             document.body.classList.remove("loading");
 
-          // ПРОВЕРКА: Если мы нажали Resume
+// ПРОВЕРКА: Если мы нажали Resume
             if (document.body.classList.contains("lights-on")) {
-            el.hudControls.classList.remove("hud-hidden");
-              this.animTimers.aice = setTimeout(() => { 
+              el.hudControls.classList.remove("hud-hidden");
+              this.animTimers.aice = setTimeout(() => {
+                // Эту фразу мы ОСТАВЛЯЕМ! Она звучит, если игрок вернулся из меню
                 this.showAiceDialogue("С возвращением. Системы в режиме ожидания.");
               }, 1500);
             } else {
-              // Если это ПЕРВЫЙ запуск (света нет) — запускаем BIOS
+              
+              // === НАЧАЛО: ВРЕМЕННЫЙ СКИП БИОСА ДЛЯ ТЕСТОВ ===
+              
+              /* ОРИГИНАЛЬНЫЙ КОД БИОСА (ЗАКОММЕНТИРОВАН, ЧТОБЫ НЕ ПОТЕРЯТЬ)
               this.runBiosSequence(() => {
-                // ДОБАВЛЕНО: Сохраняем таймер в this.animTimers.aice
-                this.animTimers.aice = setTimeout(() => { 
+                this.animTimers.aice = setTimeout(() => {
                   this.showAiceDialogue("Привет! Связь установлена. Системы лаборатории функционируют в штатном режиме.");
                 }, 3000);
               });
+              */
+
+              // БЫСТРЫЙ ЗАПУСК: Мгновенно моргаем светом, показываем HUD
+              if (this.cb && this.cb.onFlickerLights) this.cb.onFlickerLights();
+              el.hudControls.classList.remove("hud-hidden");
+              
+              this.animTimers.aice = setTimeout(() => { 
+                
+                // === НАША НОВАЯ КАТСЦЕНА ЗНАКОМСТВА ===
+                const phrases = translations[this.currentLang].introDialog;
+                
+                this.runDialogueSequence(phrases, () => {
+                  // Этот блок сработает ТОЛЬКО после того, как игрок прокликает все 4 фразы!
+                  console.log("Диалог закончен! Айс готов лететь в центр.");
+                  // Позже мы добавим сюда анимацию и форму регистрации
+                });
+                // ======================================
+
+              }, 800); // 800мс ожидания вместо долгих таймеров BIOS
+              
+              // === КОНЕЦ: ВРЕМЕННЫЙ СКИП ===
+
             }
           }, 600);
         }, 500);
@@ -478,10 +488,12 @@ export class UIManager {
     this.elements.btnPaint.classList.toggle("is-selecting", target === "paint");
   }
 
- showAiceDialogue(textToShow = "Привет! Связь установлена. Готов к выполнению задач.") {
-    // ЩИТ ОТ БАГА: Если игрок уже нажал "Меню" и вышел из игры, 
+  showAiceDialogue(
+    textToShow = "Привет! Связь установлена. Готов к выполнению задач.",
+  ) {
+    // ЩИТ ОТ БАГА: Если игрок уже нажал "Меню" и вышел из игры,
     // отменяем появление Айса и блокируем звук!
-    if (!this.isMenuLocked) return; 
+    if (!this.isMenuLocked) return;
 
     const aicePanel = document.getElementById("aice-dialogue-container");
     const textElement = document.getElementById("aice-dialogue-text");
@@ -505,10 +517,16 @@ export class UIManager {
     }
   }
 
+// --- УМНАЯ ПЕЧАТНАЯ МАШИНКА ДЛЯ ДИАЛОГОВ АЙСА ---
   typeText(element, text, speed = 30) {
+    this.currentAiceFullText = text;
+    this.isAiceTyping = true;
+    
     return new Promise((resolve) => {
+      this._currentAiceResolve = resolve;
       element.innerHTML = "";
       let i = 0;
+      
       if (this.animTimers.typewriter) clearInterval(this.animTimers.typewriter);
 
       this.animTimers.typewriter = setInterval(() => {
@@ -516,14 +534,74 @@ export class UIManager {
           element.innerHTML += text.charAt(i);
           i++;
         } else {
+          this.isAiceTyping = false;
           clearInterval(this.animTimers.typewriter);
-          resolve();
+          if (this._currentAiceResolve) {
+            this._currentAiceResolve();
+            this._currentAiceResolve = null;
+          }
         }
       }, speed);
     });
   }
 
- async runBiosSequence(onCompleteCallback) {
+  finishAiceTyping(element) {
+    if (this.animTimers.typewriter) clearInterval(this.animTimers.typewriter);
+    this.isAiceTyping = false;
+    element.innerHTML = this.currentAiceFullText;
+    if (this._currentAiceResolve) {
+      this._currentAiceResolve();
+      this._currentAiceResolve = null;
+    }
+  }
+
+ // --- МЕНЕДЖЕР ДИАЛОГОВЫХ СЕКВЕНЦИЙ ---
+ // --- МЕНЕДЖЕР ДИАЛОГОВЫХ СЕКВЕНЦИЙ ---
+  async runDialogueSequence(phrasesArray, onCompleteCallback) {
+    const aicePanel = document.getElementById("aice-dialogue-container");
+    const textElement = aicePanel ? aicePanel.querySelector(".aice-dialogue-text") : null;
+
+    if (!aicePanel || !textElement) return;
+
+    // 1. ОТКРЫВАЕМ ОКНО ОДИН РАЗ
+    aicePanel.classList.remove("hidden");
+    for (let i = 0; i < phrasesArray.length; i++) {
+      if (!this.isMenuLocked) {
+        aicePanel.classList.add("hidden");
+        return; 
+      }
+
+      // ВНИМАНИЕ: Отсюда мы строку audioManager.playUI("pop"); УДАЛИЛИ!
+
+      // 2. Печатаем текст
+      this.typeText(textElement, phrasesArray[i], 35);
+
+      // 3. Ждем клика от игрока
+      await new Promise(resolve => {
+        const handleInteraction = (e) => {
+          if (e) e.stopPropagation();
+          if (e.type === "mousedown" && e.button !== 0) return;
+
+          if (this.isAiceTyping) {
+            this.finishAiceTyping(textElement); 
+          } else {
+            cleanup();
+            resolve();
+          }
+        };
+
+        const cleanup = () => {
+          aicePanel.removeEventListener("mousedown", handleInteraction);
+        };
+
+        aicePanel.addEventListener("mousedown", handleInteraction);
+      });
+    }
+
+    if (onCompleteCallback) onCompleteCallback();
+  }
+
+  async runBiosSequence(onCompleteCallback) {
     const container = document.getElementById("aice-dialogue-container");
     const textEl = document.getElementById("aice-dialogue-text");
     const btn = this.elements.biosContinueBtn;
@@ -533,42 +611,48 @@ export class UIManager {
     textEl.innerHTML = "";
     if (btn) btn.classList.add("hidden");
 
-    await new Promise(res => setTimeout(res, 1900));
+    await new Promise((res) => setTimeout(res, 1900));
 
     container.style.display = "flex";
     container.classList.remove("hidden");
 
-    let shuffled = [...this.biosPhrases].sort(() => 0.5 - Math.random());
+  // --- АРХИТЕКТУРНЫЙ ФИКС: Динамическая подгрузка языка из i18n ---
+    const currentDict = translations[this.currentLang];
+    
+    // Берем фразы нужного языка и перемешиваем
+    let shuffled = [...currentDict.biosPhrases].sort(() => 0.5 - Math.random());
     let selectedPhrases = shuffled.slice(0, 3);
-    selectedPhrases.push("ЗАГРУЗКА ЗАВЕРШЕНА. ВЫПОЛНЯЮ ПОДАЧУ ПИТАНИЯ...");
+    
+    // Добавляем финальную фразу нужного языка
+    selectedPhrases.push(currentDict.biosFinal);
 
-   for (let i = 0; i < selectedPhrases.length; i++) {
+    for (let i = 0; i < selectedPhrases.length; i++) {
       if (!this.isMenuLocked) {
         container.classList.add("hidden");
-        return; 
+        return;
       }
 
-      const isLast = (i === selectedPhrases.length - 1);
+      const isLast = i === selectedPhrases.length - 1;
       if (btn) btn.classList.add("hidden");
 
       // --- ДОБАВЛЯЕМ ПРЕФИКС ---
       const hackerPrefix = "SYSTEM //:"; // Можешь написать тут "SYSTEM //: " или "C:\AICE> "
       const fullText = hackerPrefix + selectedPhrases[i];
-      
+
       const typingPromise = this.typeBiosText(textEl, fullText);
 
-      await new Promise(resolve => {
-       const handleInteraction = (e) => {
+      await new Promise((resolve) => {
+        const handleInteraction = (e) => {
           if (e) e.stopPropagation();
 
           if (isLast) return;
 
           if (this.isTyping) {
-            this.finishTyping(textEl, isLast); 
+            this.finishTyping(textEl, isLast);
           } else {
             // УДАЛИ ИЛИ ЗАКОММЕНТИРУЙ ЭТУ СТРОЧКУ НИЖЕ:
-            // if (audioManager?.playUI) audioManager.playUI("click"); 
-            
+            // if (audioManager?.playUI) audioManager.playUI("click");
+
             cleanup();
             resolve();
           }
@@ -584,8 +668,8 @@ export class UIManager {
           if (isLast) {
             // Для последней фразы кнопка остается спрятанной, просто ждем 1.5 сек
             if (btn) btn.classList.add("hidden");
-            cleanup(); 
-            setTimeout(resolve, 1500); 
+            cleanup();
+            setTimeout(resolve, 1500);
           } else {
             // А вот для обычных фраз, когда текст напечатался — показываем [Продолжить]
             if (btn) btn.classList.remove("hidden");
@@ -596,7 +680,7 @@ export class UIManager {
 
     if (this.isMenuLocked) {
       container.classList.add("hidden");
-      
+
       setTimeout(() => {
         container.style.display = "";
         container.classList.remove("bios-mode");
@@ -607,37 +691,40 @@ export class UIManager {
     }
   }
 
-typeBiosText(element, text) {
+  typeBiosText(element, text) {
     this.currentFullText = text;
     this.isTyping = true;
     const cursor = '<span class="bios-cursor"></span>';
-    
+
     return new Promise((resolve) => {
-      this._currentBiosResolve = resolve; 
-      
+      this._currentBiosResolve = resolve;
+
       if (this.animTimers.biosType) clearTimeout(this.animTimers.biosType);
       element.innerHTML = cursor;
       let i = 0;
-      
+
       const typeChar = () => {
         if (i < text.length) {
-          
           // --- НОВЫЙ БЛОК: ОЗВУЧКА СИНТЕЗАТОРОМ ---
           // Проверяем, что текущий символ — не пробел.
           // Это избавляет от монотонного гула и делает звук механическим.
-          if (text.charAt(i) !== " " && typeof audioManager !== "undefined" && audioManager.playBiosBeep) {
+          if (
+            text.charAt(i) !== " " &&
+            typeof audioManager !== "undefined" &&
+            audioManager.playBiosBeep
+          ) {
             audioManager.playBiosBeep();
           }
           // ----------------------------------------
 
           element.innerHTML = text.substring(0, i + 1) + cursor;
           i++;
-          
+
           // ЗАМЕДЛЕНИЕ СКОРОСТИ
-          let delay = Math.random() * 40 + 30; 
+          let delay = Math.random() * 40 + 30;
           // Пауза на точках стала дольше для реализма
-          if (text.charAt(i - 1) === ".") delay += 250; 
-          
+          if (text.charAt(i - 1) === ".") delay += 250;
+
           this.animTimers.biosType = setTimeout(typeChar, delay);
         } else {
           this.isTyping = false;
@@ -654,8 +741,9 @@ typeBiosText(element, text) {
   finishTyping(element, isLast) {
     if (this.animTimers.biosType) clearTimeout(this.animTimers.biosType);
     this.isTyping = false;
-    element.innerHTML = this.currentFullText + '<span class="bios-cursor"></span>';
-    
+    element.innerHTML =
+      this.currentFullText + '<span class="bios-cursor"></span>';
+
     if (this.elements.biosContinueBtn) {
       if (isLast) {
         this.elements.biosContinueBtn.classList.add("hidden");

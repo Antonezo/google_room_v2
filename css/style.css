@@ -1966,6 +1966,8 @@ body.loading #holo-wrapper {
   line-height: 1.5;
   letter-spacing: 0.5px;
   text-shadow: 0 0 3px rgba(0, 243, 255, 0.4);
+  min-height: 48px; /* Выделяем место минимум под 2 строчки текста (подбери под свой размер шрифта) */
+  display: block;
 }
 
 /* ==========================================================================
@@ -2142,4 +2144,30 @@ body.loading #holo-wrapper {
 @keyframes blinkCursor {
   0%, 100% { opacity: 1; }
   50% { opacity: 0; }
+}
+
+.menu-robot-image {
+  position: absolute;
+  
+  /* Координаты относительно ПРАВОЙ двери */
+  /* top: регулирует высоту. Чем больше число, тем ниже Айс */
+  top: 60vh;   
+  
+  /* right: отступ от ПРАВОГО КРАЯ правой двери. 
+     Поставим побольше, чтобы он не прилипал к самому краю монитора */
+  right: 3vw;  
+
+  /* РАЗМЕР */
+  /* Используем % от ширины двери, чтобы он не стал гигантом */
+  width: 45%;        
+  min-width: 150px;  
+  max-width: 320px;  
+  height: auto;
+  
+  z-index: 10;
+  pointer-events: none; 
+
+  /* ЭФФЕКТЫ */
+  opacity: 0.8; /* Сделали чуть прозрачнее по твоему желанию */
+  filter: drop-shadow(0 0 1.5vh cyan);
 }

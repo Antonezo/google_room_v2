@@ -71,12 +71,13 @@ export class GoogleRoomApp {
       120,
     );
 
-    this.uiManager = new UIManager({
+   this.uiManager = new UIManager({
       onTogglePause: () => {
         this.isPaused = !this.isPaused;
         return this.isPaused;
       },
       onReset: () => this.resetScene(),
+      onFlickerLights: () => this.flickerLights(),
       onSpawnBalls: () => {
         if (!this.isPaused) this.spawnBalls();
       },
@@ -130,6 +131,10 @@ export class GoogleRoomApp {
           this.changeWordSmoothly(word);
         }
       },
+      onForceLightsOff: () => {
+        this.currentExposure = 0; // Обнуляем текущую экспозицию без lerp
+        this.renderer.toneMappingExposure = 0;
+      }
     });
 
     this.initSceneObjects();
@@ -239,6 +244,27 @@ export class GoogleRoomApp {
       this.activeBallsCount,
       CONFIG.PHYSICS.MAX_BALLS,
     );
+  }
+
+  flickerLights() {
+    const sequence = [100, 150, 50, 200, 50, 500]; // Паузы между вспышками в мс
+    let currentStep = 0;
+
+    const nextFlicker = () => {
+      if (currentStep >= sequence.length) {
+        document.body.classList.add("lights-on"); // Финальное включение
+        return;
+      }
+
+      // Переключаем класс туда-сюда для вспышки
+      document.body.classList.toggle("lights-on");
+      
+      setTimeout(() => {
+        nextFlicker();
+      }, sequence[currentStep++]);
+    };
+
+    nextFlicker();
   }
 
   resetScene() {
@@ -981,6 +1007,18 @@ export class GoogleRoomApp {
     // ДОБАВЛЕНО: Смотрим на независимый флаг, а не на анимацию дверей
     const isLightsOn = document.body.classList.contains("lights-on");
     const targetExposure = isLightsOn ? this.baseExposure : 0.0; // Снизил lerp с 0.015 до 0.01. Свет будет разгораться более "лениво" и плавно.
+
+// ГАСИМ ВСЕ ЛАМПЫ НА ПОТОЛКЕ (если они Meshes)
+    this.scene.traverse((obj) => {
+      if (obj.isMesh && obj.material && obj.material.emissive) {
+        // Если свет выключен — гасим эмиссию в 0, если включен — возвращаем (например, 1.0)
+        obj.material.emissiveIntensity = isLightsOn ? 1.0 : 0.0;
+      }
+      // Если это RectAreaLight (прямоугольные лампы)
+      if (obj.isRectAreaLight) {
+        obj.intensity = isLightsOn ? 5.0 : 0.0; // Тут подбери свою яркость
+      }
+    });
 
     this.currentExposure = THREE.MathUtils.lerp(
       this.currentExposure,

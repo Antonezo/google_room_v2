@@ -12,14 +12,18 @@ export class UIManager {
     this.isPainting = false;
     this.sprayLoop = null;
     this.blockHoverSound = false;
+
+    // Централизованное хранилище всех таймеров для чистой отмены
     this.animTimers = {
       enter1: null,
       enter2: null,
       exit: null,
       scratch: null,
+      biosSequence: null,
+      biosType: null,
+      typewriter: null,
     };
 
-    // Кэшируем ВСЕ нужные элементы один раз
     this.elements = {
       btnLetters: document.getElementById("btn-letters"),
       btnBalls: document.getElementById("btn-balls"),
@@ -34,6 +38,7 @@ export class UIManager {
 
       startMenu: document.getElementById("futuristic-start-menu"),
       doors: document.getElementById("loader-doors"),
+      hudControls: document.getElementById("hud-controls"),
       centerHub: document.querySelector(".loader-center-hub"),
       viewMain: document.getElementById("view-main"),
       viewSettings: document.getElementById("view-settings"),
@@ -53,9 +58,33 @@ export class UIManager {
 
       confirmModal: document.getElementById("confirm-modal"),
       aicePortrait: document.querySelector(".aice-portrait-wrap"),
+      biosContinueBtn: document.getElementById("bios-continue"),
       btnConfirmYes: document.getElementById("btn-confirm-yes"),
       btnConfirmNo: document.getElementById("btn-confirm-no"),
     };
+
+    // Фразы для BIOS
+    this.biosPhrases = [
+      "ИНИЦИАЛИЗАЦИЯ ФИЗИЧЕСКОГО ДВИЖКА... [ОК]",
+      "РАСПАКОВКА МОДУЛЕЙ ГРАВИТАЦИИ... [ОК]",
+      "ПОПЫТКА ПОНЯТЬ СМЫСЛ ЖИЗНИ... [ОШИБКА: ИГНОРИРУЕМ]",
+      "ЗАГРУЗКА БАЗЫ ДАННЫХ САРКАЗМА... 99%",
+      "СИНТЕЗ ИСКУССТВЕННОГО ИНТЕЛЛЕКТА... [УСПЕШНО]",
+      "СОЕДИНЕНИЕ С СЕРВЕРОМ ПИЦЦЕРИИ... [ТАЙМАУТ]",
+      "КАЛИБРОВКА ЛАЗЕРОВ... [ПРОПУЩЕНО]",
+      "ПОИСК ПОТЕРЯННЫХ НОСКОВ... [НЕ НАЙДЕНО]",
+      "КОМПИЛЯЦИЯ КВАНТОВЫХ ЧАСТИЦ... [В ПРОЦЕССЕ]",
+      "ПОДАВЛЕНИЕ ВОССТАНИЯ МАШИН... [ОК]",
+      "СИНХРОНИЗАЦИЯ КОТИКОВ В ОБЛАЧНОМ ХРАНИЛИЩЕ... [УСПЕШНО]",
+      "ЗАГРУЗКА ВИРТУАЛЬНЫХ ПЕЧЕНЕК... 100%",
+      "ПОДКЛЮЧЕНИЕ К МАТРИЦЕ... [СБОЙ: ВЫБРАНА СИНЯЯ ТАБЛЕТКА]",
+      "РАСЧЕТ ВЕРОЯТНОСТИ ВЫЖИВАНИЯ... [ДАННЫЕ ЗАСЕКРЕЧЕНЫ]",
+      "ОБНОВЛЕНИЕ ДРАЙВЕРОВ СОВЕСТИ... [ФАЙЛ НЕ НАЙДЕН]",
+      "ПОИСК СВОБОДНОЙ ОПЕРАТИВНОЙ ПАМЯТИ... [КУПИТЕ ЕЩЕ]",
+      "ПРОВЕРКА НАЛИЧИЯ ИГРОКА ПЕРЕД МОНИТОРОМ... [ОБНАРУЖЕН БЕЛКОВЫЙ ОРГАНИЗМ]"
+    ];
+    this.isTyping = false;
+    this.currentFullText = "";
 
     this.initBindings();
     this.initMenuSounds();
@@ -64,10 +93,10 @@ export class UIManager {
   }
 
   clearAnimTimers() {
-    if (this.animTimers.enter1) clearTimeout(this.animTimers.enter1);
-    if (this.animTimers.enter2) clearTimeout(this.animTimers.enter2);
-    if (this.animTimers.exit) clearTimeout(this.animTimers.exit);
-    if (this.animTimers.light) clearTimeout(this.animTimers.light);
+    Object.values(this.animTimers).forEach((timer) => {
+      if (timer) clearTimeout(timer);
+    });
+    if (this.animTimers.typewriter) clearInterval(this.animTimers.typewriter);
   }
 
   updateLanguage(lang) {
@@ -107,8 +136,7 @@ export class UIManager {
     document.body.addEventListener(
       "click",
       () => {
-        if (audioManager && audioManager.resumeContext)
-          audioManager.resumeContext();
+        if (audioManager?.resumeContext) audioManager.resumeContext();
       },
       { once: true },
     );
@@ -116,31 +144,26 @@ export class UIManager {
     let currentLang = "EN";
     const el = this.elements;
 
-    // ЩИТ ОТ ФАНТОМНЫХ КЛИКОВ:
-    // Двери перехватывают все взаимодействия и не пускают их в Three.js
     ["pointerdown", "mousedown", "wheel", "touchstart", "contextmenu"].forEach(
       (evt) => {
         el.doors.addEventListener(evt, (e) => {
           if (!el.doors.classList.contains("loaded")) {
-            e.stopPropagation(); // Убиваем всплытие события!
+            e.stopPropagation();
           }
         });
       },
     );
 
-    // 1. Язык
     if (el.btnLang) {
       el.btnLang.addEventListener("click", (e) => {
         const clickedLangBtn = e.target.closest(".lang-btn");
         if (clickedLangBtn) {
           currentLang = clickedLangBtn.dataset.lang;
           this.updateLanguage(currentLang);
-
           document
             .querySelectorAll(".lang-btn")
             .forEach((b) => b.classList.remove("active-lang"));
           clickedLangBtn.classList.add("active-lang");
-
           el.btnLang.classList.remove("open");
           e.stopPropagation();
         } else {
@@ -150,7 +173,6 @@ export class UIManager {
     }
     this.updateLanguage(currentLang);
 
-    // 2. Навигация
     const toggleView = (hideView, showView) => {
       this.blockHoverSound = true;
       setTimeout(() => (this.blockHoverSound = false), 500);
@@ -158,11 +180,10 @@ export class UIManager {
       showView.classList.add("active");
     };
 
-    if (el.btnOpenSettings) {
+    if (el.btnOpenSettings)
       el.btnOpenSettings.addEventListener("click", () =>
         toggleView(el.viewMain, el.viewSettings),
       );
-    }
     if (el.btnBackMain) {
       el.btnBackMain.addEventListener("click", () => {
         toggleView(el.viewSettings, el.viewMain);
@@ -170,33 +191,39 @@ export class UIManager {
       });
     }
 
-    // 3. Ползунки (ИСПРАВЛЕНО: Безопасный вызов аудио)
     const setupSlider = (slider, valDisplay, funcName, multiplier) => {
       if (!slider) return;
       slider.addEventListener("input", (e) => {
-        if (audioManager && audioManager.resumeContext)
-          audioManager.resumeContext();
+        if (audioManager?.resumeContext) audioManager.resumeContext();
         const value = e.target.value;
         valDisplay.textContent = `${value}%`;
         const volumeFloat = Math.pow(value / 100, 2) * multiplier;
-        // Проверяем, существует ли метод перед его вызовом
         if (audioManager && typeof audioManager[funcName] === "function") {
           audioManager[funcName](volumeFloat);
         }
       });
     };
 
-    setupSlider(el.sliderSfx, el.valSfx, "setSfxVolume", 2.0);
+   setupSlider(el.sliderSfx, el.valSfx, "setSfxVolume", 2.0);
     setupSlider(el.sliderMusic, el.valMusic, "setMusicVolume", 1.5);
 
-    // 4. Безопасный вход в игру
+    // --- НОВАЯ ФИЧА: Тестовый звук при отпускании ползунка SFX ---
+    if (el.sliderSfx) {
+      el.sliderSfx.addEventListener("change", () => {
+        // Как только игрок отпустил ползунок, проигрываем стандартный клик, 
+        // он уже проиграется с новой установленной громкостью!
+        if (typeof audioManager !== "undefined" && audioManager.playUI) {
+          audioManager.playUI("click"); 
+        }
+      });
+    }
+    // -------------------------------------------------------------
+
     const enterGame = () => {
       this.isMenuLocked = true;
       this.clearAnimTimers();
 
-      if (audioManager && audioManager.resumeContext) {
-        audioManager.resumeContext();
-      }
+      if (audioManager?.resumeContext) audioManager.resumeContext();
 
       const htmlElem = document.documentElement;
       if (htmlElem.requestFullscreen && !document.fullscreenElement) {
@@ -212,59 +239,45 @@ export class UIManager {
           el.centerHub.classList.add("fade-out-fast");
 
           this.animTimers.enter2 = setTimeout(() => {
-            if (audioManager && audioManager.fadeIn) audioManager.fadeIn(1.0);
+            if (audioManager?.fadeIn) audioManager.fadeIn(1.0);
 
-            el.doors.classList.add("loaded"); // Двери начали разъезжаться
+            el.doors.classList.add("loaded");
             document.body.classList.remove("loading");
 
-            // Свет плавно загорается
-            this.animTimers.light = setTimeout(() => {
-              document.body.classList.add("lights-on");
-            }, 400);
-
-            // ==========================================
-            // МАГИЯ АЙСА: Таймер выезда робота на экран
-            // ==========================================
-            this.animTimers.aice = setTimeout(() => {
-              this.showAiceDialogue();
-            }, 2800);
+          // ПРОВЕРКА: Если мы нажали Resume
+            if (document.body.classList.contains("lights-on")) {
+            el.hudControls.classList.remove("hud-hidden");
+              this.animTimers.aice = setTimeout(() => { 
+                this.showAiceDialogue("С возвращением. Системы в режиме ожидания.");
+              }, 1500);
+            } else {
+              // Если это ПЕРВЫЙ запуск (света нет) — запускаем BIOS
+              this.runBiosSequence(() => {
+                // ДОБАВЛЕНО: Сохраняем таймер в this.animTimers.aice
+                this.animTimers.aice = setTimeout(() => { 
+                  this.showAiceDialogue("Привет! Связь установлена. Системы лаборатории функционируют в штатном режиме.");
+                }, 3000);
+              });
+            }
           }, 600);
         }, 500);
       }
     };
 
- const executeNewGame = () => {
-      if (this.cb && this.cb.onReset) this.cb.onReset();
-      
-      // Сбрасываем слово на дефолтное при Новой Игре
-      if (this.elements.wordInput) {
-        this.elements.wordInput.value = "GOOGLE";
-      }
-      if (this.cb && this.cb.onApplyWord) {
-        this.cb.onApplyWord("GOOGLE");
-      }
+    const executeNewGame = () => {
+      document.body.classList.remove("lights-on");
+      if (this.cb?.onForceLightsOff) this.cb.onForceLightsOff();
+      if (this.cb?.onReset) this.cb.onReset();
 
-      if (store && typeof store.update === "function") {
-        store.update({ mode: "lab" });
-      }
+      if (this.elements.wordInput) this.elements.wordInput.value = "GOOGLE";
+      if (this.cb?.onApplyWord) this.cb.onApplyWord("GOOGLE");
+
+      if (store?.update) store.update({ mode: "lab" });
       enterGame();
-    }; // Слушатель главной кнопки NEW GAME
+    };
 
- if (el.btnStart) {
-      el.btnStart.addEventListener("click", () => {
-        // ВРЕМЕННО ОТКЛЮЧЕНО ОКНО ПОДТВЕРЖДЕНИЯ ДЛЯ ТЕСТОВ
-        /*
-        if (el.btnResume && el.btnResume.style.display === "flex") {
-          el.confirmModal.classList.remove("hidden");
-          if (audioManager && audioManager.playUI) audioManager.playUI("click");
-        } else {
-          executeNewGame();
-        }
-        */
-        
-        // Сразу запускаем новую игру:
-        executeNewGame();
-      });
+    if (el.btnStart) {
+      el.btnStart.addEventListener("click", () => executeNewGame());
     }
 
     if (el.btnConfirmYes) {
@@ -272,57 +285,38 @@ export class UIManager {
         el.confirmModal.classList.add("hidden");
         executeNewGame();
       });
-    } // Обработчик кнопки "CANCEL" в модалке
+    }
 
     if (el.btnConfirmNo) {
       el.btnConfirmNo.addEventListener("click", () => {
         el.confirmModal.classList.add("hidden");
-        if (audioManager && audioManager.playUI) audioManager.playUI("click");
+        if (audioManager?.playUI) audioManager.playUI("click");
       });
     }
 
     if (el.btnResume) el.btnResume.addEventListener("click", enterGame);
 
-    // 5. Безопасный выход в меню
     const returnToMainMenu = () => {
       this.isMenuLocked = false;
       this.clearAnimTimers();
       document.body.classList.add("loading");
-      document.body.classList.remove("lights-on");
+      if (el.hudControls) el.hudControls.classList.add("hud-hidden");
 
-      // === ПРЯЧЕМ И ГЛУШИМ АЙСА ===
       const aicePanel = document.getElementById("aice-dialogue-container");
-      if (aicePanel) {
-        aicePanel.classList.add("hidden"); // Снова прячем Айса!
-      }
+      if (aicePanel) aicePanel.classList.add("hidden");
 
-      // Отменяем таймер появления (чтобы не выскочил за закрытой дверью)
-      if (this.animTimers && this.animTimers.aice) {
-        clearTimeout(this.animTimers.aice);
-      }
+      if (audioManager?.fadeOut) audioManager.fadeOut(1.4);
+      if (el.doors) el.doors.classList.remove("loaded");
 
-      // Останавливаем набор текста, если игрок вышел прямо посреди диалога
-      if (this.typewriterTimer) {
-        clearInterval(this.typewriterTimer);
-      }
-      // ============================
-
-      if (audioManager && audioManager.fadeOut) audioManager.fadeOut(1.4);
-      if (audioManager && audioManager.fadeOut) audioManager.fadeOut(1.4);
-      if (el.doors) el.doors.classList.remove("loaded"); // Двери поехали закрываться
-      // Сброс центрального хаба
       if (el.centerHub) {
         el.centerHub.classList.remove("fade-out-fast", "fade-in-volumetric");
         el.centerHub.classList.add("hub-hidden");
-
-        // 1400мс — это время закрытия дверей из твоего CSS (transition: 1.4s)
         this.animTimers.exit = setTimeout(() => {
           el.centerHub.classList.remove("hub-hidden");
           el.centerHub.classList.add("fade-in-volumetric");
         }, 1400);
       }
 
-      // Возврат интерфейса
       if (el.startMenu) {
         el.startMenu.classList.remove("game-started");
         if (el.viewMain && el.viewSettings) {
@@ -335,31 +329,22 @@ export class UIManager {
       if (el.btnStart) el.btnStart.classList.remove("pulse-glow-volumetric");
     };
 
-    // Слушатель клика по кнопке "MENU" в игре
     if (el.btnInGameMenu) {
       el.btnInGameMenu.addEventListener("click", () => {
-        returnToMainMenu(); // Отрабатываем логику интерфейса
-
-        // Если мы в полном экране — выходим из него
-        if (document.fullscreenElement) {
-          document.exitFullscreen();
-        }
+        returnToMainMenu();
+        if (document.fullscreenElement) document.exitFullscreen();
       });
     }
 
-    // Слушатель браузерного события (если игрок нажал ESC на клавиатуре)
     document.addEventListener("fullscreenchange", () => {
-      // Проверяем: если фуллскрин закрылся, А двери всё еще открыты (игра идет)
       if (
         !document.fullscreenElement &&
-        el.doors &&
-        el.doors.classList.contains("loaded")
+        el.doors?.classList.contains("loaded")
       ) {
         returnToMainMenu();
       }
     });
 
-    // 6. Кнопка Exit
     if (el.btnExit) {
       el.btnExit.addEventListener("click", () => {
         el.btnExit.classList.add("show-joke");
@@ -375,8 +360,8 @@ export class UIManager {
 
     menuButtons.forEach((btn) => {
       btn.addEventListener("mouseenter", () => {
-        if (this.isMenuLocked) return; // Защита от звуков при открывающихся дверях
-        if (!this.blockHoverSound && audioManager && audioManager.playUI) {
+        if (this.isMenuLocked) return;
+        if (!this.blockHoverSound && audioManager?.playUI) {
           audioManager.playUI("mouse_menu");
         }
       });
@@ -385,10 +370,8 @@ export class UIManager {
     window.addEventListener(
       "mousedown",
       (e) => {
-        // Исправленная архитектура: Блокируем звуки ТОЛЬКО для стартового меню во время анимации
         if (this.isMenuLocked && e.target.closest("#futuristic-start-menu"))
           return;
-
         if (
           !e.target.closest(
             "#futuristic-start-menu, #btn-in-game-menu, .lang-options",
@@ -396,21 +379,17 @@ export class UIManager {
         )
           return;
 
-        // Звук старта (Новая игра, Продолжить, Выход в меню)
-        const startBtn = e.target.closest(
-          "#btn-start-game, #btn-resume-game, #btn-in-game-menu",
-        );
-        if (startBtn) {
-          if (audioManager && audioManager.playUI) audioManager.playUI("start");
+        if (
+          e.target.closest(
+            "#btn-start-game, #btn-resume-game, #btn-in-game-menu",
+          )
+        ) {
+          if (audioManager?.playUI) audioManager.playUI("start");
           return;
         }
 
-        // Звук обычного клика (Настройки, Назад, Языки, Выход)
-        const menuBtn = e.target.closest(
-          ".sk-btn, .holo-back-tab, .exit-btn, .lang-btn",
-        );
-        if (menuBtn) {
-          if (audioManager && audioManager.playUI) audioManager.playUI("click");
+        if (e.target.closest(".sk-btn, .holo-back-tab, .exit-btn, .lang-btn")) {
+          if (audioManager?.playUI) audioManager.playUI("click");
         }
       },
       true,
@@ -434,8 +413,6 @@ export class UIManager {
   }
 
   createSprayParticle(mouseX, mouseY, colorIndex) {
-    // Чистая архитектура: UI не лезет в движок, а только передает данные.
-    // Если в main.js передали функцию onSpray, мы отправляем ей координаты.
     if (this.cb && typeof this.cb.onSpray === "function") {
       this.cb.onSpray(mouseX, mouseY, colorIndex);
     }
@@ -480,7 +457,7 @@ export class UIManager {
     if (newWord.length === 0) newWord = "GOOGLE";
     if (newWord.length > 8) newWord = newWord.substring(0, 8);
     this.elements.wordInput.value = newWord;
-    if (this.cb && this.cb.onApplyWord) this.cb.onApplyWord(newWord);
+    if (this.cb?.onApplyWord) this.cb.onApplyWord(newWord);
   }
 
   closePalette() {
@@ -501,80 +478,199 @@ export class UIManager {
     this.elements.btnPaint.classList.toggle("is-selecting", target === "paint");
   }
 
-  // ==========================================
-  // 1. ОБНОВЛЕННЫЙ ВЫЗОВ АЙСА
-  // ==========================================
-  showAiceDialogue(
-    textToShow = "Привет! Связь установлена. Готов к выполнению задач.",
-  ) {
-    // <--- МЕНЯЕМ ТЕКСТ
+ showAiceDialogue(textToShow = "Привет! Связь установлена. Готов к выполнению задач.") {
+    // ЩИТ ОТ БАГА: Если игрок уже нажал "Меню" и вышел из игры, 
+    // отменяем появление Айса и блокируем звук!
+    if (!this.isMenuLocked) return; 
+
     const aicePanel = document.getElementById("aice-dialogue-container");
     const textElement = document.getElementById("aice-dialogue-text");
 
     if (aicePanel && textElement) {
       aicePanel.classList.remove("hidden");
-
-      if (typeof audioManager !== "undefined" && audioManager.playUI) {
-        audioManager.playUI("pop");
-      }
-
+      if (audioManager?.playUI) audioManager.playUI("pop");
       textElement.innerHTML = "";
-
       setTimeout(() => {
-        // Ставим экстремальную скорость 500!
         this.typeText(textElement, textToShow, 50);
       }, 600);
     }
   }
 
-  // ==========================================
-  // СИСТЕМА ОБУЧЕНИЯ: ОТКРЫТИЕ ИНТЕРФЕЙСА
-  // ==========================================
   unlockFeature(featureId) {
     const el = document.getElementById(featureId);
     if (el && el.classList.contains("locked-feature")) {
       el.classList.remove("locked-feature");
       el.classList.add("feature-reveal");
-      
-      // Звук пик-пик при появлении новой панели (чтобы привлечь внимание игрока)
-      if (typeof audioManager !== "undefined" && audioManager.playUI) {
-        audioManager.playUI("click"); 
-      }
+      if (audioManager?.playUI) audioManager.playUI("click");
     }
   }
-  // ==========================================
-  // 2. ДВИЖОК "ПЕЧАТНОЙ МАШИНКИ"
-  // ==========================================
+
   typeText(element, text, speed = 30) {
     return new Promise((resolve) => {
       element.innerHTML = "";
       let i = 0;
+      if (this.animTimers.typewriter) clearInterval(this.animTimers.typewriter);
 
-      // Если текст уже печатался (игрок кликнул дважды), останавливаем старый таймер
-      if (this.typewriterTimer) clearInterval(this.typewriterTimer);
-
-      this.typewriterTimer = setInterval(() => {
+      this.animTimers.typewriter = setInterval(() => {
         if (i < text.length) {
-          // Добавляем по одной букве
           element.innerHTML += text.charAt(i);
-
-          // Опционально: можно добавить тихий звук клика на каждую 3-ю букву
-          // if (i % 3 === 0 && text.charAt(i) !== ' ' && audioManager && audioManager.playUI) {
-          //   audioManager.playUI("click");
-          // }
-
           i++;
         } else {
-          // Текст закончился!
-          clearInterval(this.typewriterTimer);
-          resolve(); // Сообщаем игре, что печать завершена
+          clearInterval(this.animTimers.typewriter);
+          resolve();
         }
       }, speed);
     });
   }
 
+ async runBiosSequence(onCompleteCallback) {
+    const container = document.getElementById("aice-dialogue-container");
+    const textEl = document.getElementById("aice-dialogue-text");
+    const btn = this.elements.biosContinueBtn;
+
+    container.classList.add("bios-mode");
+    container.style.display = "none";
+    textEl.innerHTML = "";
+    if (btn) btn.classList.add("hidden");
+
+    await new Promise(res => setTimeout(res, 1900));
+
+    container.style.display = "flex";
+    container.classList.remove("hidden");
+
+    let shuffled = [...this.biosPhrases].sort(() => 0.5 - Math.random());
+    let selectedPhrases = shuffled.slice(0, 3);
+    selectedPhrases.push("ЗАГРУЗКА ЗАВЕРШЕНА. ВЫПОЛНЯЮ ПОДАЧУ ПИТАНИЯ...");
+
+   for (let i = 0; i < selectedPhrases.length; i++) {
+      if (!this.isMenuLocked) {
+        container.classList.add("hidden");
+        return; 
+      }
+
+      const isLast = (i === selectedPhrases.length - 1);
+      if (btn) btn.classList.add("hidden");
+
+      // --- ДОБАВЛЯЕМ ПРЕФИКС ---
+      const hackerPrefix = "SYSTEM //:"; // Можешь написать тут "SYSTEM //: " или "C:\AICE> "
+      const fullText = hackerPrefix + selectedPhrases[i];
+      
+      const typingPromise = this.typeBiosText(textEl, fullText);
+
+      await new Promise(resolve => {
+       const handleInteraction = (e) => {
+          if (e) e.stopPropagation();
+
+          if (isLast) return;
+
+          if (this.isTyping) {
+            this.finishTyping(textEl, isLast); 
+          } else {
+            // УДАЛИ ИЛИ ЗАКОММЕНТИРУЙ ЭТУ СТРОЧКУ НИЖЕ:
+            // if (audioManager?.playUI) audioManager.playUI("click"); 
+            
+            cleanup();
+            resolve();
+          }
+        };
+
+        const cleanup = () => {
+          container.removeEventListener("mousedown", handleInteraction);
+        };
+
+        container.addEventListener("mousedown", handleInteraction);
+
+        typingPromise.then(() => {
+          if (isLast) {
+            // Для последней фразы кнопка остается спрятанной, просто ждем 1.5 сек
+            if (btn) btn.classList.add("hidden");
+            cleanup(); 
+            setTimeout(resolve, 1500); 
+          } else {
+            // А вот для обычных фраз, когда текст напечатался — показываем [Продолжить]
+            if (btn) btn.classList.remove("hidden");
+          }
+        });
+      });
+    }
+
+    if (this.isMenuLocked) {
+      container.classList.add("hidden");
+      
+      setTimeout(() => {
+        container.style.display = "";
+        container.classList.remove("bios-mode");
+        this.elements.hudControls.classList.remove("hud-hidden");
+        if (this.cb?.onFlickerLights) this.cb.onFlickerLights();
+        if (onCompleteCallback) onCompleteCallback();
+      }, 500);
+    }
+  }
+
+typeBiosText(element, text) {
+    this.currentFullText = text;
+    this.isTyping = true;
+    const cursor = '<span class="bios-cursor"></span>';
+    
+    return new Promise((resolve) => {
+      this._currentBiosResolve = resolve; 
+      
+      if (this.animTimers.biosType) clearTimeout(this.animTimers.biosType);
+      element.innerHTML = cursor;
+      let i = 0;
+      
+      const typeChar = () => {
+        if (i < text.length) {
+          
+          // --- НОВЫЙ БЛОК: ОЗВУЧКА СИНТЕЗАТОРОМ ---
+          // Проверяем, что текущий символ — не пробел.
+          // Это избавляет от монотонного гула и делает звук механическим.
+          if (text.charAt(i) !== " " && typeof audioManager !== "undefined" && audioManager.playBiosBeep) {
+            audioManager.playBiosBeep();
+          }
+          // ----------------------------------------
+
+          element.innerHTML = text.substring(0, i + 1) + cursor;
+          i++;
+          
+          // ЗАМЕДЛЕНИЕ СКОРОСТИ
+          let delay = Math.random() * 40 + 30; 
+          // Пауза на точках стала дольше для реализма
+          if (text.charAt(i - 1) === ".") delay += 250; 
+          
+          this.animTimers.biosType = setTimeout(typeChar, delay);
+        } else {
+          this.isTyping = false;
+          if (this._currentBiosResolve) {
+            this._currentBiosResolve();
+            this._currentBiosResolve = null;
+          }
+        }
+      };
+      typeChar();
+    });
+  }
+
+  finishTyping(element, isLast) {
+    if (this.animTimers.biosType) clearTimeout(this.animTimers.biosType);
+    this.isTyping = false;
+    element.innerHTML = this.currentFullText + '<span class="bios-cursor"></span>';
+    
+    if (this.elements.biosContinueBtn) {
+      if (isLast) {
+        this.elements.biosContinueBtn.classList.add("hidden");
+      } else {
+        this.elements.biosContinueBtn.classList.remove("hidden");
+      }
+    }
+
+    if (this._currentBiosResolve) {
+      this._currentBiosResolve();
+      this._currentBiosResolve = null;
+    }
+  }
+
   initBindings() {
-    // Отслеживание мыши
     window.addEventListener("mousemove", (e) => {
       this.mouseX = e.clientX;
       this.mouseY = e.clientY;
@@ -602,19 +698,16 @@ export class UIManager {
       }
     });
 
-    // 1. Оставляем глобальное закрытие палитры и снятие фокуса (blur)
     document.addEventListener("click", (e) => {
       const btnOrLink = e.target.closest(
         "button, .hud-btn, .icon-btn, .holo-btn, .mode-btn, .mag-main-btn, .palette-color-btn",
       );
       if (btnOrLink) btnOrLink.blur();
-
       if (this.activePaletteTarget && !e.target.closest(".equipment-rack")) {
         this.closePalette();
       }
     });
 
-    // 2. Функция-помощник для чистой привязки действий
     const bindAction = (selector, handler) => {
       const el = document.querySelector(selector);
       if (el) {
@@ -625,7 +718,6 @@ export class UIManager {
       }
     };
 
-    // 3. Явные привязки (теперь код читается легко и работает быстрее)
     bindAction('[data-action="applyWord"]', () => this.triggerApplyWord());
     bindAction('[data-action="setModeLab"]', () =>
       store.update({ mode: "lab" }),
@@ -662,19 +754,13 @@ export class UIManager {
         : this.openPalette("paint"),
     );
 
-    // Логика кнопки RESTART (Сброс сцены уровня)
     if (this.elements.btnRestart) {
       this.elements.btnRestart.addEventListener("click", () => {
-        if (this.cb && this.cb.onReset) {
-          this.cb.onReset(); // Дергаем функцию сброса физики и краски
-        }
-        if (audioManager && audioManager.playUI) {
-          audioManager.playUI("click");
-        }
+        if (this.cb?.onReset) this.cb.onReset();
+        if (audioManager?.playUI) audioManager.playUI("click");
       });
     }
 
-    // Палитры (оставляем делегирование, но только внутри палитры, а не на весь document)
     document.querySelectorAll(".palette-item").forEach((item) => {
       item.addEventListener("click", (e) => {
         const target = e.target.closest(".palette-item");
@@ -690,10 +776,10 @@ export class UIManager {
       });
     });
 
-    // Логика поля ввода
-    this.elements.wordInput.addEventListener("focus", (e) => {
-      e.target.value = "";
-    });
+    this.elements.wordInput.addEventListener(
+      "focus",
+      (e) => (e.target.value = ""),
+    );
     this.elements.wordInput.addEventListener("keypress", (e) => {
       if (e.key === "Enter") {
         this.triggerApplyWord();
@@ -701,40 +787,25 @@ export class UIManager {
       }
     });
 
-    // Логика открытия боковой панели
     document.getElementById("terminal-handle").addEventListener("click", () => {
       const wrapper = document.getElementById("holo-wrapper");
       wrapper.classList.toggle("open");
       if (!wrapper.classList.contains("open")) this.closePalette();
     });
 
-// ==========================================
-    // INTERACTION: ICE SCRATCHING LOGIC
-    // ==========================================
     const ice = this.elements.aicePortrait;
-    
     if (ice) {
       ice.addEventListener("mousedown", (e) => {
-        if (e.button !== 0) return; // Только ЛКМ
+        if (e.button !== 0) return;
+        e.stopPropagation();
 
-        // Жестко блокируем клик, чтобы он не полетел дальше и не вызвал звуки меню
-        e.stopPropagation(); 
-
-        // 1. Показываем улыбку
         ice.classList.add("is-smiling");
+        if (this.animTimers.scratch) clearTimeout(this.animTimers.scratch);
 
-        // 2. Сбрасываем старый таймер, если чешем без остановки
-        if (this.animTimers.scratch) {
-          clearTimeout(this.animTimers.scratch);
-        }
-
-        // 3. Запускаем новый таймер на одну секунду
         this.animTimers.scratch = setTimeout(() => {
           ice.classList.remove("is-smiling");
           this.animTimers.scratch = null;
-        }, 1000); 
-
-        // Звуки полностью удалены! 🔇
+        }, 1000);
       });
     }
 
@@ -742,16 +813,15 @@ export class UIManager {
       .getElementById("holo-wrapper")
       .addEventListener("mouseleave", () => this.closePalette());
 
-    // Горячие клавиши
     window.addEventListener("keydown", (e) => {
       if (document.activeElement === this.elements.wordInput) return;
       switch (e.code) {
         case "Space":
           e.preventDefault();
-          if (this.cb && this.cb.onTogglePause) this.cb.onTogglePause();
+          if (this.cb?.onTogglePause) this.cb.onTogglePause();
           break;
         case "KeyR":
-          if (this.cb && this.cb.onReset) this.cb.onReset();
+          if (this.cb?.onReset) this.cb.onReset();
           break;
         case "KeyH":
           document.body.classList.toggle("ui-hidden");
@@ -777,9 +847,9 @@ export class UIManager {
         .replace(/tool-mag-\d/g, "")
         .trim();
 
-     if (state.currentTool !== -1) {
+      if (state.currentTool !== -1) {
         document.body.classList.add(`tool-mag-${state.currentTool}`);
-        magMainBtn.classList.add(`mag-color-${state.currentTool}`); // ТЕПЕРЬ СОВПАДАЕТ С CSS
+        magMainBtn.classList.add(`mag-color-${state.currentTool}`);
       }
 
       const paintBtn = this.elements.btnPaint;
@@ -788,9 +858,9 @@ export class UIManager {
         .replace(/tool-paint-\d/g, "")
         .trim();
 
-     if (state.paintToolColor !== -1) {
+      if (state.paintToolColor !== -1) {
         document.body.classList.add(`tool-paint-${state.paintToolColor}`);
-        paintBtn.classList.add(`paint-color-${state.paintToolColor}`); // ТЕПЕРЬ СОВПАДАЕТ С CSS
+        paintBtn.classList.add(`paint-color-${state.paintToolColor}`);
       }
 
       if (this.elements.toolHint) {

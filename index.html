@@ -38,8 +38,7 @@
 
             <button
               id="btn-resume-game"
-              class="sk-btn resume-highlight"
-              style="display: none"
+              class="sk-btn resume-highlight locked-feature"
             >
               <span class="btn-text">RESUME</span>
               <span class="btn-dec">&gt;&gt;</span>
@@ -50,10 +49,10 @@
               <span class="btn-text">SETTINGS</span>
             </button>
 
-            <div id="btn-exit" class="sk-btn exit-btn">
+            <button id="btn-exit" class="sk-btn exit-btn">
               <span class="btn-text btn-text-default">EXIT</span>
               <span class="exit-joke">close the browser tab :)</span>
-            </div>
+            </button>
           </div>
 
           <div id="view-settings" class="menu-view">
@@ -94,15 +93,7 @@
               </div>
 
               <div id="btn-toggle-lang" class="lang-group slider-group">
-                <div
-                  class="slider-header"
-                  style="
-                    pointer-events: none;
-                    width: 100%;
-                    border-bottom: 1px solid rgba(0, 243, 255, 0.2);
-                    padding-bottom: 5px;
-                  "
-                >
+                <div class="slider-header lang-header-style">
                   <span class="btn-text">LANGUAGE</span>
                   <span class="status slider-value">EN</span>
                 </div>
@@ -145,7 +136,7 @@
       </div>
     </div>
 
-    <div id="hud-controls">
+    <div id="hud-controls" class="hud-hidden">
       <button id="btn-restart-level" class="hud-btn">
         <img
           src="../Image/restart_icon.png"
@@ -158,11 +149,10 @@
         <span class="btn-text">MENU</span>
       </button>
     </div>
+
     <div id="holo-wrapper" class="locked-feature">
       <div id="terminal-handle"><div id="handle-icon">SYSTEM</div></div>
       <div id="holo-panel">
-        
-        <!-- БЛОК 1: ВЫБОР СЛОВА -->
         <div id="feature-word" class="locked-feature">
           <div class="section-title">WORD SELECTOR</div>
           <div class="word-control">
@@ -175,13 +165,16 @@
               spellcheck="false"
               placeholder="TYPE..."
             />
-            <button id="btn-apply-word" class="icon-btn" data-action="applyWord">
+            <button
+              id="btn-apply-word"
+              class="icon-btn"
+              data-action="applyWord"
+            >
               ✔️
             </button>
           </div>
         </div>
 
-        <!-- БЛОК 2: АТМОСФЕРА -->
         <div id="feature-mode" class="locked-feature">
           <div class="section-title">ATMOSPHERE MODE</div>
           <div class="mode-switch-container">
@@ -198,7 +191,6 @@
           </div>
         </div>
 
-        <!-- БЛОК 3: ФИЗИКА -->
         <div id="feature-physics" class="locked-feature">
           <div class="section-title">PHYSICS CONTROL</div>
           <div class="actions-grid">
@@ -255,7 +247,6 @@
           </div>
         </div>
 
-        <!-- БЛОК 4: ИНСТРУМЕНТЫ -->
         <div id="feature-equipment" class="locked-feature">
           <div class="section-title">EQUIPMENT</div>
           <div class="equipment-rack">
@@ -335,20 +326,32 @@
             </div>
           </div>
         </div>
-        
-        <div id="tool-hint" class="locked-feature">[ПКМ] — СБРОСИТЬ ИНСТРУМЕНТ</div>
+
+        <div id="tool-hint" class="locked-feature">
+          [ПКМ] — СБРОСИТЬ ИНСТРУМЕНТ
+        </div>
       </div>
     </div>
 
- <div id="aice-dialogue-container" class="hidden">
+    <div id="aice-dialogue-container" class="hidden">
       <div class="aice-portrait-wrap">
-        <!-- Твои оригинальные картинки -->
-        <img src="../Image/robot-1.png" alt="A.I.C.E." id="aice-base" class="aice-layer base-layer" />
+        <img
+          src="../Image/robot-1.png"
+          alt="A.I.C.E."
+          id="aice-base"
+          class="aice-layer base-layer"
+        />
         <img src="../Image/eyes.png" alt="Eyes" class="aice-layer eyes-layer" />
-        <img src="../Image/light.png" alt="Light" class="aice-layer beacon-layer" />
-        
-        <!-- Наша новая улыбка -->
-        <img src="../Image/smile.png" alt="Smile" class="aice-layer smile-layer" />
+        <img
+          src="../Image/light.png"
+          alt="Light"
+          class="aice-layer beacon-layer"
+        />
+        <img
+          src="../Image/smile.png"
+          alt="Smile"
+          class="aice-layer smile-layer"
+        />
       </div>
 
       <div class="aice-dialogue-content">
@@ -356,9 +359,12 @@
           <span class="name-text">АЙС</span>
         </div>
         <div id="aice-dialogue-text" class="aice-dialogue-text"></div>
+
+        <div id="bios-continue" class="bios-continue-prompt hidden">
+          <span>[ ПРОДОЛЖИТЬ >> ]</span>
+        </div>
       </div>
     </div>
-
     <script type="importmap">
       {
         "imports": {
@@ -369,25 +375,19 @@
       }
     </script>
     <script type="module" src="js/main.js"></script>
+
     <div id="confirm-modal" class="modal-overlay hidden">
-           
       <div class="cyber-modal">
         <div class="modal-text">Are you sure?<br /></div>
-               
         <div class="modal-actions">
-                   
           <button id="btn-confirm-yes" class="holo-btn active-state">
-                        <span class="btn-text">YES</span>          
+            <span class="btn-text">YES</span>
           </button>
-                   
           <button id="btn-confirm-no" class="holo-btn">
-                        <span class="btn-text">CANCEL</span>          
+            <span class="btn-text">CANCEL</span>
           </button>
-                 
         </div>
-             
       </div>
-         
     </div>
   </body>
 </html>

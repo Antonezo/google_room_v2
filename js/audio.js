@@ -246,6 +246,36 @@ async loadUISounds() {
     src.start();
     src.stop(t + dur);
   }
+  // Синтетический звук старого терминала (нулевая задержка, без файлов)
+  playBiosBeep() {
+    if (!this.ctx || this.ctx.state === 'suspended') return;
+
+    const osc = this.ctx.createOscillator();
+    const gainNode = this.ctx.createGain();
+
+    // 'square' (квадратная волна) — основа 8-битного звука
+    osc.type = "square";
+    const t = this.ctx.currentTime;
+    
+    // ВЫСОКАЯ ЧАСТОТА: 900-1100 Гц дает тот самый "писк" терминала
+    osc.frequency.setValueAtTime(900 + Math.random() * 200, t);
+
+    // ГРОМКОСТЬ: Делаем звук громким изначально. 
+    // Даже если sfxVolume низкий, звук будет отчетливым.
+    const boostedVolume = Math.max(this.sfxVolume, 0.5) * 0.3;
+    gainNode.gain.setValueAtTime(boostedVolume, t);
+    
+    // Очень короткий "пип"
+    gainNode.gain.exponentialRampToValueAtTime(0.001, t + 0.03);
+
+    osc.connect(gainNode);
+    gainNode.connect(this.ctx.destination);
+
+    osc.start(t);
+    osc.stop(t + 0.03);
+  }
 }
+
+
 
 export const audioManager = new AudioManager();

@@ -118,6 +118,10 @@
     </div>
 
     <div id="hud-controls" class="hud-hidden">
+      <div id="hud-user-status" class="hud-user-badge hidden">
+        <span class="status-dot"></span>
+        <span id="hud-user-name">USER: UNKNOWN</span>
+      </div>
       <button id="btn-restart-level" class="hud-btn">
         <img
           src="../Image/restart_icon.png"
@@ -127,7 +131,8 @@
       </button>
 
       <button id="btn-in-game-menu" class="hud-top-btn">
-        <span class="btn-text">МЕНЮ</span> </button>
+        <span class="btn-text">МЕНЮ</span> 
+      </button>
     </div>
 
     <div id="holo-wrapper" class="locked-feature">
@@ -369,5 +374,35 @@
         </div>
       </div>
     </div>
+    <div id="registration-modal" class="modal-overlay hidden" style="opacity: 0; transition: opacity 0.3s;">
+  <div class="cyber-modal holo-glass-panel">
+    <div class="registration-layout">
+      
+     <div class="aice-portrait-wrap center-aice">
+  <img src="../Image/tablet-2.png" alt="AICE Base" class="aice-layer base-layer" />
+  
+  <img src="../Image/blinks-eyes-tablet-2.png" alt="Eyes" class="aice-layer tablet-eyes-layer" />
+  
+  <img src="../Image/light-tablet-2.png" alt="Light" class="aice-layer beacon-layer" />
+</div>
+
+      <div class="registration-form">
+        <div class="section-title">ТЕРМИНАЛ РЕГИСТРАЦИИ</div>
+        <div id="reg-dialogue-text" class="aice-dialogue-text" style="min-height: 80px;"></div>
+        
+        <div class="input-group hidden" id="reg-input-group">
+          <input type="text" id="player-name-input" class="cyber-input" placeholder="ВВЕДИТЕ ИМЯ..." maxlength="12" autocomplete="off" spellcheck="false" />
+          <button id="btn-submit-name" class="holo-btn active-state">ВВОД</button>
+        </div>
+
+        <div class="choice-group hidden" id="reg-choice-group">
+  <button id="btn-accept-friend" class="holo-btn">ЛАДНО, БУДУ ДРУГОМ</button>
+  <button id="btn-reject-friend" class="holo-btn">ОСТАВИТЬ МОЁ ИМЯ</button>
+</div>
+      </div>
+
+    </div>
+  </div>
+</div>
   </body>
 </html>

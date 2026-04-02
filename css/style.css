@@ -1813,31 +1813,6 @@ body.loading #holo-wrapper {
   }
 }
 
-.eyes-layer {
-  opacity: 0;
-  animation: eyeBlink 5s infinite;
-}
-
-@keyframes eyeBlink {
-  0%,
-  88% {
-    opacity: 0;
-  }
-  90% {
-    opacity: 1;
-  }
-  92% {
-    opacity: 0;
-  }
-  94% {
-    opacity: 1;
-  }
-  96%,
-  100% {
-    opacity: 0;
-  }
-}
-
 /* ==========================================================================
    ДИАЛОГОВАЯ ПАНЕЛЬ АЙСА
    ========================================================================== */
@@ -2170,4 +2145,181 @@ body.loading #holo-wrapper {
   /* ЭФФЕКТЫ */
   opacity: 0.8; /* Сделали чуть прозрачнее по твоему желанию */
   filter: drop-shadow(0 0 1.5vh cyan);
+}
+
+/* --- Центральное окно регистрации --- */
+.holo-glass-panel {
+  background: rgba(10, 20, 30, 0.75);
+  backdrop-filter: blur(15px);
+  border: 1px solid rgba(var(--neon-blue-rgb), 0.4);
+  box-shadow: 0 0 40px rgba(0, 243, 255, 0.15), inset 0 0 20px rgba(0, 243, 255, 0.05);
+  border-radius: 15px;
+  padding: 40px;
+  width: 850px;
+  max-width: 90vw;
+}
+
+.registration-layout {
+  display: flex;
+  align-items: center;
+  gap: 40px;
+  width: 100%;
+}
+
+.center-aice {
+  width: 280px; /* Делаем его чуть меньше из-за перспективы */
+  height: 280px;
+  margin: 0; /* Убираем отступы */
+}
+
+.registration-form {
+  flex-grow: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.cyber-input {
+  background: rgba(0, 0, 0, 0.6);
+  border: 1px solid rgba(var(--neon-blue-rgb), 0.5);
+  color: var(--neon-blue);
+  font-family: "Orbitron", monospace;
+  font-size: 18px;
+  padding: 12px 20px;
+  border-radius: 6px;
+  width: 100%;
+  outline: none;
+  text-transform: uppercase;
+  letter-spacing: 2px;
+  transition: 0.3s;
+}
+
+.cyber-input:focus {
+  box-shadow: 0 0 15px rgba(var(--neon-blue-rgb), 0.4);
+  border-color: var(--neon-blue);
+}
+
+.cyber-input.error-mode {
+  border-color: #ff4444;
+  color: #ff4444;
+  box-shadow: 0 0 15px rgba(255, 68, 68, 0.3);
+}
+
+.input-group, .choice-group {
+  display: flex;
+  gap: 15px;
+  opacity: 1;
+  transition: opacity 0.3s;
+}
+
+.input-group.hidden, .choice-group.hidden {
+  display: none;
+  opacity: 0;
+}
+
+/* --- ГЛАЗА АЙСА С ПЛАНШЕТОМ (Рандомное моргание) --- */
+.center-aice .tablet-eyes-layer {
+  opacity: 1; 
+  animation: randomTabletBlink 15s infinite; 
+}
+
+@keyframes randomTabletBlink {
+  0%, 14% { opacity: 1; }
+  15% { opacity: 0; }       /* Одиночное моргание */
+  16%, 38% { opacity: 1; }
+  39% { opacity: 0; }       /* Двойное моргание - первый раз */
+  40% { opacity: 1; }
+  41% { opacity: 0; }       /* Двойное моргание - второй раз */
+  42%, 74% { opacity: 1; }
+  75% { opacity: 0; }       /* Еще одно одиночное моргание */
+  76%, 100% { opacity: 1; }
+}
+
+/* --- МАГИЯ ПОЛЕТА: Стили для Призрака --- */
+.aice-ghost {
+  position: fixed;
+  z-index: 99999; /* Поверх вообще всего */
+  pointer-events: none;
+  /* Плавный полет: сначала ускоряется, потом плавно тормозит */
+  transition: transform 0.8s cubic-bezier(0.25, 1, 0.5, 1); 
+  transform-origin: top left;
+}
+
+/* --- Ускоренное мигание лампочки при поиске/взломе --- */
+.beacon-layer.fast-pulse {
+  animation: beaconPulseFast 0.15s infinite alternate ease-in-out;
+}
+
+@keyframes beaconPulseFast {
+  0% { 
+    opacity: 0; 
+    filter: drop-shadow(0 0 0px #00ff00); 
+  }
+  100% { 
+    opacity: 1; 
+    filter: drop-shadow(0 0 15px #00ff00) brightness(1.5); 
+  }
+}
+
+/* ==========================================================================
+   ИНДИКАТОР ИМЕНИ ИГРОКА В HUD
+   ========================================================================== */
+.hud-user-badge {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: rgba(10, 20, 30, 0.6);
+  border: 1px solid rgba(0, 243, 255, 0.3);
+  padding: 6px 15px;
+  border-radius: 4px;
+  font-family: "Orbitron", sans-serif; /* Используем твой системный шрифт */
+  color: #00f3ff;
+  font-size: 12px;
+  letter-spacing: 2px;
+  box-shadow: inset 0 0 10px rgba(0, 243, 255, 0.1);
+  transition: opacity 0.5s;
+}
+
+.hud-user-badge.hidden {
+  opacity: 0;
+  pointer-events: none;
+}
+
+.status-dot {
+  width: 8px;
+  height: 8px;
+  background-color: #00ff66;
+  border-radius: 50%;
+  box-shadow: 0 0 8px #00ff66;
+  animation: pulse-dot 2s infinite;
+}
+
+@keyframes pulse-dot {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.4; }
+}
+
+/* Эффект мощной неоновой пульсации для плашки */
+.user-badge-highlight {
+  box-shadow: 0 0 30px rgba(0, 243, 255, 0.8), inset 0 0 15px rgba(0, 243, 255, 0.5) !important;
+  border-color: #fff !important;
+  transform: scale(1.05);
+}
+
+/* Временная указывающая стрелка */
+.status-arrow-hint {
+  position: absolute;
+  top: 60px; /* Чуть ниже плашки */
+  left: 50px;
+  color: #00f3ff;
+  font-size: 24px;
+  animation: arrowMove 0.6s infinite alternate ease-in-out;
+  pointer-events: none;
+  z-index: 1001;
+  text-shadow: 0 0 10px #00f3ff;
+}
+
+@keyframes arrowMove {
+  from { transform: translateY(0); opacity: 1; }
+  to { transform: translateY(15px); opacity: 0.5; }
 }

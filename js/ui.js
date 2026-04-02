@@ -4,8 +4,14 @@ import { translations } from "./i18n.js";
 
 export class UIManager {
   constructor(callbacks) {
+    this.preloadImages([
+      "../Image/tablet-2.png",
+      "../Image/blinks-eyes-tablet-2.png",
+      "../Image/light-tablet-2.png",
+    ]);
     this.cb = callbacks;
     this.isMenuLocked = false;
+    this.hasRegistered = false;
     this.activePaletteTarget = null;
     this.mouseX = 0;
     this.mouseY = 0;
@@ -71,6 +77,348 @@ export class UIManager {
     this.initMenuSounds();
     this.initStoreSubscriptions();
     this.initStartMenu();
+    this.initRegistrationLogic();
+  }
+
+  initRegistrationLogic() {
+    const input = document.getElementById("player-name-input");
+    const btnSubmit = document.getElementById("btn-submit-name");
+    const textEl = document.getElementById("reg-dialogue-text");
+    const inputGroup = document.getElementById("reg-input-group");
+    const choiceGroup = document.getElementById("reg-choice-group");
+    const aiceWrap = document.querySelector(".center-aice");
+
+    let tempPlayerName = "";
+    this.isHackingRegistration = false; // Стартуем всегда в обычном режиме
+
+    // Вспомогательная функция для анимации логов (5 секунд)
+    // Вспомогательная функция для анимации логов (5 секунд)
+    const showScanningProcess = async (logType = "standard") => {
+      input.disabled = true;
+      btnSubmit.style.pointerEvents = "none";
+      btnSubmit.style.opacity = "0.5";
+
+      // === МАГИЯ АНИМАЦИИ: МЕНЯЕМ СПРАЙТ ===
+      // Находим наши слои картинок в HTML
+      const baseLayer = aiceWrap.querySelector(".base-layer");
+      const eyesLayer = aiceWrap.querySelector(".tablet-eyes-layer");
+      const beaconLayer = aiceWrap.querySelector(".beacon-layer");
+
+      // Меняем картинки на позу "Смотрит в планшет"
+      if (baseLayer) baseLayer.src = "../Image/tablet-1.png";
+      if (eyesLayer) eyesLayer.style.display = "none"; // Прячем слой с открытыми глазами
+      if (beaconLayer) {
+        beaconLayer.src = "../Image/light-tablet-1.png";
+        beaconLayer.classList.add("fast-pulse"); // Включаем режим бешеной лампочки
+      }
+      // =====================================
+
+      const logs =
+        logType === "hacking"
+          ? [
+              "FORCE_OPEN_DB...",
+              "BYPASSING_ID...",
+              "INJECTING_NAME...",
+              "DELETING_OLD_USER...",
+              "CLEANING_LOGS...",
+            ]
+          : [
+              "HSH_KEY_GEN...",
+              "UPLOADING...",
+              "CALCULATING...",
+              "BYPASSING...",
+              "VERIFYING...",
+            ];
+
+      textEl.innerHTML =
+        (logType === "hacking"
+          ? "ПРИНУДИТЕЛЬНЫЙ ВЗЛОМ БАЗЫ"
+          : "СВЯЗЬ С КВАНТОВЫМ СЕРВЕРОМ") + "<span class='bios-cursor'></span>";
+
+      // Бежим по логам
+      for (let i = 0; i < logs.length; i++) {
+        await new Promise((res) => setTimeout(res, 1000));
+        input.value = logs[i];
+        if (typeof audioManager !== "undefined" && audioManager.playBiosBeep)
+          audioManager.playBiosBeep();
+      }
+      await new Promise((res) => setTimeout(res, 500));
+
+      // === МАГИЯ АНИМАЦИИ: ВОЗВРАЩАЕМ КАК БЫЛО ===
+      // Как только логи закончились, Айс поднимает глаза на игрока
+      if (baseLayer) baseLayer.src = "../Image/tablet-2.png";
+      if (eyesLayer) eyesLayer.style.display = ""; // Снова показываем глаза
+      if (beaconLayer) {
+        beaconLayer.src = "../Image/light-tablet-2.png";
+        beaconLayer.classList.remove("fast-pulse"); // Выключаем бешеное мигание
+      }
+      // ===========================================
+    };
+    // ГЛАВНАЯ ЛОГИКА ПРОВЕРКИ (Обычный режим)
+    const runRegistrationFlow = async () => {
+      tempPlayerName = input.value.trim();
+      if (!tempPlayerName || tempPlayerName.includes("...")) return;
+
+      await showScanningProcess("standard");
+
+      const lowerName = tempPlayerName.toLowerCase();
+
+      // Пасхалки
+      if (lowerName === "айс" || lowerName === "aice") {
+        input.value = "СИСТЕМНАЯ АНОМАЛИЯ";
+        input.classList.add("error-mode");
+        await this.typeText(
+          textEl,
+          "Подожди... Ты Айс? Но Я Айс! Нас двое? Это сбой в квантовом реестре?! Ладно, Айс-младший, заходи, но чур я главный!",
+          30,
+        );
+        this.finishRegistration(tempPlayerName);
+        return;
+      }
+
+      if (lowerName === "друг") {
+        input.value = "ДОСТУП РАЗРЕШЕН";
+        await this.typeText(
+          textEl,
+          "О, решил сразу облегчить мне задачу? Уважаю! Добро пожаловать в систему, Друг!",
+          30,
+        );
+        this.finishRegistration("Друг");
+        return;
+      }
+
+      // Если обычное имя — выдаем ошибку
+      if (typeof audioManager !== "undefined" && audioManager.playHitSound)
+        audioManager.playHitSound(15, false);
+      input.classList.add("error-mode");
+      input.value = "ОШИБКА: ИМЯ ЗАНЯТО";
+
+      const beacon = aiceWrap.querySelector(".beacon-layer");
+      if (beacon)
+        beacon.style.filter =
+          "hue-rotate(130deg) drop-shadow(0 0 15px red) brightness(1.5)";
+
+      // Замени старую строку на эту:
+      await this.typeText(
+        textEl,
+        `Критическая ошибка базы! Имя "${tempPlayerName}" уже занято... подопытным хомяком из отдела биологии. Слушай, давай я буду звать тебя просто "Друг"? Не хватало еще путаницы в графике кормления.`,
+        30,
+      );
+      inputGroup.classList.add("hidden");
+      choiceGroup.classList.remove("hidden");
+    };
+
+    // ХАКЕРСКАЯ ЛОГИКА (Вторая попытка)
+    const runHackingFlow = async () => {
+      await showScanningProcess("hacking");
+
+      input.value = "ВЗЛОМ УСПЕШЕН";
+      await this.typeText(
+        textEl,
+        `Ну вот, пришлось попотеть! Доступ разрешен. Добро пожаловать, ${tempPlayerName}!`,
+        30,
+      );
+      this.finishRegistration(tempPlayerName);
+    };
+
+    // === ЕДИНЫЙ ОБРАБОТЧИК КЛИКОВ ===
+    // Он сам решает, какую функцию запустить, глядя на флаг
+    const submitHandler = () => {
+      if (input.disabled) return;
+      if (this.isHackingRegistration) {
+        runHackingFlow();
+      } else {
+        runRegistrationFlow();
+      }
+    };
+
+    // ВЕШАЕМ СОБЫТИЯ ОДИН РАЗ И НАВСЕГДА
+    btnSubmit.onclick = submitHandler;
+    input.onkeypress = (e) => {
+      if (e.key === "Enter") submitHandler();
+    };
+
+    // КНОПКА "СОГЛАСЕН НА ДРУГА"
+    document
+      .getElementById("btn-accept-friend")
+      .addEventListener("click", async () => {
+        choiceGroup.classList.add("hidden");
+        await this.typeText(
+          textEl,
+          "Спасибо, что облегчил мне задачу!",
+          30,
+        );
+        this.finishRegistration("Друг");
+      });
+
+    // КНОПКА "ХОЧУ СВОЁ ИМЯ" (Включаем хакерский режим)
+    document
+      .getElementById("btn-reject-friend")
+      .addEventListener("click", async () => {
+        choiceGroup.classList.add("hidden");
+        const beacon = aiceWrap.querySelector(".beacon-layer");
+        if (beacon) beacon.style.filter = "";
+
+        await this.typeText(
+          textEl,
+          "Понял, настаиваешь на своем! Сейчас попробую обойти защиту и вычеркнуть хомяка из реестра... Жми ввод еще раз, я протолкну это имя в базу.",
+          30,
+        );
+        input.classList.remove("error-mode");
+        input.disabled = false;
+        input.value = tempPlayerName;
+        btnSubmit.style.pointerEvents = "auto";
+        btnSubmit.style.opacity = "1";
+        inputGroup.classList.remove("hidden");
+
+        // ВАЖНО: Включаем режим взлома. Теперь submitHandler запустит runHackingFlow
+        this.isHackingRegistration = true;
+      });
+  }
+
+// Общий финал регистрации
+  async finishRegistration(finalName) {
+    this.isRegistrationComplete = true;
+    if (store && typeof store.update === "function") {
+      store.update({ playerName: finalName });
+    }
+
+    await new Promise((res) => setTimeout(res, 1500));
+
+    const modal = document.getElementById("registration-modal");
+    if (modal) {
+      modal.style.opacity = "0";
+      setTimeout(() => modal.classList.add("hidden"), 300);
+    }
+
+    // === ИНТЕГРАЦИЯ ИМЕНИ В HUD ===
+    const userBadge = document.getElementById("hud-user-status");
+    const userNameText = document.getElementById("hud-user-name");
+
+    if (userBadge && userNameText) {
+      const prefix = this.isHackingRegistration ? "ROOT" : "USER";
+      userNameText.innerText = `${prefix}: ${finalName.toUpperCase()}`;
+      userBadge.classList.remove("hidden");
+    }
+
+    this.unlockFeature("feature-equipment");
+    this.unlockFeature("feature-word");
+    this.unlockFeature("feature-physics");
+
+    const bottomContainer = document.getElementById("aice-dialogue-container");
+    const bottomAiceWrap = bottomContainer.querySelector(".aice-portrait-wrap");
+
+    if (bottomContainer && bottomAiceWrap) {
+      bottomAiceWrap.style.opacity = "1";
+      bottomContainer.classList.remove("hidden");
+
+      if (typeof audioManager !== "undefined" && audioManager.playUI) {
+        audioManager.playUI("pop");
+      }
+
+      const textEl = document.getElementById("aice-dialogue-text");
+
+      // === АРХИТЕКТУРНЫЙ ФИКС: Ожидание клика по панели ===
+      const waitForClick = () => new Promise(resolve => {
+        const handler = () => {
+          bottomContainer.removeEventListener("click", handler);
+          resolve();
+        };
+        // Небольшая задержка, чтобы клик, открывший диалог, не пролистал его мгновенно
+        setTimeout(() => bottomContainer.addEventListener("click", handler), 100);
+      });
+
+   // --- ФРАЗА 1: Знакомство ---
+      let phrase1 = "";
+      const lowerName = finalName.toLowerCase();
+      
+      // Массив "пасхалочных" имен. Сюда в будущем можно легко добавлять новые!
+      const specialNames = ["друг", "айс", "aice"];
+
+      // Проверяем, есть ли имя игрока в списке особых
+      if (specialNames.includes(lowerName)) {
+        // Сценарий для особых имен (без сарказма)
+        // ${finalName} подставит то имя, которое мы передали (Друг, Айс и т.д.)
+        phrase1 = `Что ж, официально посвящаю тебя в пользователи этой системы. Добро пожаловать, ${finalName}!`;
+      } else {
+        // Сценарий для обычных и "взломанных" имен
+        phrase1 = `Ну вот и познакомились, друг ${finalName}!`;
+      }
+
+      await this.typeText(textEl, phrase1, 35);
+      
+      // ЖДЕМ КЛИК ИГРОКА
+      await waitForClick();
+
+      // --- ФРАЗА 2: Акцент на статус ---
+      // Здесь всё остается так же, с пульсацией и стрелкой
+      const statusType = this.isHackingRegistration ? "администратора" : "пользователя";
+      await this.typeText(textEl, `Обрати внимание в правый верхний угол. Твой статус ${statusType} зафиксирован в системе.`, 35);
+
+      // Включаем пульсацию и стрелку прямо во время этой фразы
+      let arrow;
+      if (userBadge) {
+        userBadge.classList.add("user-badge-highlight");
+        arrow = document.createElement("div");
+        arrow.className = "status-arrow-hint";
+        arrow.innerHTML = "↑";
+        userBadge.appendChild(arrow);
+      }
+
+      // СНОВА ЖДЕМ КЛИК ИГРОКА!
+      await waitForClick();
+
+      // Как только игрок кликнул, убираем спецэффекты с плашки
+      if (userBadge) {
+        userBadge.classList.remove("user-badge-highlight");
+        if (arrow) {
+          arrow.style.opacity = "0";
+          setTimeout(() => arrow.remove(), 500);
+        }
+      }
+
+      // --- ФРАЗА 3: Переход к действию ---
+      await this.typeText(textEl, "А теперь к делу. Попробуй заспавнить пару объектов через голографическое меню справа.", 35);
+      // После этой фразы клик можно не ждать, игрок пойдет нажимать кнопки меню
+    }
+  }
+  // Сбрасываем форму регистрации в заводское состояние
+  resetRegistrationForm() {
+    const input = document.getElementById("player-name-input");
+    const btnSubmit = document.getElementById("btn-submit-name");
+    const inputGroup = document.getElementById("reg-input-group");
+    const choiceGroup = document.getElementById("reg-choice-group");
+    const textEl = document.getElementById("reg-dialogue-text");
+    const aiceWrap = document.querySelector(".center-aice");
+
+    if (!input) return;
+
+    // Сбрасываем флаг хакерского режима!
+    this.isHackingRegistration = false;
+
+    // Очищаем и разблокируем инпут
+    input.value = "";
+    input.disabled = false;
+    input.classList.remove("error-mode");
+
+    // Возвращаем кнопку в рабочее состояние
+    if (btnSubmit) {
+      btnSubmit.style.pointerEvents = "auto";
+      btnSubmit.style.opacity = "1";
+    }
+
+    // Показываем строку ввода, прячем кнопки выбора
+    if (inputGroup) inputGroup.classList.remove("hidden");
+    if (choiceGroup) choiceGroup.classList.add("hidden");
+
+    // Гасим красную лампу
+    if (aiceWrap) {
+      const beacon = aiceWrap.querySelector(".beacon-layer");
+      if (beacon) beacon.style.filter = "";
+    }
+
+    // Очищаем текст
+    if (textEl) textEl.innerHTML = "";
   }
 
   clearAnimTimers() {
@@ -135,17 +483,19 @@ export class UIManager {
       },
     );
 
-   // 1. Язык
+    // 1. Язык
     if (el.btnLang) {
       el.btnLang.addEventListener("click", (e) => {
         const clickedLangBtn = e.target.closest(".lang-btn");
-        
+
         // ФИКС: Выбираем язык ТОЛЬКО если кликнули по кнопке И меню уже открыто
         if (clickedLangBtn && el.btnLang.classList.contains("open")) {
           currentLang = clickedLangBtn.dataset.lang;
           this.updateLanguage(currentLang);
 
-          document.querySelectorAll(".lang-btn").forEach((b) => b.classList.remove("active-lang"));
+          document
+            .querySelectorAll(".lang-btn")
+            .forEach((b) => b.classList.remove("active-lang"));
           clickedLangBtn.classList.add("active-lang");
 
           el.btnLang.classList.remove("open");
@@ -216,7 +566,6 @@ export class UIManager {
       }
 
       if (el.startMenu) el.startMenu.classList.add("game-started");
-
       if (el.centerHub && el.doors) {
         el.centerHub.classList.remove("fade-in-volumetric", "hub-hidden");
 
@@ -229,45 +578,75 @@ export class UIManager {
             el.doors.classList.add("loaded");
             document.body.classList.remove("loading");
 
-// ПРОВЕРКА: Если мы нажали Resume
+            // ПРОВЕРКА: Если мы нажали Resume
             if (document.body.classList.contains("lights-on")) {
               el.hudControls.classList.remove("hud-hidden");
+
+              // === ВОЗВРАЩАЕМ ПЛАШКУ С ИМЕНЕМ ===
+              const userBadge = document.getElementById("hud-user-status");
+              if (userBadge) userBadge.classList.remove("hidden");
+              // ==================================
+
               this.animTimers.aice = setTimeout(() => {
                 // Эту фразу мы ОСТАВЛЯЕМ! Она звучит, если игрок вернулся из меню
-                this.showAiceDialogue("С возвращением. Системы в режиме ожидания.");
+                this.showAiceDialogue(
+                  "С возвращением. Системы в режиме ожидания.",
+                );
               }, 1500);
             } else {
-              
-              // === НАЧАЛО: ВРЕМЕННЫЙ СКИП БИОСА ДЛЯ ТЕСТОВ ===
-              
-              /* ОРИГИНАЛЬНЫЙ КОД БИОСА (ЗАКОММЕНТИРОВАН, ЧТОБЫ НЕ ПОТЕРЯТЬ)
-              this.runBiosSequence(() => {
-                this.animTimers.aice = setTimeout(() => {
-                  this.showAiceDialogue("Привет! Связь установлена. Системы лаборатории функционируют в штатном режиме.");
-                }, 3000);
-              });
-              */
-
-              // БЫСТРЫЙ ЗАПУСК: Мгновенно моргаем светом, показываем HUD
+              // === НАЧАЛО: НОВАЯ ИГРА И ЗНАКОМСТВО ===
+              this.isRegistrationComplete = false;
+              // Моргаем светом, показываем HUD
               if (this.cb && this.cb.onFlickerLights) this.cb.onFlickerLights();
               el.hudControls.classList.remove("hud-hidden");
-              
-              this.animTimers.aice = setTimeout(() => { 
-                
-                // === НАША НОВАЯ КАТСЦЕНА ЗНАКОМСТВА ===
-                const phrases = translations[this.currentLang].introDialog;
-                
-                this.runDialogueSequence(phrases, () => {
-                  // Этот блок сработает ТОЛЬКО после того, как игрок прокликает все 4 фразы!
-                  console.log("Диалог закончен! Айс готов лететь в центр.");
-                  // Позже мы добавим сюда анимацию и форму регистрации
+
+              this.animTimers.aice = setTimeout(() => {
+                // === ФИКС ЗВУКА: Выкатываем панель со звуком "pop" ===
+                const bottomContainer = document.getElementById(
+                  "aice-dialogue-container",
+                );
+                if (bottomContainer) {
+                  bottomContainer.classList.remove("hidden"); // Плавно выкатываем
+                  if (
+                    typeof audioManager !== "undefined" &&
+                    audioManager.playUI
+                  ) {
+                    audioManager.playUI("pop"); // Играем звук!
+                  }
+                }
+
+                // Берем нужные фразы
+                const introPhrases = translations[this.currentLang].introDialog;
+
+                this.runDialogueSequence(introPhrases, async () => {
+                  // Архитектурная защита от двойного клика
+                  if (this.hasRegistered) return;
+                  this.hasRegistered = true;
+
+                  // 1. Прячем нижнюю панель диалога перед полетом
+                  if (bottomContainer) bottomContainer.classList.add("hidden");
+
+                  // 2. Запускаем полет клона!
+                  await this.executeTransferToCenter();
+
+                  // 3. Как только Айс приземлился в центре, печатаем текст
+                  const textEl = document.getElementById("reg-dialogue-text");
+                  if (textEl) {
+                    await this.typeText(
+                      textEl,
+                      "Введи свое имя в терминал. Постарайся без опечаток, я высекаю это в квантовом реестре.",
+                      35,
+                    );
+                  }
+
+                  // 4. Показываем поле ввода игроку
+                  const inputGroup = document.getElementById("reg-input-group");
+                  if (inputGroup) {
+                    inputGroup.classList.remove("hidden");
+                  }
                 });
-                // ======================================
-
-              }, 800); // 800мс ожидания вместо долгих таймеров BIOS
-              
-              // === КОНЕЦ: ВРЕМЕННЫЙ СКИП ===
-
+              }, 800);
+              // === КОНЕЦ: НОВАЯ ИГРА И ЗНАКОМСТВО ===
             }
           }, 600);
         }, 500);
@@ -308,12 +687,36 @@ export class UIManager {
 
     const returnToMainMenu = () => {
       this.isMenuLocked = false;
+      this.hasRegistered = false;
       this.clearAnimTimers();
       document.body.classList.add("loading");
       if (el.hudControls) el.hudControls.classList.add("hud-hidden");
 
+      // === НАШ НОВЫЙ БЛОК: Прячем нижнего Айса и чистим его прозрачность ===
       const aicePanel = document.getElementById("aice-dialogue-container");
-      if (aicePanel) aicePanel.classList.add("hidden");
+      if (aicePanel) {
+        aicePanel.classList.add("hidden");
+        const bottomAiceWrap = aicePanel.querySelector(".aice-portrait-wrap");
+        if (bottomAiceWrap) bottomAiceWrap.style.opacity = "";
+      }
+
+      // === ПРЯЧЕМ ИМЯ ИГРОКА ПРИ ВЫХОДЕ В МЕНЮ ===
+      const userBadge = document.getElementById("hud-user-status");
+      if (userBadge) {
+        userBadge.classList.add("hidden");
+      }
+      // ==========================================
+
+      // === НАШ НОВЫЙ БЛОК: Прячем регистрацию и вызываем "дворника" ===
+      const regModal = document.getElementById("registration-modal");
+      if (regModal) {
+        regModal.style.opacity = "0";
+        regModal.classList.add("hidden");
+        if (typeof this.resetRegistrationForm === "function") {
+          this.resetRegistrationForm();
+        }
+      }
+      // ==============================================================
 
       if (audioManager?.fadeOut) audioManager.fadeOut(1.4);
       if (el.doors) el.doors.classList.remove("loaded");
@@ -335,7 +738,13 @@ export class UIManager {
         }
       }
 
-      if (el.btnResume) el.btnResume.style.display = "flex";
+      if (el.btnResume) {
+        if (this.isRegistrationComplete) {
+          el.btnResume.style.display = "flex";
+        } else {
+          el.btnResume.style.display = "none";
+        }
+      }
       if (el.btnStart) el.btnStart.classList.remove("pulse-glow-volumetric");
     };
 
@@ -404,6 +813,13 @@ export class UIManager {
       },
       true,
     );
+  }
+
+  preloadImages(urls) {
+    urls.forEach((url) => {
+      const img = new Image();
+      img.src = url;
+    });
   }
 
   startSprayEffect() {
@@ -508,6 +924,69 @@ export class UIManager {
     }
   }
 
+  async executeTransferToCenter() {
+    const bottomAiceWrap = document.querySelector(
+      "#aice-dialogue-container .aice-portrait-wrap",
+    );
+    const centerModal = document.getElementById("registration-modal");
+    const centerAiceWrap = centerModal.querySelector(".center-aice");
+
+    // 1. Узнаем, где сейчас находится нижний Айс
+    const startRect = bottomAiceWrap.getBoundingClientRect();
+
+    // 2. Делаем центральную модалку блочной, но прозрачной (чтобы узнать, куда лететь)
+    centerModal.classList.remove("hidden");
+    const targetRect = centerAiceWrap.getBoundingClientRect();
+
+    // 3. Создаем Призрака (копируем нижнего Айса)
+    const ghost = bottomAiceWrap.cloneNode(true);
+    ghost.classList.add("aice-ghost");
+    // Отключаем анимацию парения, чтобы он не дергался в полете
+    ghost.style.animation = "none";
+
+    // Ставим призрака ровно поверх оригинала
+    ghost.style.left = `${startRect.left}px`;
+    ghost.style.top = `${startRect.top}px`;
+    ghost.style.width = `${startRect.width}px`;
+    ghost.style.height = `${startRect.height}px`;
+    ghost.style.margin = "0";
+
+    document.body.appendChild(ghost);
+
+    // 4. Прячем оригинал нижнего Айса
+    bottomAiceWrap.style.opacity = "0";
+
+    // 5. Запускаем полет
+    // Ждем один кадр, чтобы браузер применил начальные координаты
+    await new Promise((res) => requestAnimationFrame(res));
+
+    // Вычисляем, насколько нужно сдвинуть и уменьшить призрака
+    const translateX = targetRect.left - startRect.left;
+    const translateY = targetRect.top - startRect.top;
+    const scaleX = targetRect.width / startRect.width;
+    const scaleY = targetRect.height / startRect.height;
+
+    // Звук перелета (вжииих)
+    if (audioManager?.playUI) audioManager.playUI("pop");
+
+    // Отправляем призрака в полет
+    ghost.style.transform = `translate(${translateX}px, ${translateY}px) scale(${scaleX}, ${scaleY})`;
+
+    // Ждем 800мс (время транзиции из CSS)
+    await new Promise((res) => setTimeout(res, 800));
+
+    // 6. МАГИЯ ПОДМЕНЫ
+    // Делаем центральное окно видимым (появляется Айс с планшетом)
+    centerModal.style.opacity = "1";
+
+    // Удаляем призрака
+    ghost.remove();
+
+    // Теперь можно запускать печать текста в центральном окне!
+    // const textEl = document.getElementById("reg-dialogue-text");
+    // this.typeText(textEl, "Введи свое имя в терминал. Постарайся без опечаток, я высекаю это в квантовом реестре.", 30);
+  }
+
   unlockFeature(featureId) {
     const el = document.getElementById(featureId);
     if (el && el.classList.contains("locked-feature")) {
@@ -517,16 +996,16 @@ export class UIManager {
     }
   }
 
-// --- УМНАЯ ПЕЧАТНАЯ МАШИНКА ДЛЯ ДИАЛОГОВ АЙСА ---
+  // --- УМНАЯ ПЕЧАТНАЯ МАШИНКА ДЛЯ ДИАЛОГОВ АЙСА ---
   typeText(element, text, speed = 30) {
     this.currentAiceFullText = text;
     this.isAiceTyping = true;
-    
+
     return new Promise((resolve) => {
       this._currentAiceResolve = resolve;
       element.innerHTML = "";
       let i = 0;
-      
+
       if (this.animTimers.typewriter) clearInterval(this.animTimers.typewriter);
 
       this.animTimers.typewriter = setInterval(() => {
@@ -555,11 +1034,13 @@ export class UIManager {
     }
   }
 
- // --- МЕНЕДЖЕР ДИАЛОГОВЫХ СЕКВЕНЦИЙ ---
- // --- МЕНЕДЖЕР ДИАЛОГОВЫХ СЕКВЕНЦИЙ ---
+  // --- МЕНЕДЖЕР ДИАЛОГОВЫХ СЕКВЕНЦИЙ ---
+  // --- МЕНЕДЖЕР ДИАЛОГОВЫХ СЕКВЕНЦИЙ ---
   async runDialogueSequence(phrasesArray, onCompleteCallback) {
     const aicePanel = document.getElementById("aice-dialogue-container");
-    const textElement = aicePanel ? aicePanel.querySelector(".aice-dialogue-text") : null;
+    const textElement = aicePanel
+      ? aicePanel.querySelector(".aice-dialogue-text")
+      : null;
 
     if (!aicePanel || !textElement) return;
 
@@ -568,7 +1049,7 @@ export class UIManager {
     for (let i = 0; i < phrasesArray.length; i++) {
       if (!this.isMenuLocked) {
         aicePanel.classList.add("hidden");
-        return; 
+        return;
       }
 
       // ВНИМАНИЕ: Отсюда мы строку audioManager.playUI("pop"); УДАЛИЛИ!
@@ -577,13 +1058,13 @@ export class UIManager {
       this.typeText(textElement, phrasesArray[i], 35);
 
       // 3. Ждем клика от игрока
-      await new Promise(resolve => {
+      await new Promise((resolve) => {
         const handleInteraction = (e) => {
           if (e) e.stopPropagation();
           if (e.type === "mousedown" && e.button !== 0) return;
 
           if (this.isAiceTyping) {
-            this.finishAiceTyping(textElement); 
+            this.finishAiceTyping(textElement);
           } else {
             cleanup();
             resolve();
@@ -616,13 +1097,13 @@ export class UIManager {
     container.style.display = "flex";
     container.classList.remove("hidden");
 
-  // --- АРХИТЕКТУРНЫЙ ФИКС: Динамическая подгрузка языка из i18n ---
+    // --- АРХИТЕКТУРНЫЙ ФИКС: Динамическая подгрузка языка из i18n ---
     const currentDict = translations[this.currentLang];
-    
+
     // Берем фразы нужного языка и перемешиваем
     let shuffled = [...currentDict.biosPhrases].sort(() => 0.5 - Math.random());
     let selectedPhrases = shuffled.slice(0, 3);
-    
+
     // Добавляем финальную фразу нужного языка
     selectedPhrases.push(currentDict.biosFinal);
 

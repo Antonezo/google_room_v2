@@ -63,9 +63,38 @@ export class AudioManager {
     }
   }
 
-async loadUISounds() {
-    console.log("🔊 Попытка загрузки звуков UI..."); 
+ playScanSound() {
+    if (!this.uiBuffers.connection || !this.ctx) return;
     
+    // На всякий случай останавливаем предыдущий, если он вдруг играет
+    this.stopScanSound(); 
+
+    const source = this.ctx.createBufferSource();
+    source.buffer = this.uiBuffers.connection;
+    // --- ВОТ ЗДЕСЬ БЫЛА ОШИБКА! Должно быть uiGainNode ---
+    source.connect(this.uiGainNode); 
+    // -----------------------------------------------------
+    source.start(0);
+    
+    // Сохраняем ссылку на этот звук, чтобы потом его убить
+    this.currentScanSound = source; 
+  }
+
+  stopScanSound() {
+    if (this.currentScanSound) {
+      try {
+        this.currentScanSound.stop();
+        this.currentScanSound.disconnect();
+      } catch (e) {
+        // Игнорируем ошибку, если звук уже сам закончился
+      }
+      this.currentScanSound = null;
+    }
+  }
+
+  async loadUISounds() {
+    console.log("🔊 Попытка загрузки звуков UI...");
+
     const load = async (url) => {
       try {
         const res = await fetch(url);
@@ -81,36 +110,39 @@ async loadUISounds() {
     };
 
     // Загружаем всё параллельно для скорости
-    const [m, s, c, p] = await Promise.all([
-      load('audio/mouse_menu.mp3'),
-      load('audio/start.mp3'),
-      load('audio/click.mp3'),
-      load('audio/gurgle.mp3') // <--- Вот тут важно не забыть запятую перед этой строкой!
+    const [m, s, c, p, conn, err] = await Promise.all([
+      load("audio/mouse_menu.mp3"),
+      load("audio/start.mp3"),
+      load("audio/click.mp3"),
+      load("audio/gurgle.mp3"),
+      load("audio/sound-connection.mp3"),
+      load("audio/error.mp3"),
     ]);
 
     this.uiBuffers.mouse_menu = m;
-    this.uiBuffers.start = s; 
-    this.uiBuffers.click = c; 
-    this.uiBuffers.pop = p; 
-    
+    this.uiBuffers.start = s;
+    this.uiBuffers.click = c;
+    this.uiBuffers.pop = p;
+    this.uiBuffers.connection = conn;
+    this.uiBuffers.error = err;
+
     console.log("📂 Все буферы UI обновлены", this.uiBuffers);
   }
-
   async playUI(type) {
     // 1. Пытаемся разбудить контекст
     await this.resumeContext();
-    
+
     // 2. Проверяем состояние
-    if (!this.ctx || this.ctx.state === 'suspended') {
-        console.warn("🔇 Звук заблокирован браузером. Нужен клик по странице.");
-        return;
+    if (!this.ctx || this.ctx.state === "suspended") {
+      console.warn("🔇 Звук заблокирован браузером. Нужен клик по странице.");
+      return;
     }
 
     if (this.initPromise) await this.initPromise;
 
     if (!this.uiBuffers[type]) {
-        console.error(`⚠️ Звук "${type}" не найден или не загружен!`);
-        return;
+      console.error(`⚠️ Звук "${type}" не найден или не загружен!`);
+      return;
     }
 
     const source = this.ctx.createBufferSource();
@@ -248,7 +280,7 @@ async loadUISounds() {
   }
   // Синтетический звук старого терминала (нулевая задержка, без файлов)
   playBiosBeep() {
-    if (!this.ctx || this.ctx.state === 'suspended') return;
+    if (!this.ctx || this.ctx.state === "suspended") return;
 
     const osc = this.ctx.createOscillator();
     const gainNode = this.ctx.createGain();
@@ -256,15 +288,15 @@ async loadUISounds() {
     // 'square' (квадратная волна) — основа 8-битного звука
     osc.type = "square";
     const t = this.ctx.currentTime;
-    
+
     // ВЫСОКАЯ ЧАСТОТА: 900-1100 Гц дает тот самый "писк" терминала
     osc.frequency.setValueAtTime(900 + Math.random() * 200, t);
 
-    // ГРОМКОСТЬ: Делаем звук громким изначально. 
+    // ГРОМКОСТЬ: Делаем звук громким изначально.
     // Даже если sfxVolume низкий, звук будет отчетливым.
     const boostedVolume = Math.max(this.sfxVolume, 0.5) * 0.3;
     gainNode.gain.setValueAtTime(boostedVolume, t);
-    
+
     // Очень короткий "пип"
     gainNode.gain.exponentialRampToValueAtTime(0.001, t + 0.03);
 
@@ -274,10 +306,6 @@ async loadUISounds() {
     osc.start(t);
     osc.stop(t + 0.03);
   }
-  
 }
-
-
-
 
 export const audioManager = new AudioManager();

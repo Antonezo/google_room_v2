@@ -95,6 +95,18 @@ export class UIManager {
     this.isHackingRegistration = false;
 
     const showScanningProcess = async (logType = "standard") => {
+      // 1. ВКЛЮЧАЕМ ЩИТ, ЧТОБЫ НОВЫЙ ТЕКСТ НЕ ПЕЧАТАЛСЯ
+      this.isRegistrationScanning = true;
+      this.typeTextId = (this.typeTextId || 0) + 1;
+
+      // 2. ЖЕСТКО УБИВАЕМ ТЕКУЩУЮ ПЕЧАТЬ (чтобы старый текст не дописывался)
+      if (this.animTimers && this.animTimers.typewriter) {
+        clearInterval(this.animTimers.typewriter);
+        clearTimeout(this.animTimers.typewriter); // На всякий случай бьем и по таймаутам
+        this.animTimers.typewriter = null;
+      }
+      this.isAiceTyping = false;
+
       input.disabled = true;
       btnSubmit.style.pointerEvents = "none";
       btnSubmit.style.opacity = "0.5";
@@ -110,8 +122,7 @@ export class UIManager {
         beaconLayer.classList.add("fast-pulse");
       }
 
-      const logs =
-        logType === "hacking"
+      const logs = logType === "hacking"
           ? [
               "FORCE_OPEN_DB...",
               "BYPASSING_ID...",
@@ -130,15 +141,17 @@ export class UIManager {
       const lang = this.currentLang || "RU";
       const t = translations[lang];
 
-      textEl.innerHTML =
-        (logType === "hacking" ? t.regHacking : "SCANNING SYSTEM...") +
+      // 3. ВЫВОДИМ СТАТУС СКАНИРОВАНИЯ
+      textEl.innerHTML = (logType === "hacking" ? t.regHacking : "SCANNING SYSTEM...") +
         "<span class='bios-cursor'></span>";
 
-      for (let i = 0; i < logs.length; i++) {
-        await new Promise((res) => setTimeout(res, 800));
-        input.value = logs[i];
-        if (typeof audioManager !== "undefined" && audioManager.playBiosBeep)
-          audioManager.playBiosBeep();
+      if (typeof audioManager !== "undefined" && audioManager.playScanSound) {
+        audioManager.playScanSound();
+      } 
+
+     for (let i = 0; i < logs.length; i++) {
+        input.value = logs[i]; // СНАЧАЛА выводим текст (моментально!)
+        await new Promise((res) => setTimeout(res, 1000)); // ЗАТЕМ ждем 1 секунду
       }
 
       if (baseLayer) baseLayer.src = "../Image/tablet-2.png";
@@ -147,6 +160,14 @@ export class UIManager {
         beaconLayer.src = "../Image/light-tablet-2.png";
         beaconLayer.classList.remove("fast-pulse");
       }
+      
+      // Останавливаем звук сканирования, если есть такая функция
+      if (typeof audioManager !== "undefined" && audioManager.stopScanSound) {
+        audioManager.stopScanSound();
+      }
+
+      // 4. СНИМАЕМ ЩИТ В КОНЦЕ
+      this.isRegistrationScanning = false;
     };
 
     const runRegistrationFlow = async () => {
@@ -174,24 +195,47 @@ export class UIManager {
       if (isFriend) {
         input.value = t.regSuccess;
         await this.typeText(textEl, t.regPhraseFriend, 30);
-       await this.finishRegistration(t.friendName);
+        await this.finishRegistration(t.friendName);
         return;
       }
 
-      // Обычное имя
-      if (typeof audioManager !== "undefined" && audioManager.playHitSound)
-        audioManager.playHitSound(15, false);
+      // === ОШИБКА: ИМЯ ЗАНЯТО ===
+      if (typeof audioManager !== "undefined" && audioManager.playUI) {
+        audioManager.playUI("error");
+      }
+      
       input.classList.add("error-mode");
       input.value = t.regErrorTaken;
 
+      // МЕНЯЕМ СПРАЙТЫ НА ЗЛЫЕ (tablet-3)
+      const baseLayer = aiceWrap.querySelector(".base-layer");
       const beacon = aiceWrap.querySelector(".beacon-layer");
-      if (beacon)
-        beacon.style.filter =
-          "hue-rotate(130deg) drop-shadow(0 0 15px red) brightness(1.5)";
+      const eyesLayer = aiceWrap.querySelector(".tablet-eyes-layer");
 
-      await this.typeText(textEl, t.regPhraseTaken(tempPlayerName), 30);
+      if (baseLayer) baseLayer.src = "../Image/tablet-3.png";
+      if (beacon) {
+        beacon.src = "../Image/light-tablet-3.png";
+        beacon.classList.add("error-pulse");
+        beacon.style.filter = ""; 
+      }
+      if (eyesLayer) {
+        eyesLayer.style.display = "none";
+      }
+
+      // Печатаем ПЕРВУЮ часть фразы (про хомяка)
+      await this.typeText(textEl, t.regPhraseTaken1(tempPlayerName), 30);
+      
       inputGroup.classList.add("hidden");
       choiceGroup.classList.remove("hidden");
+
+      // ЖЕЛЕЗОБЕТОННО настраиваем видимость кнопок:
+      const btnWhatNow = document.getElementById("btn-what-now");
+      const btnAccept = document.getElementById("btn-accept-friend");
+      const btnReject = document.getElementById("btn-reject-friend");
+      
+      if (btnWhatNow) btnWhatNow.style.display = ""; 
+      if (btnAccept) btnAccept.style.display = "none";
+      if (btnReject) btnReject.style.display = "none";
     };
 
     const runHackingFlow = async () => {
@@ -213,29 +257,155 @@ export class UIManager {
       if (e.key === "Enter") submitHandler();
     };
 
+    // === ИГРОК СПРАШИВАЕТ "И ЧТО НАМ ДЕЛАТЬ?" ===
+    document.getElementById("btn-what-now").onclick = async () => {
+      const btnWhatNow = document.getElementById("btn-what-now");
+      const btnAccept = document.getElementById("btn-accept-friend");
+      const btnReject = document.getElementById("btn-reject-friend");
+      const t = translations[this.currentLang];
+
+      if (typeof audioManager !== "undefined" && audioManager.playUI) {
+        audioManager.playUI("click");
+      }
+
+      // Прячем эту кнопку, показываем остальные две
+      if (btnWhatNow) btnWhatNow.style.display = "none";
+      if (btnAccept) btnAccept.style.display = "";
+      if (btnReject) btnReject.style.display = "";
+
+      // Айс предлагает стать "Другом"
+      await this.typeText(textEl, t.regPhraseTaken2, 30);
+    };
+
+    // === ИГРОК СОГЛАШАЕТСЯ БЫТЬ "ДРУГОМ" ===
     document.getElementById("btn-accept-friend").onclick = async () => {
       const t = translations[this.currentLang];
       choiceGroup.classList.add("hidden");
+      
+      const beacon = aiceWrap.querySelector(".beacon-layer");
+      if (beacon) beacon.classList.remove("error-pulse");
+      const eyesLayer = aiceWrap.querySelector(".tablet-eyes-layer");
+      if (eyesLayer) eyesLayer.style.display = "";
+
+      input.classList.remove("error-mode");
+      input.value = ""; 
+      inputGroup.classList.remove("hidden");
+
+      await showScanningProcess("standard");
+
+      input.value = t.regSuccess;
+      await new Promise(res => setTimeout(res, 500));
+
       await this.typeText(textEl, t.regPhraseAcceptFriend, 30);
-     await this.finishRegistration(t.friendName);
+      await this.finishRegistration(t.friendName);
     };
 
-   document.getElementById("btn-reject-friend").onclick = async () => {
+    // === ИГРОК НАСТАИВАЕТ НА СВОЕМ ИМЕНИ ===
+    document.getElementById("btn-reject-friend").onclick = async () => {
       choiceGroup.classList.add("hidden");
+      this.isHackingRegistration = true; 
+      
+      const baseLayer = aiceWrap.querySelector(".base-layer");
       const beacon = aiceWrap.querySelector(".beacon-layer");
-      if (beacon) beacon.style.filter = "";
+      const eyesLayer = aiceWrap.querySelector(".tablet-eyes-layer");
       
-      const t = translations[this.currentLang]; // Получаем текущий словарь
-      await this.typeText(textEl, t.regOverride, 30); // Используем фразу из словаря
+      if (baseLayer) baseLayer.src = "../Image/tablet-1.png";
+      if (beacon) {
+        beacon.src = "../Image/light-tablet-1.png";
+        beacon.classList.remove("error-pulse");
+        beacon.classList.add("fast-pulse"); 
+        beacon.style.filter = ""; 
+      }
+      if (eyesLayer) {
+        eyesLayer.style.display = "none"; 
+      }
       
+      const t = translations[this.currentLang]; 
+      await this.typeText(textEl, t.regOverride, 30); 
+      
+      let dotCount = 1;
+      const dotInterval = setInterval(() => {
+        textEl.innerHTML = t.regOverride + ".".repeat(dotCount);
+        dotCount = dotCount >= 3 ? 1 : dotCount + 1;
+      }, 500);
+
+      await new Promise(res => setTimeout(res, 5000));
+      clearInterval(dotInterval); 
+
+      if (baseLayer) baseLayer.src = "../Image/tablet-2.png";
+      if (beacon) {
+        beacon.src = "../Image/light-tablet-2.png";
+        beacon.classList.remove("fast-pulse");
+      }
+      if (eyesLayer) {
+        eyesLayer.style.display = ""; 
+      }
+
+      await this.typeText(textEl, t.regPhraseHacked(tempPlayerName), 30);
+      await this.finishRegistration(tempPlayerName);
+    };
+  }
+
+  resetRegistrationForm() {
+    const input = document.getElementById("player-name-input");
+    const btnSubmit = document.getElementById("btn-submit-name");
+    const inputGroup = document.getElementById("reg-input-group");
+    const choiceGroup = document.getElementById("reg-choice-group");
+    const finalGroup = document.getElementById("reg-final-group");
+    const textEl = document.getElementById("reg-dialogue-text");
+
+    // Железобетонный сброс видимости кнопок
+    const btnWhatNow = document.getElementById("btn-what-now");
+    const btnAccept = document.getElementById("btn-accept-friend");
+    const btnReject = document.getElementById("btn-reject-friend");
+    if (btnWhatNow) btnWhatNow.style.display = "";
+    if (btnAccept) btnAccept.style.display = "none";
+    if (btnReject) btnReject.style.display = "none";
+
+    if (input) {
+      input.value = "";
       input.classList.remove("error-mode");
       input.disabled = false;
-      input.value = tempPlayerName;
+    }
+
+    if (btnSubmit) {
       btnSubmit.style.pointerEvents = "auto";
       btnSubmit.style.opacity = "1";
-      inputGroup.classList.remove("hidden");
-      this.isHackingRegistration = true;
-    };
+    }
+
+    if (choiceGroup) choiceGroup.classList.add("hidden");
+    if (finalGroup) finalGroup.classList.add("hidden");
+    if (inputGroup) inputGroup.classList.add("hidden");
+
+    if (textEl) textEl.innerHTML = "";
+    
+    if (this.animTimers && this.animTimers.typewriter) {
+      clearInterval(this.animTimers.typewriter);
+      clearTimeout(this.animTimers.typewriter);
+      this.animTimers.typewriter = null;
+    }
+    
+    this.isAiceTyping = false;
+    this.isHackingRegistration = false;
+    this.isRegistrationScanning = false;
+    this.isRegistrationComplete = false;
+
+    const centerModal = document.getElementById("registration-modal");
+    if (centerModal) {
+      const baseLayer = centerModal.querySelector(".base-layer");
+      const eyesLayer = centerModal.querySelector(".tablet-eyes-layer");
+      const beaconLayer = centerModal.querySelector(".beacon-layer");
+
+      if (baseLayer) baseLayer.src = "../Image/tablet-2.png";
+      if (eyesLayer) {
+        eyesLayer.src = "../Image/blinks-eyes-tablet-2.png";
+        eyesLayer.style.display = ""; 
+      }
+      if (beaconLayer) {
+        beaconLayer.src = "../Image/light-tablet-2.png";
+        beaconLayer.classList.remove("error-pulse", "fast-pulse"); 
+      }
+    }
   }
 
 resetRegistrationForm() {
@@ -243,22 +413,71 @@ resetRegistrationForm() {
     const btnSubmit = document.getElementById("btn-submit-name");
     const inputGroup = document.getElementById("reg-input-group");
     const choiceGroup = document.getElementById("reg-choice-group");
+    const finalGroup = document.getElementById("reg-final-group");
     const textEl = document.getElementById("reg-dialogue-text");
+    // Сбрасываем видимость кнопок внутри choiceGroup по умолчанию
+    const btnWhatNow = document.getElementById("btn-what-now");
+    const btnAccept = document.getElementById("btn-accept-friend");
+    const btnReject = document.getElementById("btn-reject-friend");
+    if (btnWhatNow) btnWhatNow.classList.remove("hidden");
+    if (btnAccept) btnAccept.classList.add("hidden");
+    if (btnReject) btnReject.classList.add("hidden");
 
+    // 1. Полностью сбрасываем поле ввода
     if (input) {
       input.value = "";
-      input.disabled = false;
       input.classList.remove("error-mode");
+      input.disabled = false;
     }
+
+    // Прячем все кнопки выбора и финала
+    if (choiceGroup) choiceGroup.classList.add("hidden");
+    if (finalGroup) finalGroup.classList.add("hidden");
+    if (inputGroup) inputGroup.classList.add("hidden");
+
+    // 2. Возвращаем кнопку ввода к жизни
     if (btnSubmit) {
       btnSubmit.style.pointerEvents = "auto";
       btnSubmit.style.opacity = "1";
     }
-    if (inputGroup) inputGroup.classList.add("hidden");
-    if (choiceGroup) choiceGroup.classList.add("hidden");
-    if (textEl) textEl.innerHTML = "";
 
+    // 3. Прячем все кнопки выбора и финала
+    if (choiceGroup) choiceGroup.classList.add("hidden");
+    if (finalGroup) finalGroup.classList.add("hidden");
+    if (inputGroup) inputGroup.classList.add("hidden");
+
+    // 4. Очищаем текст и внутренние флаги игры
+    if (textEl) textEl.innerHTML = "";
+    
+    // Сбрасываем все таймеры печати, если они зависли
+    if (this.animTimers && this.animTimers.typewriter) {
+      clearInterval(this.animTimers.typewriter);
+      clearTimeout(this.animTimers.typewriter);
+      this.animTimers.typewriter = null;
+    }
+    
+    this.isAiceTyping = false;
     this.isHackingRegistration = false;
+    this.isRegistrationScanning = false;
+    this.isRegistrationComplete = false;
+
+    // 5. Жестко сбрасываем спрайты робота в центральном окне
+    const centerModal = document.getElementById("registration-modal");
+    if (centerModal) {
+      const baseLayer = centerModal.querySelector(".base-layer");
+      const eyesLayer = centerModal.querySelector(".tablet-eyes-layer");
+      const beaconLayer = centerModal.querySelector(".beacon-layer");
+
+      if (baseLayer) baseLayer.src = "../Image/tablet-2.png";
+      if (eyesLayer) {
+        eyesLayer.src = "../Image/blinks-eyes-tablet-2.png";
+        eyesLayer.style.display = ""; // Возвращаем глаза, если они пропали
+      }
+      if (beaconLayer) {
+        beaconLayer.src = "../Image/light-tablet-2.png";
+        beaconLayer.classList.remove("error-pulse", "fast-pulse"); // Снимаем все мигалки
+      }
+    }
   }
 
 async finishRegistration(rawName) {
@@ -280,8 +499,7 @@ async finishRegistration(rawName) {
     if (btnFinal && finalGroup) {
       await new Promise((resolve) => {
         btnFinal.onclick = () => {
-          if (typeof audioManager !== "undefined" && audioManager.playUI) audioManager.playUI("click");
-          finalGroup.classList.add("hidden");
+                    finalGroup.classList.add("hidden");
           
           if (modal) {
             modal.style.opacity = ""; 
@@ -384,6 +602,8 @@ async finishRegistration(rawName) {
     const el = this.elements;
 
   // Перевод инпута регистрации, если он сейчас активен
+  const btnWhatNow = document.getElementById("btn-what-now");
+    if (btnWhatNow) btnWhatNow.textContent = t.btnWhatNow;
     const regInput = document.getElementById("player-name-input");
     if (regInput && regInput.disabled) {
       // Если в инпуте была надпись "Доступ разрешен" на старом языке - меняем на новый
@@ -916,6 +1136,9 @@ async finishRegistration(rawName) {
   }
 
 async executeTransferToCenter() {
+  if (typeof this.resetRegistrationForm === 'function') {
+      this.resetRegistrationForm();
+    }
   const bottomContainer = document.getElementById("aice-dialogue-container");
   const bottomAiceWrap = bottomContainer?.querySelector(".aice-portrait-wrap");
   const centerModal = document.getElementById("registration-modal");
@@ -1118,33 +1341,49 @@ async executeTransferToBottom() {
     if (el && el.classList.contains("locked-feature")) {
       el.classList.remove("locked-feature");
       el.classList.add("feature-reveal");
-      if (audioManager?.playUI) audioManager.playUI("click");
     }
   }
 
-  // --- УМНАЯ ПЕЧАТНАЯ МАШИНКА ДЛЯ ДИАЛОГОВ АЙСА ---
-  typeText(element, text, speed = 30) {
-    this.currentAiceFullText = text;
-    this.isAiceTyping = true;
+typeText(element, text, speed = 30) {
+    // 1. Создаем уникальный ID для каждого вызова
+    this.typeTextId = (this.typeTextId || 0) + 1;
+    const currentId = this.typeTextId;
 
     return new Promise((resolve) => {
-      this._currentAiceResolve = resolve;
-      element.innerHTML = "";
+      // Щит: если идет сканирование, даже не начинаем печатать
+      if (this.isRegistrationScanning && element.id === "reg-dialogue-text") {
+        return resolve();
+      }
+
+      this.currentAiceFullText = text;
+      this.isAiceTyping = true;
+      
+      // --- ВОТ ОНА, ГЛАВНАЯ СТРОЧКА! ---
+      // Стираем старый текст перед тем, как печатать новый
+      element.innerHTML = ""; 
+      // ---------------------------------
+
       let i = 0;
 
+      // Очищаем старые таймеры, если они были
+      if (!this.animTimers) this.animTimers = {};
       if (this.animTimers.typewriter) clearInterval(this.animTimers.typewriter);
 
       this.animTimers.typewriter = setInterval(() => {
-        if (i < text.length) {
-          element.innerHTML += text.charAt(i);
-          i++;
-        } else {
-          this.isAiceTyping = false;
+        // Если ID изменился ИЛИ началось сканирование - убиваем таймер!
+        if (this.typeTextId !== currentId || (this.isRegistrationScanning && element.id === "reg-dialogue-text")) {
           clearInterval(this.animTimers.typewriter);
-          if (this._currentAiceResolve) {
-            this._currentAiceResolve();
-            this._currentAiceResolve = null;
-          }
+          resolve();
+          return;
+        }
+
+        element.innerHTML += text.charAt(i);
+        i++;
+        
+        if (i >= text.length) {
+          clearInterval(this.animTimers.typewriter);
+          this.isAiceTyping = false;
+          resolve();
         }
       }, speed);
     });
@@ -1504,6 +1743,9 @@ async executeTransferToBottom() {
           this.animTimers.scratch = null;
         }, 1000);
       });
+      ice.addEventListener("click", (e) => {
+        e.stopPropagation(); 
+      });
     }
 
     document
@@ -1578,3 +1820,4 @@ async executeTransferToBottom() {
     if (this.animTimers.typewriter) clearInterval(this.animTimers.typewriter);
   }
 }
+

@@ -1813,6 +1813,21 @@ body.loading #holo-wrapper {
   }
 }
 
+.beacon-layer.error-pulse {
+  animation: beaconPulseError 0.3s infinite alternate ease-in-out;
+}
+
+@keyframes beaconPulseError {
+  0% { 
+    opacity: 0; 
+    filter: drop-shadow(0 0 0px #ff0000); 
+  }
+  100% { 
+    opacity: 1; 
+    filter: drop-shadow(0 0 15px #ff0000) brightness(1.5); 
+  }
+}
+
 /* ==========================================================================
    ДИАЛОГОВАЯ ПАНЕЛЬ АЙСА
    ========================================================================== */
@@ -2322,4 +2337,39 @@ body.loading #holo-wrapper {
 @keyframes arrowMove {
   from { transform: translateY(0); opacity: 1; }
   to { transform: translateY(15px); opacity: 0.5; }
+}
+
+/* Анимация моргания для corner-eyes.png */
+.corner-blink-anim {
+  animation: cornerBlink 3.5s infinite;
+}
+
+@keyframes cornerBlink {
+  0%, 46%, 48%, 50%, 100% { opacity: 1; }
+  47%, 49% { opacity: 0; } /* Быстрое двойное моргание */
+}
+
+/* Плавная пульсация прозрачности для лампочки в углу */
+.corner-light-pulse {
+  animation: cornerLightPulse 1.5s infinite alternate ease-in-out;
+}
+
+@keyframes cornerLightPulse {
+  0% { opacity: 0.2; }
+  100% { opacity: 1; }
+}
+
+.beacon-layer.error-pulse {
+  animation: beaconPulseError 0.3s infinite alternate ease-in-out;
+}
+
+@keyframes beaconPulseError {
+  0% { 
+    opacity: 0; 
+    filter: drop-shadow(0 0 0px #ff0000); 
+  }
+  100% { 
+    opacity: 1; 
+    filter: drop-shadow(0 0 15px #ff0000) brightness(1.5); 
+  }
 }

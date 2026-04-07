@@ -1397,19 +1397,24 @@ body.loading #holo-wrapper {
 }
 
 .cyber-slider {
-  -webkit-appearance: none;
-  appearance: none;
   width: 100%;
+  margin-top: 10px;
+  cursor: pointer;
+  appearance: none; /* Убирает стандартный вид в Chrome/Safari */
+  background: rgba(0, 255, 255, 0.1);
   height: 4px;
-  background: rgba(var(--neon-blue-rgb), 0.2);
-  border-radius: 2px;
   outline: none;
 }
 
-.cyber-slider:hover {
-  background: rgba(var(--neon-blue-rgb), 0.4);
-  box-shadow: 0 0 10px rgba(var(--neon-blue-rgb), 0.2);
+.cyber-slider::-webkit-slider-thumb {
+  appearance: none;
+  width: 15px;
+  height: 15px;
+  background: #00ffff; /* Цвет неонового бегунка */
+  box-shadow: 0 0 10px #00ffff;
+  cursor: pointer;
 }
+
 .cyber-slider::-webkit-slider-thumb {
   -webkit-appearance: none;
   appearance: none;

@@ -1,11 +1,9 @@
-export const base64ReturnSound =
-  "data:audio/mp3;base64,ТВОЙ_ОЧЕНЬ_ДЛИННЫЙ_КОД_СЮДА";
-
 export class AudioManager {
   constructor() {
     this.ctx = null;
     this.sfxGainNode = null;
     this.uiGainNode = null;
+    this.musicGainNode = null; // <-- ДОБАВИЛИ КАНАЛ ДЛЯ МУЗЫКИ
     this.noiseBuffer = null;
     this.lastHitTime = 0;
     this.sfxVolume = 0.7;
@@ -33,13 +31,20 @@ export class AudioManager {
     if (this.ctx) return;
     this.ctx = new (window.AudioContext || window.webkitAudioContext)();
 
+    // Канал звуковых эффектов игры (мячики, вентиляторы)
     this.sfxGainNode = this.ctx.createGain();
     this.sfxGainNode.gain.value = 0;
     this.sfxGainNode.connect(this.ctx.destination);
 
+    // Канал звуков интерфейса (клики, сканирование)
     this.uiGainNode = this.ctx.createGain();
     this.uiGainNode.gain.value = this.sfxVolume * 0.15;
     this.uiGainNode.connect(this.ctx.destination);
+
+    // Канал для фоновой музыки
+    this.musicGainNode = this.ctx.createGain();
+    this.musicGainNode.gain.value = 0.5; // Громкость по умолчанию
+    this.musicGainNode.connect(this.ctx.destination);
 
     const bs = this.ctx.sampleRate * 2;
     this.noiseBuffer = this.ctx.createBuffer(1, bs, this.ctx.sampleRate);
@@ -49,11 +54,14 @@ export class AudioManager {
     this.initPromise = this.loadUISounds();
   }
 
+  // 3. Управление громкостью (теперь здесь всё правильно)
   setSfxVolume(volume) {
     this.sfxVolume = volume;
+    // Громкость игры
     if (this.sfxGainNode && !this.isMenuMuted) {
       this.sfxGainNode.gain.setTargetAtTime(volume, this.ctx.currentTime, 0.1);
     }
+    // Громкость интерфейса
     if (this.uiGainNode) {
       this.uiGainNode.gain.setTargetAtTime(
         volume * 0.5,
@@ -63,7 +71,14 @@ export class AudioManager {
     }
   }
 
- playScanSound() {
+  setMusicVolume(volume) {
+    if (this.musicGainNode) {
+      // Плавно меняем громкость музыки
+      this.musicGainNode.gain.setTargetAtTime(volume, this.ctx.currentTime, 0.1);
+    }
+  }
+
+  playScanSound() {
     if (!this.uiBuffers.connection || !this.ctx) return;
     
     // На всякий случай останавливаем предыдущий, если он вдруг играет
@@ -71,9 +86,7 @@ export class AudioManager {
 
     const source = this.ctx.createBufferSource();
     source.buffer = this.uiBuffers.connection;
-    // --- ВОТ ЗДЕСЬ БЫЛА ОШИБКА! Должно быть uiGainNode ---
     source.connect(this.uiGainNode); 
-    // -----------------------------------------------------
     source.start(0);
     
     // Сохраняем ссылку на этот звук, чтобы потом его убить
@@ -86,7 +99,7 @@ export class AudioManager {
         this.currentScanSound.stop();
         this.currentScanSound.disconnect();
       } catch (e) {
-        // Игнорируем ошибку, если звук уже сам закончился
+        // Игнорируем ошибку
       }
       this.currentScanSound = null;
     }

@@ -10,6 +10,7 @@ export const translations = {
     music: "MUSIC VOLUME",
     langTitle: "LANGUAGE",
     inGameMenu: "MENU",
+    biosContinue: "CONTINUE >",
 
     biosPhrases: [
       "INITIALIZING PHYSICS ENGINE... [OK]",
@@ -45,28 +46,30 @@ export const translations = {
     regHackSuccess: "SYSTEM BYPASSED",
     regTerminalTitle: "REGISTRATION TERMINAL",
     regPlaceholder: "ENTER NAME...",
-   btnAcceptFriend: "FINE, CALL ME BUDDY",
-   btnFinalConfirm: "THANKS",
+    btnAcceptFriend: "FINE, CALL ME BUDDY",
+    btnFinalConfirm: "THANKS",
+    btnWhatNow: "So what do we do now?",
     btnRejectFriend: "KEEP MY NAME",
     friendName: "Buddy",
-    
 
     regPhraseAice:
       "Wait... You're AICE? But I'M AICE! Are there two of us now? Is this a glitch in the quantum registry?! Alright, Aice Junior, come on in, but I'm still the boss!",
     regPhraseFriend:
       "Oh, skipping the paperwork? I dig the vibe. Welcome to the system, Buddy!",
-   regPhraseTaken: (name) =>
-      `Critical database error! The name '${name}' is already taken... by a literal test hamster. Look, let me just call you 'Buddy', okay?`,
+    regPhraseTaken2: "How about I just call you 'Buddy'?",
     regPhraseAcceptFriend:
       "Thanks for making my job easier! Welcome to the system.",
     regPrompt:
       "Enter your name into the terminal. Try to avoid typos, I'm etching this into the quantum registry.",
     welcomeBack: "Welcome back. Systems are on standby.",
     anomaly: "SYSTEM ANOMALY",
-    regOverride: "OVERRIDING SYSTEM...",
+    regOverride:
+      "Alright, have it your way! Let me just come up with a new name for the hamster",
 
+    regPhraseTaken1: (name) =>
+      `Listen, the name '${name}' is already taken by a test hamster.`,
     regPhraseHacked: (name) =>
-      `Phew, had to break a sweat for that! Access granted. Welcome, 'friend' ${name}!`,
+      `Access granted! Welcome aboard, my friend ${name}!`,
     regFinalSpecial: (name) =>
       `Alright, you’re officially in the loop. Welcome to the lab, ${name}!`,
     regFinalSarcasm: (name) => `Well, nice to meet you!`,
@@ -90,6 +93,7 @@ export const translations = {
     music: "ГРОМКОСТЬ МУЗЫКИ",
     langTitle: "ЯЗЫК",
     inGameMenu: "МЕНЮ",
+biosContinue: "ПРОДОЛЖИТЬ >",
 
     biosPhrases: [
       "ИНИЦИАЛИЗАЦИЯ ФИЗИЧЕСКОГО ДВИЖКА... [ОК]",
@@ -127,6 +131,7 @@ export const translations = {
     regPlaceholder: "ВВЕДИТЕ ИМЯ...",
     btnAcceptFriend: "Хорошо, зови меня ДРУГОМ",
     btnFinalConfirm: "СПАСИБО",
+    btnWhatNow: "И что нам делать?",
     btnRejectFriend: "ОСТАВИТЬ МОЁ ИМЯ",
     friendName: "Друг",
 
@@ -134,18 +139,18 @@ export const translations = {
       "Подожди... Ты АЙС? Но Я АЙС! Нас теперь двое? Это сбой в квантовом реестре?! Ладно, Айс-младший, заходи, но чур я главный!",
     regPhraseFriend:
       "О, решил сразу облегчить мне задачу? Уважаю! Добро пожаловать в систему, Друг!",
-    regPhraseTaken: (name) =>
-      `Критическая ошибка базы! Имя «${name}» уже занято... подопытным хомяком. Слушай, давай я буду звать тебя просто «Друг»?`,
+ regPhraseTaken2: "Давай я тебя буду звать просто «Друг»?",
     regPhraseAcceptFriend:
       "Спасибо, что облегчил мне задачу! Добро пожаловать в систему.",
     regPrompt:
       "Введи свое имя в терминал. Постарайся без опечаток, я высекаю это в квантовом реестре.",
     welcomeBack: "С возвращением. Системы в режиме ожидания.",
     anomaly: "СИСТЕМНАЯ АНОМАЛИЯ",
-    regOverride: "ПЕРЕЗАПИСЬ ДАННЫХ...",
+    regOverride: "Конечно, как скажешь! Сейчас придумаю хомяку другое имя",
 
+    regPhraseTaken1: (name) => `Слушай, имя «${name}» уже занято подопытным хомяком.`,
     regPhraseHacked: (name) =>
-      `Ну вот, пришлось попотеть! Доступ разрешен. Добро пожаловать, друг ${name}!`,
+      `Доступ разрешен! Добро пожаловать, друг ${name}!`,
     regFinalSpecial: (name) =>
       `Что ж, официально посвящаю тебя в пользователи этой системы. Добро пожаловать, ${name}!`,
     regFinalSarcasm: (name) => `Ну вот и познакомились!`,

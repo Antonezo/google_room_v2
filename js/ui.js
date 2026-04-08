@@ -490,26 +490,24 @@ async finishRegistration(rawName) {
     const inputGroup = document.getElementById("reg-input-group");
     const choiceGroup = document.getElementById("reg-choice-group");
 
-    // 1. Прячем всё лишнее, показываем кнопку СПАСИБО
+    // 1. Прячем всё лишнее, показываем кнопку финала
     if (inputGroup) inputGroup.classList.add("hidden");
     if (choiceGroup) choiceGroup.classList.add("hidden");
     if (finalGroup) finalGroup.classList.remove("hidden");
 
- // 2. Ждем клика по кнопке СПАСИБО
-    if (btnFinal && finalGroup) {
-      await new Promise((resolve) => {
-        btnFinal.onclick = () => {
-                    finalGroup.classList.add("hidden");
-          
-          if (modal) {
-            modal.style.opacity = ""; 
-            modal.classList.add("hidden"); // Окно начинает растворяться
-          }
-          
-          resolve(); // Отпускаем промис!
+    // 2. Ждем клика по кнопке завершения регистрации
+    await new Promise((resolve) => {
+      if (btnFinal) {
+        const handleFinalClick = (e) => {
+          if (e) e.stopPropagation();
+          btnFinal.removeEventListener("click", handleFinalClick);
+          resolve();
         };
-      });
-    }
+        btnFinal.addEventListener("click", handleFinalClick);
+      } else {
+        setTimeout(resolve, 1500);
+      }
+    });
 
     // Сохраняем имя
     if (store?.update) store.update({ playerName: finalName });
@@ -546,7 +544,6 @@ async finishRegistration(rawName) {
       bottomContainer.classList.remove("hidden");
       bottomAiceWrap.style.opacity = "1";
       
-      // ВАЖНО: Новое имя переменной, чтобы не крашился скрипт!
       const bottomTextEl = document.getElementById("aice-dialogue-text");
 
       const waitForClick = () => new Promise(res => {
@@ -595,7 +592,6 @@ async finishRegistration(rawName) {
       this.isRegistrationComplete = true;
     }
   }
-
   updateLanguage(lang) {
     this.currentLang = lang;
     const t = translations[lang];
@@ -664,6 +660,10 @@ async finishRegistration(rawName) {
     // Перевод финальной кнопки подтверждения
     const btnFinal = document.getElementById("btn-final-confirm");
     if (btnFinal) btnFinal.textContent = t.btnFinalConfirm;
+
+    if (this.elements.biosContinueBtn) {
+      this.elements.biosContinueBtn.textContent = t.biosContinue;
+    }
   }
   
 
@@ -760,7 +760,7 @@ async finishRegistration(rawName) {
     }
     // -------------------------------------------------------------
 
-    const enterGame = () => {
+  const enterGame = () => {
       this.isMenuLocked = true;
       this.clearAnimTimers();
 
@@ -793,66 +793,50 @@ async finishRegistration(rawName) {
             el.doors.classList.add("loaded");
             document.body.classList.remove("loading");
 
-            // Внутри enterGame (когда нажали Resume)
             if (document.body.classList.contains("lights-on")) {
               el.hudControls.classList.remove("hud-hidden");
               const userBadge = document.getElementById("hud-user-status");
               if (userBadge) userBadge.classList.remove("hidden");
 
               this.animTimers.aice = setTimeout(() => {
-                // БЕРЕМ ТЕКСТ ИЗ СЛОВАРЯ, а не хардкодом!
                 const t = translations[this.currentLang];
                 this.showAiceDialogue(t.welcomeBack);
               }, 1500);
             } else {
               // === НАЧАЛО: НОВАЯ ИГРА И ЗНАКОМСТВО ===
               this.isRegistrationComplete = false;
-              // Моргаем светом, показываем HUD
-              if (this.cb && this.cb.onFlickerLights) this.cb.onFlickerLights();
-              el.hudControls.classList.remove("hud-hidden");
 
-              this.animTimers.aice = setTimeout(() => {
-                // === ФИКС ЗВУКА: Выкатываем панель со звуком "pop" ===
-                const bottomContainer = document.getElementById(
-                  "aice-dialogue-container",
-                );
-                if (bottomContainer) {
-                  bottomContainer.classList.remove("hidden"); // Плавно выкатываем
-                  if (
-                    typeof audioManager !== "undefined" &&
-                    audioManager.playUI
-                  ) {
-                    audioManager.playUI("pop"); // Играем звук!
-                  }
-                }
-
-                // Берем нужные фразы
-                const introPhrases = translations[this.currentLang].introDialog;
-
-             this.runDialogueSequence(introPhrases, async () => {
-                  // 1. Защита от повторных кликов
-                  if (this.hasRegistered) return;
-                  this.hasRegistered = true;
-
-                  const t = translations[this.currentLang];
-
-                  // 3. ПОКАЗЫВАЕМ ПОЛЕ ВВОДА ЗАРАНЕЕ
-                  // Теперь, когда окно регистрации появится на экране, поле уже будет на месте
-                  const inputGroup = document.getElementById("reg-input-group");
-                  if (inputGroup) {
-                      inputGroup.classList.remove("hidden");
+              // 1. ЗАПУСКАЕМ ХАКЕРСКИЙ BIOS ПЕРВЫМ ДЕЛОМ
+              this.runBiosSequence(() => {
+                
+                // Этот код сработает ТОЛЬКО когда BIOS закончит печатать
+                this.animTimers.aice = setTimeout(() => {
+                  // 2. ВЫЗЫВАЕМ АЙСА
+                  const bottomContainer = document.getElementById("aice-dialogue-container");
+                  if (bottomContainer) {
+                    bottomContainer.classList.remove("hidden"); // Плавно выкатываем
+                    if (typeof audioManager !== "undefined" && audioManager.playUI) {
+                      audioManager.playUI("pop"); 
+                    }
                   }
 
-                  // 4. Запускаем полет клона
-                  await this.executeTransferToCenter();
+                  const introPhrases = translations[this.currentLang].introDialog;
 
-                  // 5. Айс приземлился и печатает фразу, поле ввода уже под ним
-                  const textEl = document.getElementById("reg-dialogue-text");
-                  if (textEl) {
-                      await this.typeText(textEl, t.regPrompt, 35);
-                  }
-                });
-              }, 800);
+                  this.runDialogueSequence(introPhrases, async () => {
+                    if (this.hasRegistered) return;
+                    this.hasRegistered = true;
+
+                    const t = translations[this.currentLang];
+                    const inputGroup = document.getElementById("reg-input-group");
+                    if (inputGroup) inputGroup.classList.remove("hidden");
+
+                    await this.executeTransferToCenter();
+
+                    const textEl = document.getElementById("reg-dialogue-text");
+                    if (textEl) await this.typeText(textEl, t.regPrompt, 35);
+                  });
+                }, 800); // Пауза после включения света
+              });
               // === КОНЕЦ: НОВАЯ ИГРА И ЗНАКОМСТВО ===
             }
           }, 600);
@@ -1449,7 +1433,7 @@ typeText(element, text, speed = 30) {
     if (onCompleteCallback) onCompleteCallback();
   }
 
-  async runBiosSequence(onCompleteCallback) {
+async runBiosSequence(onCompleteCallback) {
     const container = document.getElementById("aice-dialogue-container");
     const textEl = document.getElementById("aice-dialogue-text");
     const btn = this.elements.biosContinueBtn;
@@ -1464,14 +1448,9 @@ typeText(element, text, speed = 30) {
     container.style.display = "flex";
     container.classList.remove("hidden");
 
-    // --- АРХИТЕКТУРНЫЙ ФИКС: Динамическая подгрузка языка из i18n ---
     const currentDict = translations[this.currentLang];
-
-    // Берем фразы нужного языка и перемешиваем
     let shuffled = [...currentDict.biosPhrases].sort(() => 0.5 - Math.random());
     let selectedPhrases = shuffled.slice(0, 3);
-
-    // Добавляем финальную фразу нужного языка
     selectedPhrases.push(currentDict.biosFinal);
 
     for (let i = 0; i < selectedPhrases.length; i++) {
@@ -1483,46 +1462,48 @@ typeText(element, text, speed = 30) {
       const isLast = i === selectedPhrases.length - 1;
       if (btn) btn.classList.add("hidden");
 
-      // --- ДОБАВЛЯЕМ ПРЕФИКС ---
-      const hackerPrefix = "SYSTEM //:"; // Можешь написать тут "SYSTEM //: " или "C:\AICE> "
+      const hackerPrefix = "SYSTEM //: ";
       const fullText = hackerPrefix + selectedPhrases[i];
 
-      const typingPromise = this.typeBiosText(textEl, fullText);
+      // 1. ЖДЕМ ПОЛНОЙ ПЕЧАТИ
+      await this.typeBiosText(textEl, fullText);
 
+      // 2. ЖДЕМ КЛИКА СТРОГО ПО КНОПКЕ
       await new Promise((resolve) => {
-        const handleInteraction = (e) => {
-          if (e) e.stopPropagation();
+        if (isLast) {
+          if (btn) btn.classList.add("hidden");
+          setTimeout(resolve, 1500);
+        } else {
+          if (btn) {
+            btn.classList.remove("hidden");
+            
+            // ВЫРЫВАЕМ КНОПКУ ИЗ ТЕКСТА И КИДАЕМ В ПРАВЫЙ НИЖНИЙ УГОЛ
+            btn.style.pointerEvents = "auto";
+            btn.style.position = "fixed"; 
+            btn.style.bottom = "40px";
+            btn.style.right = "50px";
+            btn.style.zIndex = "99999";
+            btn.style.cursor = "";
 
-          if (isLast) return;
+            const handleBtnClick = (e) => {
+              if (e) {
+                e.stopPropagation();
+                e.preventDefault();
+              }
+              if (btn) {
+                btn.classList.add("hidden");
+                btn.removeEventListener("mousedown", handleBtnClick);
+                btn.removeEventListener("touchstart", handleBtnClick);
+              }
+              resolve();
+            };
 
-          if (this.isTyping) {
-            this.finishTyping(textEl, isLast);
+            btn.addEventListener("mousedown", handleBtnClick);
+            btn.addEventListener("touchstart", handleBtnClick, { passive: false });
           } else {
-            // УДАЛИ ИЛИ ЗАКОММЕНТИРУЙ ЭТУ СТРОЧКУ НИЖЕ:
-            // if (audioManager?.playUI) audioManager.playUI("click");
-
-            cleanup();
-            resolve();
+            setTimeout(resolve, 2500);
           }
-        };
-
-        const cleanup = () => {
-          container.removeEventListener("mousedown", handleInteraction);
-        };
-
-        container.addEventListener("mousedown", handleInteraction);
-
-        typingPromise.then(() => {
-          if (isLast) {
-            // Для последней фразы кнопка остается спрятанной, просто ждем 1.5 сек
-            if (btn) btn.classList.add("hidden");
-            cleanup();
-            setTimeout(resolve, 1500);
-          } else {
-            // А вот для обычных фраз, когда текст напечатался — показываем [Продолжить]
-            if (btn) btn.classList.remove("hidden");
-          }
-        });
+        }
       });
     }
 
@@ -1540,22 +1521,15 @@ typeText(element, text, speed = 30) {
   }
 
   typeBiosText(element, text) {
-    this.currentFullText = text;
-    this.isTyping = true;
     const cursor = '<span class="bios-cursor"></span>';
 
     return new Promise((resolve) => {
-      this._currentBiosResolve = resolve;
-
       if (this.animTimers.biosType) clearTimeout(this.animTimers.biosType);
       element.innerHTML = cursor;
       let i = 0;
 
       const typeChar = () => {
         if (i < text.length) {
-          // --- НОВЫЙ БЛОК: ОЗВУЧКА СИНТЕЗАТОРОМ ---
-          // Проверяем, что текущий символ — не пробел.
-          // Это избавляет от монотонного гула и делает звук механическим.
           if (
             text.charAt(i) !== " " &&
             typeof audioManager !== "undefined" &&
@@ -1563,47 +1537,20 @@ typeText(element, text, speed = 30) {
           ) {
             audioManager.playBiosBeep();
           }
-          // ----------------------------------------
 
           element.innerHTML = text.substring(0, i + 1) + cursor;
           i++;
 
-          // ЗАМЕДЛЕНИЕ СКОРОСТИ
           let delay = Math.random() * 40 + 30;
-          // Пауза на точках стала дольше для реализма
           if (text.charAt(i - 1) === ".") delay += 250;
 
           this.animTimers.biosType = setTimeout(typeChar, delay);
         } else {
-          this.isTyping = false;
-          if (this._currentBiosResolve) {
-            this._currentBiosResolve();
-            this._currentBiosResolve = null;
-          }
+          resolve(); // Как только текст закончился, отпускаем промис
         }
       };
       typeChar();
     });
-  }
-
-  finishTyping(element, isLast) {
-    if (this.animTimers.biosType) clearTimeout(this.animTimers.biosType);
-    this.isTyping = false;
-    element.innerHTML =
-      this.currentFullText + '<span class="bios-cursor"></span>';
-
-    if (this.elements.biosContinueBtn) {
-      if (isLast) {
-        this.elements.biosContinueBtn.classList.add("hidden");
-      } else {
-        this.elements.biosContinueBtn.classList.remove("hidden");
-      }
-    }
-
-    if (this._currentBiosResolve) {
-      this._currentBiosResolve();
-      this._currentBiosResolve = null;
-    }
   }
 
   initBindings() {

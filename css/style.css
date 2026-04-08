@@ -1406,14 +1406,6 @@ body.loading #holo-wrapper {
   outline: none;
 }
 
-.cyber-slider::-webkit-slider-thumb {
-  appearance: none;
-  width: 15px;
-  height: 15px;
-  background: #00ffff; /* Цвет неонового бегунка */
-  box-shadow: 0 0 10px #00ffff;
-  cursor: pointer;
-}
 
 .cyber-slider::-webkit-slider-thumb {
   -webkit-appearance: none;
@@ -1427,6 +1419,7 @@ body.loading #holo-wrapper {
   box-shadow: 0 0 10px var(--neon-blue);
   transition: transform 0.1s;
 }
+
 .cyber-slider::-webkit-slider-thumb:hover {
   transform: scale(1.3);
   background: var(--neon-blue);

@@ -10,7 +10,7 @@ export class AudioManager {
     this.isMenuMuted = true;
 
     // Хранилище для звуков интерфейса
-    this.uiBuffers = { mouse_menu: null, start: null, click: null, pop: null };
+    this.uiBuffers = { mouse_menu: null, start: null, click: null, pop: null, wake: null };
     this.initPromise = null;
   }
 
@@ -122,14 +122,16 @@ export class AudioManager {
       }
     };
 
-    // Загружаем всё параллельно для скорости
-    const [m, s, c, p, conn, err] = await Promise.all([
+ // Загружаем всё параллельно для скорости
+   const [m, s, c, p, conn, err, wake, lamps] = await Promise.all([ // <-- Добавили слово wake
       load("audio/mouse_menu.mp3"),
       load("audio/start.mp3"),
       load("audio/click.mp3"),
       load("audio/gurgle.mp3"),
       load("audio/sound-connection.mp3"),
       load("audio/error.mp3"),
+      load("audio/robot-wake-up.mp3"), // <-- ДОБАВИЛИ ТВОЙ НОВЫЙ ЗВУК
+      load("audio/fluorescent_lamps.mp3"),
     ]);
 
     this.uiBuffers.mouse_menu = m;
@@ -138,6 +140,8 @@ export class AudioManager {
     this.uiBuffers.pop = p;
     this.uiBuffers.connection = conn;
     this.uiBuffers.error = err;
+    this.uiBuffers.wake = wake;
+    this.uiBuffers.lamps = lamps;
 
     console.log("📂 Все буферы UI обновлены", this.uiBuffers);
   }

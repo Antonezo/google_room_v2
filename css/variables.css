@@ -1,0 +1,89 @@
+/* ==========================================================================
+   1. ГЛОБАЛЬНЫЕ ПЕРЕМЕННЫЕ И ТЕМЫ
+   ========================================================================== */
+:root {
+  /* Цвета */
+  --neon-blue: #00f3ff;
+  --neon-blue-rgb: 0, 243, 255;
+  --neon-green: #00ff66;
+  --neon-green-rgb: 0, 255, 102;
+  --glass-bg: rgba(10, 20, 30, 0.4);
+  --border-color: rgba(var(--neon-blue-rgb), 0.3);
+
+  /* Системные курсоры */
+  --cur-hand: url("../Image/cur_hand.png") 7 0, auto;
+  --cur-fist: url("../Image/cur_fist.png") 7 0, auto;
+  --cur-ui-arrow: url("../Image/cur_ui_arrow.png") 0 0, auto;
+
+  /* Иконки кнопок в покое */
+  --btn-mag-off: url("../Image/mag_off.png");
+  --btn-paint-off: url("../Image/paint_off.png");
+
+  /* Магниты */
+  --btn-mag-0: url("../Image/mag_green.png");
+  --btn-mag-1: url("../Image/mag_yellow.png");
+  --btn-mag-2: url("../Image/mag_red.png");
+  --btn-mag-3: url("../Image/mag_blue.png");
+
+  /* Краски */
+  --btn-paint-0: url("../Image/paint_green.png");
+  --btn-paint-1: url("../Image/paint_yellow.png");
+  --btn-paint-2: url("../Image/paint_red.png");
+  --btn-paint-3: url("../Image/paint_blue.png");
+
+  /* Курсоры инструментов */
+  --cur-mag-0: url("../Image/cur_mag_green.png"), auto;
+  --cur-mag-1: url("../Image/cur_mag_yellow.png"), auto;
+  --cur-mag-2: url("../Image/cur_mag_red.png"), auto;
+  --cur-mag-3: url("../Image/cur_mag_blue.png"), auto;
+
+  --cur-paint-0: url("../Image/cur_paint_green.png"), auto;
+  --cur-paint-1: url("../Image/cur_paint_yellow.png"), auto;
+  --cur-paint-2: url("../Image/cur_paint_red.png"), auto;
+  --cur-paint-3: url("../Image/cur_paint_blue.png"), auto;
+
+  /* Переменные для стеклянного меню */
+  --glass-cyan-primary: rgba(var(--neon-blue-rgb), 1);
+  --glass-cyan-dim: rgba(var(--neon-blue-rgb), 0.4);
+  --glass-cyan-bg: rgba(0, 150, 180, 0.1);
+
+  /* ДОБАВИТЬ ЭТО: Система слоев (Z-index) */
+  --z-behind: -1; /* Фоны, тени */
+  --z-base: 1; /* Базовые элементы */
+  --z-ui-low: 10; /* Стандартные кнопки */
+  --z-ui-mid: 50; /* Хитбоксы, активные элементы */
+  --z-hud: 1000; /* Основной интерфейс (HUD) */
+  --z-dialogue: 9000; /* Диалоговая панель Айса */
+  --z-loader: 10000; /* Загрузочные двери */
+  --z-modal: 20000; /* Модальные окна (Регистрация) */
+  --z-max: 99999; /* Максимальный приоритет (анимации, партиклы) */
+}
+
+.mag-color-0,
+.paint-color-0,
+.item-0 {
+  --theme-hex: #34a853;
+  --theme-rgb: 52, 168, 83;
+  --theme-rot: -60deg;
+}
+.mag-color-1,
+.paint-color-1,
+.item-1 {
+  --theme-hex: #fbbc05;
+  --theme-rgb: 251, 188, 5;
+  --theme-rot: -20deg;
+}
+.mag-color-2,
+.paint-color-2,
+.item-2 {
+  --theme-hex: #ea4335;
+  --theme-rgb: 234, 67, 53;
+  --theme-rot: 20deg;
+}
+.mag-color-3,
+.paint-color-3,
+.item-3 {
+  --theme-hex: #4285f4;
+  --theme-rgb: 66, 133, 244;
+  --theme-rot: 60deg;
+}

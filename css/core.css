@@ -1,0 +1,171 @@
+/* ==========================================================================
+   2. БАЗОВЫЕ СТИЛИ, СЛОИ И КУРСОРЫ
+   ========================================================================== */
+body,
+canvas {
+  margin: 0;
+  overflow: hidden;
+  font-family: "Segoe UI", sans-serif;
+  background: #0b0f17;
+  user-select: none;
+  cursor: var(--cur-ui-arrow);
+  opacity: 1;
+}
+
+body::after {
+  content: "";
+  position: absolute;
+  width: 0;
+  height: 0;
+  overflow: hidden;
+  z-index: var(--z-behind);
+  background-image: var(--cur-fist);
+}
+
+#hud-controls,
+#holo-wrapper,
+.palette-container,
+#loader-doors.loaded {
+  pointer-events: none;
+}
+
+.hud-btn,
+.holo-btn,
+.palette-item:not(.palette-off-btn),
+#terminal-handle,
+#holo-panel,
+#word-input,
+.icon-btn,
+.mode-btn,
+#btn-reset,
+.combo-main-btn,
+.combo-reset-btn,
+.mag-main-btn,
+.paint-btn,
+.sk-btn,
+.holo-back-tab,
+.cyber-slider,
+.lang-btn,
+#btn-in-game-menu,
+.hud-top-btn,
+#loader-doors:not(.loaded) {
+  pointer-events: auto;
+  cursor: var(--cur-ui-arrow);
+}
+
+body.is-dragging,
+body.is-dragging * {
+  cursor: var(--cur-fist);
+}
+
+body.tool-mag-0 {
+  --active-tool-cursor: var(--cur-mag-0);
+}
+body.tool-mag-1 {
+  --active-tool-cursor: var(--cur-mag-1);
+}
+body.tool-mag-2 {
+  --active-tool-cursor: var(--cur-mag-2);
+}
+body.tool-mag-3 {
+  --active-tool-cursor: var(--cur-mag-3);
+}
+body.tool-paint-0 {
+  --active-tool-cursor: var(--cur-paint-0);
+}
+body.tool-paint-1 {
+  --active-tool-cursor: var(--cur-paint-1);
+}
+body.tool-paint-2 {
+  --active-tool-cursor: var(--cur-paint-2);
+}
+body.tool-paint-3 {
+  --active-tool-cursor: var(--cur-paint-3);
+}
+
+body[class*="tool-"] canvas,
+body[class*="tool-"] #holo-wrapper,
+body[class*="tool-"] #hud-controls {
+  cursor: var(--active-tool-cursor);
+}
+body[class*="tool-"] #holo-wrapper *,
+body[class*="tool-"] #hud-controls * {
+  cursor: var(--active-tool-cursor);
+}
+
+/* ==========================================================================
+   МОДАЛЬНОЕ ОКНО ПОДТВЕРЖДЕНИЯ
+   ========================================================================== */
+.modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  background: rgba(11, 15, 23, 0.85);
+  backdrop-filter: blur(5px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: var(--z-modal);
+  opacity: 1;
+  transition: opacity 0.3s ease;
+}
+.modal-overlay.hidden {
+  opacity: 0;
+  pointer-events: none;
+  visibility: hidden;
+}
+.cyber-modal {
+  background: rgba(10, 20, 30, 0.85);
+  border: 1px solid var(--neon-blue);
+  padding: 35px;
+  box-shadow:
+    0 0 40px rgba(0, 243, 255, 0.15),
+    inset 0 0 20px rgba(0, 243, 255, 0.05);
+  text-align: center;
+  transform: scale(1);
+  transition: transform 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+}
+.modal-overlay.hidden .cyber-modal {
+  transform: scale(0.9);
+}
+.modal-title {
+  color: #ff4444;
+  font-family: "Orbitron", sans-serif;
+  font-size: 22px;
+  font-weight: bold;
+  margin-bottom: 15px;
+  letter-spacing: 3px;
+  text-shadow: 0 0 10px rgba(255, 68, 68, 0.5);
+}
+.modal-text {
+  color: #fff;
+  font-size: 14px;
+  margin-bottom: 30px;
+  line-height: 1.5;
+  opacity: 0.8;
+}
+.modal-actions {
+  display: flex;
+  gap: 20px;
+  justify-content: center;
+}
+.modal-actions .holo-btn {
+  width: 140px;
+  padding: 12px 0;
+  cursor: var(--cur-ui-arrow);
+}
+#btn-confirm-yes {
+  border-color: #ff4444;
+  color: #ff4444;
+}
+#btn-confirm-yes.active-state {
+  background: rgba(255, 68, 68, 0.15);
+  box-shadow: 0 0 15px rgba(255, 68, 68, 0.3);
+}
+#btn-confirm-yes:hover {
+  background: rgba(255, 68, 68, 0.3);
+  color: #fff;
+  text-shadow: 0 0 5px #fff;
+}

@@ -51,6 +51,7 @@ export const translations = {
     btnWhatNow: "So what do we do now?",
     btnRejectFriend: "KEEP MY NAME",
     friendName: "Buddy",
+    skipCutscene: "SKIP >>",
 
     regPhraseAice:
       "Wait... You're AICE? But I'M AICE! Are there two of us now? Is this a glitch in the quantum registry?! Alright, Aice Junior, come on in, but I'm still the boss!",
@@ -134,6 +135,7 @@ biosContinue: "ПРОДОЛЖИТЬ >",
     btnWhatNow: "И что нам делать?",
     btnRejectFriend: "ОСТАВИТЬ МОЁ ИМЯ",
     friendName: "Друг",
+    skipCutscene: "ПРОПУСТИТЬ >>",
 
     regPhraseAice:
       "Подожди... Ты АЙС? Но Я АЙС! Нас теперь двое? Это сбой в квантовом реестре?! Ладно, Айс-младший, заходи, но чур я главный!",

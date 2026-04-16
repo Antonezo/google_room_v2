@@ -337,8 +337,9 @@ export class GoogleRoomApp {
         lastMode = state.mode;
       }
       this.sceneManager.setAtmosphere(state.mode, CONFIG.COLORS);
-      if (!this.world.bodies.includes(this.platformBody))
-        this.world.addBody(this.platformBody);
+   // КОММЕНТИРУЕМ ЭТИ ДВЕ СТРОКИ:
+      // if (!this.world.bodies.includes(this.platformBody))
+      //   this.world.addBody(this.platformBody);
 
       if (state.mode === "disco") {
         for (const l of this.letterObjects) {
@@ -403,7 +404,8 @@ export class GoogleRoomApp {
     );
     this.platformBody.position.set(0, CONFIG.WORLD.FLOOR_LEVEL + 0.1, 0);
     this.platformBody.userData = { isRubber: true };
-    this.world.addBody(this.platformBody);
+    // КОММЕНТИРУЕМ ЭТУ СТРОКУ, чтобы платформа не стала физическим препятствием:
+    // this.world.addBody(this.platformBody);
 
     const createWall = (w, h, pos, rot) => {
       this.physicsManager.createStaticPlane(pos, rot, CONFIG.PHYSICS.GROUPS);
@@ -1026,6 +1028,7 @@ export class GoogleRoomApp {
       0.01,
     );
     this.renderer.toneMappingExposure = this.currentExposure; // Эту строку ни в коем случае не трогаем, она рисует кадр!
+    this.sceneManager.controls.update(); // <--- НОВАЯ СТРОКА (Обновление камеры)
     this.composer.render();
   }
 

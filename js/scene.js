@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
 import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { CONFIG } from './config.js';
 
 // --- ГЕНЕРАЦИЯ ТЕКСТУР ---
@@ -34,8 +35,8 @@ export const ventGridTex = (() => {
 export class SceneManager {
   constructor() {
     this.scene = new THREE.Scene();
-    this.camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 100);
-    this.camera.position.set(0, 2, 28);
+  this.camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 100);
+    this.camera.position.set(0, 2, 9);
 
     this.renderer = new THREE.WebGLRenderer({ antialias: true });
     this.renderer.setSize(window.innerWidth, window.innerHeight);
@@ -49,7 +50,28 @@ export class SceneManager {
     this.composer = new EffectComposer(this.renderer);
     this.composer.addPass(new RenderPass(this.scene, this.camera));
     this.bloomPass = new UnrealBloomPass(new THREE.Vector2(window.innerWidth, window.innerHeight), 0.15, 0.6, 0.15);
-    this.composer.addPass(this.bloomPass);
+   this.composer.addPass(this.bloomPass);
+
+    // === НОВЫЙ БЛОК: НАСТРОЙКА ВРАЩЕНИЯ КАМЕРЫ ===
+this.controls = new OrbitControls(this.camera, this.renderer.domElement);
+    this.controls.enableDamping = true;
+    this.controls.dampingFactor = 0.05;
+    this.controls.minPolarAngle = Math.PI / 2;
+    this.controls.maxPolarAngle = Math.PI / 2;
+    this.controls.enablePan = false;
+    
+    // ДОБАВЬ ЭТИ ДВЕ СТРОКИ:
+    this.controls.minDistance = 2; // Насколько близко можно приблизить (зум)
+    this.controls.maxDistance = 9.5; // Не даем вылететь камере за стены!
+
+    this.controls.mouseButtons = {
+      LEFT: null,
+      MIDDLE: THREE.MOUSE.DOLLY,
+      RIGHT: THREE.MOUSE.ROTATE
+    };
+    this.controls.target.set(0, 2, 0);
+    this.controls.update();
+    // ===============================================
 
     this.walls = []; 
     this.discoSpots = [];
@@ -138,7 +160,12 @@ export class SceneManager {
   }
 
   setAtmosphere(mode, configColors) {
-    this.labProps.visible = true;
+    // КОММЕНТИРУЕМ СТАРУЮ СТРОКУ:
+    // this.labProps.visible = true;
+
+    // ДОБАВЛЯЕМ НОВУЮ, чтобы платформа всегда была невидимой:
+    this.labProps.visible = false;
+    
     for (const w of this.walls) { w.mesh.material.map = tileTex; w.mesh.material.color.setHex(0xffffff); w.mesh.material.roughness = 0.1; w.mesh.material.metalness = 0.1; w.mesh.material.needsUpdate = true; }
     
     if (mode === 'disco') {

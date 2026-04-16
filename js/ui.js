@@ -3,7 +3,8 @@ import { audioManager } from "./audio.js";
 import { translations } from "./i18n.js";
 import { MenuManager } from "./ui-menu.js";
 import { GameHudManager } from "./ui-hud.js";
-import { DialogueSystem } from "./ui-dialogue.js"; // Наш новый модуль!
+import { DialogueSystem } from "./ui-dialogue.js";
+import { CutsceneManager } from "./cutscene.js";
 
 export class UIManager {
   constructor(callbacks) {
@@ -19,9 +20,10 @@ export class UIManager {
     // Инициализируем помощников
     this.menuManager = new MenuManager(this);
     this.hudManager = new GameHudManager(this);
-    this.dialogueSystem = new DialogueSystem(this); // Подключаем систему диалогов!
+    this.dialogueSystem = new DialogueSystem(this);
+    this.cutsceneManager = new CutsceneManager(this);
 
-    // Централизованное хранилище таймеров только для глобальных анимаций входа/выхода
+    // Централизованное хранилище таймеров
     this.animTimers = {
       enter1: null,
       enter2: null,
@@ -42,7 +44,7 @@ export class UIManager {
     this.initStartMenu();
   }
 
-  // --- МЕТОДЫ-ПРОКСИ (Пробрасывают вызовы из движка в модули) ---
+  // --- МЕТОДЫ-ПРОКСИ ---
   updateBeadCounter(current, max) {
     this.hudManager.updateBeadCounter(current, max);
   }
@@ -60,7 +62,6 @@ export class UIManager {
     this.hudManager.updateFanProgress(0);
   }
 
-  // Утилита разблокировки кнопок (используется после регистрации)
   unlockFeature(featureId) {
     const el = document.getElementById(featureId);
     if (el && el.classList.contains("locked-feature")) {
@@ -89,7 +90,7 @@ export class UIManager {
       },
     );
 
-    // Функция входа в игру
+    // Функция входа в игру (Используется для кнопки ПРОДОЛЖИТЬ)
     const enterGame = () => {
       this.isMenuLocked = true;
       this.clearAnimTimers();
@@ -129,97 +130,61 @@ export class UIManager {
                 const t = translations[this.currentLang];
                 this.dialogueSystem.showAiceDialogue(t.welcomeBack);
               }, 1500);
-          } else {
-              // === НАЧАЛО: НОВАЯ ИГРА И ЗНАКОМСТВО ===
-              this.dialogueSystem.isRegistrationComplete = false;
-
-              // Выключаем пропуск, чтобы увидеть BIOS
-              const SKIP_BIOS = true;
-
-              const startRobotSequence = () => {
-                if (audioManager?.playUI) audioManager.playUI("lamps");
-
-                const cornerAice = document.getElementById("corner-aice-container");
-                const cornerEyes = document.getElementById("corner-eyes");
-                const cornerLight = document.getElementById("corner-light");
-
-                if (cornerEyes) {
-                  cornerEyes.style.opacity = "0";
-                  cornerEyes.classList.remove("corner-blink-anim");
-                  cornerEyes.src = "../Image/eyes-corner-sit-1.png";
-                }
-                if (cornerLight) {
-                  cornerLight.style.opacity = "0";
-                  cornerLight.classList.remove("corner-light-pulse");
-                }
-
-                if (cornerAice) {
-                  cornerAice.style.transition = "none";
-                  cornerAice.classList.remove("sync-light-flicker");
-                  void cornerAice.offsetWidth; // Рефлоу для перезапуска анимации
-
-                  cornerAice.style.opacity = "1";
-                  cornerAice.classList.add("sync-light-flicker");
-
-                  this.animTimers.corner1 = setTimeout(() => {
-                    if (audioManager?.playUI) audioManager.playUI("wake");
-
-                    if (cornerEyes) {
-                      cornerEyes.style.opacity = "1";
-                      cornerEyes.classList.add("corner-blink-anim");
-                    }
-                    if (cornerLight) {
-                      cornerLight.style.opacity = "1";
-                      cornerLight.classList.add("corner-light-pulse");
-                    }
-
-                    this.animTimers.corner2 = setTimeout(() => {
-                      if (cornerEyes) {
-                        cornerEyes.src = "../Image/eyes-corner-sit-2.png";
-                      }
-
-                      // --- АКТИВИРОВАНО: Сюжет и полет ---
-                      /*
-                      const t = translations[this.currentLang];
-                      if (!this.dialogueSystem.isRegistrationComplete) {
-                        this.dialogueSystem.runDialogueSequence(t.introDialog, () => {
-                          this.dialogueSystem.executeTransferToCenter();
-                        });
-                      }
-                      */
-                      // ----------------------------------
-                    }, 3000);
-                  }, 4000);
-                }
-              };
-
-              if (SKIP_BIOS) {
-                setTimeout(() => {
-                  if (this.hudManager.elements.hudControls) {
-                    this.hudManager.elements.hudControls.classList.remove("hud-hidden");
-                  }
-                  if (this.cb?.onFlickerLights) this.cb.onFlickerLights();
-                  startRobotSequence();
-                }, 1400);
-              } else {
-                this.dialogueSystem.runBiosSequence(() => {
-                  startRobotSequence();
-                });
-              }
-            } // <--- Закрывает внешний else (от проверки lights-on)
+            }
           }, 600);
         }, 500);
       }
     };
 
-    const executeNewGame = () => {
+    // ==========================================
+    // ФУНКЦИЯ НОВОЙ ИГРЫ (С КАТ-СЦЕНОЙ)
+    // ==========================================
+    const executeNewGame = async () => {
+      // 1. Подготовка сцены (выключаем свет, сбрасываем UI)
       document.body.classList.remove("lights-on");
       if (this.cb?.onForceLightsOff) this.cb.onForceLightsOff();
       if (this.cb?.onReset) this.cb.onReset();
 
       this.hudManager.resetWordInput();
       if (store?.update) store.update({ mode: "lab" });
-      enterGame();
+
+      // 2. Блокируем меню и начинаем вход
+      this.isMenuLocked = true;
+      this.clearAnimTimers();
+      if (audioManager?.resumeContext) audioManager.resumeContext();
+
+      const htmlElem = document.documentElement;
+      if (htmlElem.requestFullscreen && !document.fullscreenElement) {
+        htmlElem.requestFullscreen();
+      }
+
+      this.menuManager.hideMenu();
+
+      if (el.centerHub) {
+        // === ИСПРАВЛЕНИЕ: Снимаем старые классы анимации перед тем, как прятать ===
+        el.centerHub.classList.remove("fade-in-volumetric", "hub-hidden");
+
+        el.centerHub.classList.add("fade-out-fast");
+        setTimeout(() => el.centerHub.classList.add("hub-hidden"), 500);
+      }
+
+      // Ждем и открываем двери в темноту
+      await new Promise((res) => setTimeout(res, 600));
+      if (el.doors) el.doors.classList.add("loaded");
+      document.body.classList.remove("loading");
+
+      // Включаем лабораторию!
+      setTimeout(() => {
+        if (this.hudManager.elements.hudControls) {
+          this.hudManager.elements.hudControls.classList.remove("hud-hidden");
+        }
+
+        // Включаем свет (лампы моргают и загораются)
+        if (this.cb?.onFlickerLights) this.cb.onFlickerLights();
+
+        // Сбрасываем статус (оставляем только эту строчку)
+        this.dialogueSystem.isRegistrationComplete = false;
+      }, 1000);
     };
 
     // Биндим кнопки меню, которые вызывают запуск игры
@@ -246,7 +211,7 @@ export class UIManager {
     const returnToMainMenu = () => {
       this.isMenuLocked = false;
       this.clearAnimTimers();
-      this.dialogueSystem.clear(); // Очищаем таймеры диалогов
+      this.dialogueSystem.clear();
 
       document.body.classList.add("loading");
 
@@ -262,10 +227,6 @@ export class UIManager {
 
         if (portrait) portrait.style.opacity = "1";
         if (content) content.style.opacity = "1";
-
-        const cornerAice = document.getElementById("corner-aice-container");
-        if (cornerAice) cornerAice.style.opacity = "0";
-        cornerAice.classList.remove("sync-light-flicker");
       }
 
       const userBadge = document.getElementById("hud-user-status");
@@ -317,7 +278,6 @@ export class UIManager {
       }
     });
 
-    // Озвучка кнопок
     const buttons = document.querySelectorAll(
       "#btn-start-game, #btn-resume-game, #btn-in-game-menu",
     );
@@ -332,12 +292,12 @@ export class UIManager {
     });
   }
 
-  // --- ОБНОВЛЕНИЕ ЯЗЫКА (Проксируем в i18n/DOM) ---
+  // --- ОБНОВЛЕНИЕ ЯЗЫКА ---
+
   updateLanguage(lang) {
     this.currentLang = lang;
     const t = translations[lang];
 
-    // Обновляем тексты напрямую (то, что не привязано к конкретному модулю)
     const updateText = (id, text) => {
       const el = document.getElementById(id);
       if (el) el.textContent = text;
@@ -347,9 +307,27 @@ export class UIManager {
       if (el) el.textContent = text;
     };
 
-    updateBtnText("btn-resume-game", t.resume);
     updateBtnText("btn-start-game", t.start);
+    updateBtnText("btn-resume-game", t.resume);
+    updateBtnText("btn-open-settings", t.settings);
+    updateBtnText("btn-exit", t.exit);
+    updateBtnText("btn-back-main", t.back);
     updateBtnText("btn-in-game-menu", t.inGameMenu);
+
+    const exitJokeEl = document.querySelector("#btn-exit .exit-joke");
+    if (exitJokeEl) exitJokeEl.textContent = t.exitJoke;
+
+    const sfxTitle = document.getElementById("val-sfx")?.previousElementSibling;
+    if (sfxTitle) sfxTitle.textContent = t.sfx;
+
+    const musicTitle =
+      document.getElementById("val-music")?.previousElementSibling;
+    if (musicTitle) musicTitle.textContent = t.music;
+
+    const langTitle = document.querySelector(
+      "#btn-toggle-lang .slider-header .btn-text",
+    );
+    if (langTitle) langTitle.textContent = t.langTitle;
 
     updateText("btn-what-now", t.btnWhatNow);
     updateText("btn-accept-friend", t.btnAcceptFriend);

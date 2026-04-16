@@ -10,7 +10,13 @@
       href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Cdefs%3E%3CradialGradient id='blueGrad' cx='30%25' cy='30%25' r='70%25'%3E%3Cstop offset='0%25' stop-color='%23fff'/%3E%3Cstop offset='100%25' stop-color='%234285F4'/%3E%3C/radialGradient%3E%3CradialGradient id='redGrad' cx='30%25' cy='30%25' r='70%25'%3E%3Cstop offset='0%25' stop-color='%23fff'/%3E%3Cstop offset='100%25' stop-color='%23EA4335'/%3E%3C/radialGradient%3E%3CradialGradient id='yellowGrad' cx='30%25' cy='30%25' r='70%25'%3E%3Cstop offset='0%25' stop-color='%23fff'/%3E%3Cstop offset='100%25' stop-color='%23FBBC05'/%3E%3C/radialGradient%3E%3C/defs%3E%3Ccircle cx='50' cy='45' r='40' fill='url(%23blueGrad)'/%3E%3Ccircle cx='72' cy='68' r='26' fill='url(%23redGrad)'/%3E%3Ccircle cx='38' cy='72' r='20' fill='url(%23yellowGrad)'/%3E%3C/svg%3E"
       type="image/svg+xml"
     />
-    <link rel="stylesheet" href="css/style.css?v=2" />
+    
+    <link rel="stylesheet" href="css/variables.css" />
+    <link rel="stylesheet" href="css/core.css" />
+    <link rel="stylesheet" href="css/loader-menu.css" />
+    <link rel="stylesheet" href="css/hud.css" />
+    <link rel="stylesheet" href="css/dialogue-aice.css" />
+
     <link
       href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700&display=swap"
       rel="stylesheet"
@@ -56,44 +62,44 @@
           </div>
 
           <div id="view-settings" class="menu-view">
-  <button id="btn-back-main" class="holo-back-tab">
-    <span class="btn-dec">&lt;&lt;</span>
-    <span class="btn-text">ГЛАВНОЕ МЕНЮ</span>
-  </button>
+            <button id="btn-back-main" class="holo-back-tab">
+              <span class="btn-dec">&lt;&lt;</span>
+              <span class="btn-text">ГЛАВНОЕ МЕНЮ</span>
+            </button>
 
-  <div class="settings-list">
-    <div class="slider-group">
-      <div class="slider-header">
-        <span class="btn-text">ГРОМКОСТЬ ЭФФЕКТОВ</span>
-        <span class="slider-value" id="val-sfx">70%</span>
-      </div>
-      <input type="range" id="slider-sfx" class="cyber-slider" min="0" max="100" value="70">
-    </div>
+            <div class="settings-list">
+              <div class="slider-group">
+                <div class="slider-header">
+                  <span class="btn-text">ГРОМКОСТЬ ЭФФЕКТОВ</span>
+                  <span class="slider-value" id="val-sfx">70%</span>
+                </div>
+                <input type="range" id="slider-sfx" class="cyber-slider" min="0" max="100" value="70">
+              </div>
 
-    <div class="slider-group">
-      <div class="slider-header">
-        <span class="btn-text">ГРОМКОСТЬ МУЗЫКИ</span>
-        <span class="slider-value" id="val-music">40%</span>
-      </div>
-      <input type="range" id="slider-music" class="cyber-slider" min="0" max="100" value="40">
-    </div>
+              <div class="slider-group">
+                <div class="slider-header">
+                  <span class="btn-text">ГРОМКОСТЬ МУЗЫКИ</span>
+                  <span class="slider-value" id="val-music">40%</span>
+                </div>
+                <input type="range" id="slider-music" class="cyber-slider" min="0" max="100" value="40">
+              </div>
 
-    <div id="btn-toggle-lang" class="lang-group slider-group">
-      <div class="slider-header lang-header-style">
-        <span class="btn-text">ЯЗЫК</span>
-        <span class="status slider-value">RU</span>
-      </div>
-      <div class="lang-options">
-        <button class="lang-btn" data-lang="EN">
-          <span class="btn-text">ENGLISH</span>
-        </button>
-        <button class="lang-btn active-lang" data-lang="RU">
-          <span class="btn-text">РУССКИЙ</span>
-        </button>
-      </div>
-    </div>
-  </div>
-</div>
+              <div id="btn-toggle-lang" class="lang-group slider-group">
+                <div class="slider-header lang-header-style">
+                  <span class="btn-text">ЯЗЫК</span>
+                  <span class="status slider-value">RU</span>
+                </div>
+                <div class="lang-options">
+                  <button class="lang-btn" data-lang="EN">
+                    <span class="btn-text">ENGLISH</span>
+                  </button>
+                  <button class="lang-btn active-lang" data-lang="RU">
+                    <span class="btn-text">РУССКИЙ</span>
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
 
@@ -129,9 +135,10 @@
         <span class="status-dot"></span>
         <span id="hud-user-name">USER: UNKNOWN</span>
       </div>
+      <!--
       <button id="btn-restart-level" class="hud-btn">
         <img
-          src="../Image/restart_icon.png"
+          src="Image/restart_icon.png"
           alt="Restart"
           class="restart-img-icon"
         />
@@ -140,6 +147,7 @@
       <button id="btn-in-game-menu" class="hud-top-btn">
         <span class="btn-text">МЕНЮ</span>
       </button>
+    -->
     </div>
 
     <div id="holo-wrapper" class="locked-feature">
@@ -328,19 +336,19 @@
  <div id="aice-dialogue-container" class="hidden">
       <div class="aice-portrait-wrap">
         <img
-          src="../Image/robot-1.png"
+          src="Image/robot-1.png"
           alt="A.I.C.E."
           id="aice-base"
           class="aice-layer base-layer"
         />
-        <img src="../Image/eyes.png" alt="Eyes" class="aice-layer eyes-layer" />
+        <img src="Image/eyes.png" alt="Eyes" class="aice-layer eyes-layer" />
         <img
-          src="../Image/light.png"
+          src="Image/light.png"
           alt="Light"
           class="aice-layer beacon-layer"
         />
         <img
-          src="../Image/smile.png"
+          src="Image/smile.png"
           alt="Smile"
           class="aice-layer smile-layer"
         />
@@ -358,13 +366,6 @@
       </div>
     </div>
 
- <div id="corner-aice-container" class="corner-aice-wrap">
-      <img src="../Image/corner-sit.png" class="corner-layer base-layer" alt="AICE Body" />
-      
-      <img id="corner-eyes" src="../Image/eyes-corner-sit-1.png" class="corner-layer eyes-layer" alt="AICE Eyes" style="opacity: 0; transition: opacity 0.5s ease-in;" />
-      
-      <img id="corner-light" src="../Image/light-corner.png" class="corner-layer beacon-layer" alt="AICE Beacon" style="opacity: 0; transition: opacity 0.5s ease-in;" />
-    </div>
     <script type="importmap">
       {
         "imports": {
@@ -398,19 +399,19 @@
         <div class="registration-layout">
           <div class="aice-portrait-wrap center-aice">
             <img
-              src="../Image/tablet-2.png"
+              src="Image/tablet-2.png"
               alt="AICE Base"
               class="aice-layer base-layer"
             />
 
             <img
-              src="../Image/blinks-eyes-tablet-2.png"
+              src="Image/blinks-eyes-tablet-2.png"
               alt="Eyes"
               class="aice-layer tablet-eyes-layer"
             />
 
             <img
-              src="../Image/light-tablet-2.png"
+              src="Image/light-tablet-2.png"
               alt="Light"
               class="aice-layer beacon-layer"
             />

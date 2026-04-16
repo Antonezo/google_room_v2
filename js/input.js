@@ -162,6 +162,9 @@ update(dt) {
       // Игнорируем нажатия ПО интерфейсу (кнопкам), чтобы не срабатывала физика/краска
       if (e.target.closest('#holo-wrapper') || e.target.closest('#hud-controls')) return;
 
+      // === НОВАЯ СТРОКА: Игнорируем всё, кроме Левой Кнопки Мыши (0) ===
+      if (e.button !== 0) return; 
+
       this.setInputCoords(e);
       this.isMouseDown = true;
 

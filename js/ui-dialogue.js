@@ -247,10 +247,59 @@ export class DialogueSystem {
         container.classList.remove("bios-mode");
         const hudControls = document.getElementById("hud-controls");
         if (hudControls) hudControls.classList.remove("hud-hidden");
-        if (this.ui.cb?.onFlickerLights) this.ui.cb.onFlickerLights();
+
+        // Включаем свет
+        if (this.ui.cb?.onFlickerLights) {
+          this.ui.cb.onFlickerLights();
+
+          // === ДОБАВЛЯЕМ ЗВУК ЛАМП ===
+          // Убедись, что ключ "fluorescent_lamps" совпадает с тем, как ты назвал этот звук в audio.js!
+          if (audioManager?.playUI) audioManager.playUI("lamps");
+        }
+
         if (onCompleteCallback) onCompleteCallback();
       }, 500);
     }
+  }
+
+  // === ЗНАКОМСТВО ПЕРЕД РЕГИСТРАЦИЕЙ ===
+  async startIntroDialogue() {
+    const bottomContainer = document.getElementById("aice-dialogue-container");
+    const portrait = bottomContainer?.querySelector(".aice-portrait-wrap");
+    const bottomTextEl = document.getElementById("aice-dialogue-text");
+
+    if (!bottomContainer || !bottomTextEl) return;
+
+    // Показываем панель внизу
+    bottomContainer.classList.remove("hidden");
+    if (portrait) portrait.style.opacity = "1";
+
+    if (audioManager?.playUI) audioManager.playUI("pop");
+
+    const waitForClick = () =>
+      new Promise((res) => {
+        this._currentDialogueResolve = res;
+        const h = () => {
+          bottomContainer.removeEventListener("click", h);
+          if (this._currentDialogueResolve === res)
+            this._currentDialogueResolve = null;
+          res();
+        };
+        setTimeout(() => bottomContainer.addEventListener("click", h), 100);
+      });
+
+    // Читаем фразы из твоего словаря (EN или RU)
+    const t = translations[this.ui.currentLang];
+
+    // Проходимся по всем строкам из массива introDialog
+    for (let i = 0; i < t.introDialog.length; i++) {
+      await this.typeText(bottomTextEl, t.introDialog[i], 35);
+      await waitForClick();
+      if (!this.ui.isMenuLocked) return;
+    }
+
+    // После диалога летим в центр экрана для регистрации!
+    this.executeTransferToCenter();
   }
 
   // ==========================================
@@ -285,10 +334,10 @@ export class DialogueSystem {
       const eyesLayer = aiceWrap.querySelector(".tablet-eyes-layer");
       const beaconLayer = aiceWrap.querySelector(".beacon-layer");
 
-      if (baseLayer) baseLayer.src = "../Image/tablet-1.png";
+      if (baseLayer) baseLayer.src = "/Image/tablet-1.png";
       if (eyesLayer) eyesLayer.style.display = "none";
       if (beaconLayer) {
-        beaconLayer.src = "../Image/light-tablet-1.png";
+        beaconLayer.src = "/Image/light-tablet-1.png";
         beaconLayer.classList.add("fast-pulse");
       }
 
@@ -321,10 +370,10 @@ export class DialogueSystem {
         await new Promise((res) => setTimeout(res, 1000));
       }
 
-      if (baseLayer) baseLayer.src = "../Image/tablet-2.png";
+      if (baseLayer) baseLayer.src = "/Image/tablet-2.png";
       if (eyesLayer) eyesLayer.style.display = "";
       if (beaconLayer) {
-        beaconLayer.src = "../Image/light-tablet-2.png";
+        beaconLayer.src = "/Image/light-tablet-2.png";
         beaconLayer.classList.remove("fast-pulse");
       }
 
@@ -369,9 +418,9 @@ export class DialogueSystem {
       const beacon = aiceWrap.querySelector(".beacon-layer");
       const eyesLayer = aiceWrap.querySelector(".tablet-eyes-layer");
 
-      if (baseLayer) baseLayer.src = "../Image/tablet-3.png";
+      if (baseLayer) baseLayer.src = "/Image/tablet-3.png";
       if (beacon) {
-        beacon.src = "../Image/light-tablet-3.png";
+        beacon.src = "/Image/light-tablet-3.png";
         beacon.classList.add("error-pulse");
         beacon.style.filter = "";
       }
@@ -406,14 +455,12 @@ export class DialogueSystem {
       if (e.key === "Enter") submitHandler();
     };
 
-  // === ИГРОК СПРАШИВАЕТ "И ЧТО НАМ ДЕЛАТЬ?" ===
+    // === ИГРОК СПРАШИВАЕТ "И ЧТО НАМ ДЕЛАТЬ?" ===
     document.getElementById("btn-what-now").onclick = async () => {
       const btnWhatNow = document.getElementById("btn-what-now");
       const btnAccept = document.getElementById("btn-accept-friend");
       const btnReject = document.getElementById("btn-reject-friend");
       const t = translations[this.ui.currentLang];
-
-      if (audioManager?.playUI) audioManager.playUI("click");
 
       // 1. Сначала прячем кнопку вопроса
       if (btnWhatNow) btnWhatNow.style.display = "none";
@@ -457,9 +504,9 @@ export class DialogueSystem {
       const beacon = aiceWrap.querySelector(".beacon-layer");
       const eyesLayer = aiceWrap.querySelector(".tablet-eyes-layer");
 
-      if (baseLayer) baseLayer.src = "../Image/tablet-1.png";
+      if (baseLayer) baseLayer.src = "/Image/tablet-1.png";
       if (beacon) {
-        beacon.src = "../Image/light-tablet-1.png";
+        beacon.src = "/Image/light-tablet-1.png";
         beacon.classList.remove("error-pulse");
         beacon.classList.add("fast-pulse");
         beacon.style.filter = "";
@@ -478,9 +525,9 @@ export class DialogueSystem {
       await new Promise((res) => setTimeout(res, 5000));
       clearInterval(dotInterval);
 
-      if (baseLayer) baseLayer.src = "../Image/tablet-2.png";
+      if (baseLayer) baseLayer.src = "/Image/tablet-2.png";
       if (beacon) {
-        beacon.src = "../Image/light-tablet-2.png";
+        beacon.src = "/Image/light-tablet-2.png";
         beacon.classList.remove("fast-pulse");
       }
       if (eyesLayer) eyesLayer.style.display = "";
@@ -535,13 +582,13 @@ export class DialogueSystem {
       const eyesLayer = centerModal.querySelector(".tablet-eyes-layer");
       const beaconLayer = centerModal.querySelector(".beacon-layer");
 
-      if (baseLayer) baseLayer.src = "../Image/tablet-2.png";
+      if (baseLayer) baseLayer.src = "/Image/tablet-2.png";
       if (eyesLayer) {
-        eyesLayer.src = "../Image/blinks-eyes-tablet-2.png";
+        eyesLayer.src = "/Image/blinks-eyes-tablet-2.png";
         eyesLayer.style.display = "";
       }
       if (beaconLayer) {
-        beaconLayer.src = "../Image/light-tablet-2.png";
+        beaconLayer.src = "/Image/light-tablet-2.png";
         beaconLayer.classList.remove("error-pulse", "fast-pulse");
       }
     }
@@ -599,10 +646,6 @@ export class DialogueSystem {
       userBadge.classList.remove("hidden");
     }
 
-    this.ui.unlockFeature("feature-equipment");
-    this.ui.unlockFeature("feature-word");
-    this.ui.unlockFeature("feature-physics");
-
     if (bottomContainer && bottomAiceWrap) {
       bottomContainer.classList.remove("hidden");
       bottomAiceWrap.style.opacity = "1";
@@ -629,6 +672,7 @@ export class DialogueSystem {
         ? getDict().regFinalSpecial(finalName)
         : getDict().regFinalSarcasm(finalName);
 
+      // Айс говорит, что приятно познакомиться
       await this.typeText(bottomTextEl, phrase1, 35);
       await waitForClick();
 
@@ -660,8 +704,32 @@ export class DialogueSystem {
         userBadge.querySelector(".status-arrow-hint")?.remove();
       }
 
+      // Выводим финальную фразу
       await this.typeText(bottomTextEl, getDict().regFinalAction, 35);
-      this.isRegistrationComplete = true;
+      await waitForClick();
+
+      // ==========================================
+      // ПРЯЧЕМ АЙСА (ИСПРАВЛЕННЫЙ ВАРИАНТ)
+      // ==========================================
+      const finalDialogWindow = document.getElementById(
+        "aice-dialogue-container",
+      );
+      if (finalDialogWindow) {
+        finalDialogWindow.classList.add("hidden");
+      }
+
+      // Ждем 300 миллисекунд, чтобы анимация скрытия успела начаться, и запускаем полет!
+      setTimeout(() => {
+        // Разблокируем интерфейс
+        this.ui.unlockFeature("feature-equipment");
+        this.ui.unlockFeature("feature-word");
+        this.ui.unlockFeature("feature-physics");
+
+        this.isRegistrationComplete = true;
+
+        // Даем сигнал камере начать плавный наезд внутрь комнаты
+        if (this.ui.cb?.onRegistrationEnd) this.ui.cb.onRegistrationEnd();
+      }, 300);
     }
   }
 

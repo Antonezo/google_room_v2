@@ -9,9 +9,9 @@ import { CutsceneManager } from "./cutscene.js";
 export class UIManager {
   constructor(callbacks) {
     this.preloadImages([
-      "../Image/tablet-2.png",
-      "../Image/blinks-eyes-tablet-2.png",
-      "../Image/light-tablet-2.png",
+      "/Image/tablet-2.png",
+      "/Image/blinks-eyes-tablet-2.png",
+      "/Image/light-tablet-2.png",
     ]);
     this.cb = callbacks;
     this.isMenuLocked = false;
@@ -136,14 +136,14 @@ export class UIManager {
       }
     };
 
-    // ==========================================
-    // ФУНКЦИЯ НОВОЙ ИГРЫ (С КАТ-СЦЕНОЙ)
-    // ==========================================
-    const executeNewGame = async () => {
-      // 1. Подготовка сцены (выключаем свет, сбрасываем UI)
+ const executeNewGame = async () => {
+      // 1. Подготовка сцены
       document.body.classList.remove("lights-on");
       if (this.cb?.onForceLightsOff) this.cb.onForceLightsOff();
       if (this.cb?.onReset) this.cb.onReset();
+      
+      // СБРАСЫВАЕМ ВРАЩЕНИЕ И ОТДАЛЯЕМ КАМЕРУ ДЛЯ РЕГИСТРАЦИИ
+      if (this.cb?.onRegistrationStart) this.cb.onRegistrationStart();
 
       this.hudManager.resetWordInput();
       if (store?.update) store.update({ mode: "lab" });
@@ -159,11 +159,9 @@ export class UIManager {
       }
 
       this.menuManager.hideMenu();
-
+      
       if (el.centerHub) {
-        // === ИСПРАВЛЕНИЕ: Снимаем старые классы анимации перед тем, как прятать ===
         el.centerHub.classList.remove("fade-in-volumetric", "hub-hidden");
-
         el.centerHub.classList.add("fade-out-fast");
         setTimeout(() => el.centerHub.classList.add("hub-hidden"), 500);
       }
@@ -173,18 +171,37 @@ export class UIManager {
       if (el.doors) el.doors.classList.add("loaded");
       document.body.classList.remove("loading");
 
-      // Включаем лабораторию!
-      setTimeout(() => {
-        if (this.hudManager.elements.hudControls) {
-          this.hudManager.elements.hudControls.classList.remove("hud-hidden");
-        }
+ // 3. ЗАПУСКАЕМ СЮЖЕТНУЮ ЧАСТЬ (БИОС + Регистрация)
+      
+      /* --- ВРЕМЕННО СКРЫТО ДЛЯ ТЕСТОВ ---
+      this.dialogueSystem.isRegistrationComplete = false;
+      this.dialogueSystem.runBiosSequence(() => {
+        setTimeout(() => {
+          this.dialogueSystem.startIntroDialogue();
+        }, 2500);
+      });
+      ----------------------------------- */
 
-        // Включаем свет (лампы моргают и загораются)
-        if (this.cb?.onFlickerLights) this.cb.onFlickerLights();
-
-        // Сбрасываем статус (оставляем только эту строчку)
-        this.dialogueSystem.isRegistrationComplete = false;
-      }, 1000);
+      // === DEV MODE: БЫСТРЫЙ ПРЫЖОК В ПЕСОЧНИЦУ ===
+      this.dialogueSystem.isRegistrationComplete = true;
+      
+      // Включаем свет
+      if (this.cb?.onFlickerLights) this.cb.onFlickerLights();
+      document.body.classList.add("lights-on"); 
+      
+      // Разблокируем все кнопки и инструменты
+      this.unlockFeature("feature-equipment");
+      this.unlockFeature("feature-word");
+      this.unlockFeature("feature-physics");
+      
+      // Показываем верхний HUD
+      if (this.hudManager.elements.hudControls) {
+        this.hudManager.elements.hudControls.classList.remove("hud-hidden");
+      }
+      
+      // Даем сигнал камере подлететь к столу
+      if (this.cb?.onRegistrationEnd) this.cb.onRegistrationEnd();
+      // ===========================================
     };
 
     // Биндим кнопки меню, которые вызывают запуск игры
@@ -276,19 +293,6 @@ export class UIManager {
       ) {
         returnToMainMenu();
       }
-    });
-
-    const buttons = document.querySelectorAll(
-      "#btn-start-game, #btn-resume-game, #btn-in-game-menu",
-    );
-    buttons.forEach((btn) => {
-      btn.addEventListener("mouseenter", () => {
-        if (!this.isMenuLocked && audioManager?.playUI)
-          audioManager.playUI("mouse_menu");
-      });
-      btn.addEventListener("click", () => {
-        if (audioManager?.playUI) audioManager.playUI("start");
-      });
     });
   }
 

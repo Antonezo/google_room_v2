@@ -96,6 +96,7 @@ export class GoogleRoomApp {
           }
         }
       },
+      
       onToggleLetters: () => {
         if (this.isPaused) return this.lettersEnabled;
 
@@ -131,9 +132,16 @@ export class GoogleRoomApp {
           this.changeWordSmoothly(word);
         }
       },
-      onForceLightsOff: () => {
-        this.currentExposure = 0; // Обнуляем текущую экспозицию без lerp
+     onForceLightsOff: () => {
+        this.currentExposure = 0; 
         this.renderer.toneMappingExposure = 0;
+      },
+      // === НОВЫЕ КОЛЛБЕКИ ДЛЯ КАМЕРЫ ===
+      onRegistrationStart: () => {
+        this.sceneManager.setCameraMode('registration');
+      },
+      onRegistrationEnd: () => {
+        this.sceneManager.setCameraMode('gameplay');
       }
     });
 
@@ -142,7 +150,7 @@ export class GoogleRoomApp {
     this.inputManager = new InputManager(
       this.camera,
       this.world,
-      () => this.isPaused,
+      () => this.isPaused || !this.uiManager.dialogueSystem.isRegistrationComplete,
       () => store.get().currentTool,
       () => {
         const meshes = [

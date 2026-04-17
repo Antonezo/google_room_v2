@@ -35,8 +35,17 @@ export const ventGridTex = (() => {
 export class SceneManager {
   constructor() {
     this.scene = new THREE.Scene();
-  this.camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 100);
-    this.camera.position.set(0, 2, 9);
+
+    // 1. Берем настройки для старта (регистрации) из конфига
+    const camCfg = CONFIG.CAMERA.REGISTRATION;
+
+    this.camera = new THREE.PerspectiveCamera(
+      camCfg.fov, 
+      window.innerWidth / window.innerHeight, 
+      0.1, 
+      100
+    );
+    this.camera.position.set(camCfg.pos.x, camCfg.pos.y, camCfg.pos.z);
 
     this.renderer = new THREE.WebGLRenderer({ antialias: true });
     this.renderer.setSize(window.innerWidth, window.innerHeight);
@@ -50,37 +59,107 @@ export class SceneManager {
     this.composer = new EffectComposer(this.renderer);
     this.composer.addPass(new RenderPass(this.scene, this.camera));
     this.bloomPass = new UnrealBloomPass(new THREE.Vector2(window.innerWidth, window.innerHeight), 0.15, 0.6, 0.15);
-   this.composer.addPass(this.bloomPass);
+    this.composer.addPass(this.bloomPass);
 
-    // === НОВЫЙ БЛОК: НАСТРОЙКА ВРАЩЕНИЯ КАМЕРЫ ===
-this.controls = new OrbitControls(this.camera, this.renderer.domElement);
+    // 3. НАСТРОЙКА УПРАВЛЕНИЯ
+    this.controls = new OrbitControls(this.camera, this.renderer.domElement);
     this.controls.enableDamping = true;
     this.controls.dampingFactor = 0.05;
     this.controls.minPolarAngle = Math.PI / 2;
     this.controls.maxPolarAngle = Math.PI / 2;
     this.controls.enablePan = false;
     
-    // ДОБАВЬ ЭТИ ДВЕ СТРОКИ:
-    this.controls.minDistance = 2; // Насколько близко можно приблизить (зум)
-    this.controls.maxDistance = 9.5; // Не даем вылететь камере за стены!
+    // Лимиты и точка фокуса теперь тоже из конфига
+    this.controls.minDistance = camCfg.minDist; 
+    this.controls.maxDistance = camCfg.maxDist;
 
-    this.controls.mouseButtons = {
-      LEFT: null,
-      MIDDLE: THREE.MOUSE.DOLLY,
-      RIGHT: THREE.MOUSE.ROTATE
-    };
-    this.controls.target.set(0, 2, 0);
+    this.controls.mouseButtons = { LEFT: null, MIDDLE: THREE.MOUSE.DOLLY, RIGHT: THREE.MOUSE.ROTATE };
+    
+    this.controls.target.set(camCfg.target.x, camCfg.target.y, camCfg.target.z); 
     this.controls.update();
-    // ===============================================
+
+    this.controls.saveState(); 
 
     this.walls = []; 
     this.discoSpots = [];
     this._initResizeHandler();
   }
 
+setCameraMode(mode) {
+    if (mode === 'registration') {
+      this.controls.reset(); 
+      const cfg = CONFIG.CAMERA.REGISTRATION;
+      
+      this.camera.fov = cfg.fov; 
+      this.camera.position.set(cfg.pos.x, cfg.pos.y, cfg.pos.z); 
+      this.controls.target.set(cfg.target.x, cfg.target.y, cfg.target.z);
+      
+      this.controls.minDistance = cfg.minDist;
+      this.controls.maxDistance = cfg.maxDist;
+      
+      this.camera.updateProjectionMatrix();
+      this.controls.update();
+      
+    } else if (mode === 'gameplay') {
+      const cfg = CONFIG.CAMERA.GAMEPLAY;
+      
+      // Запоминаем точку старта
+      const startPos = this.camera.position.clone();
+      const startTarget = this.controls.target.clone();
+      const startFov = this.camera.fov;
+      
+      // Создаем точку финиша
+      const endPos = new THREE.Vector3(cfg.pos.x, cfg.pos.y, cfg.pos.z);
+      const endTarget = new THREE.Vector3(cfg.target.x, cfg.target.y, cfg.target.z);
+      const endFov = cfg.fov;
+      
+      const duration = 2000; // Длительность полета
+      const startTime = performance.now();
+      
+      // === ФИКС ДЕРГАНЬЯ ===
+      // 1. Отключаем управление мышью
+      this.controls.enabled = false;
+      // 2. ВРЕМЕННО отключаем демпфирование (инерцию), чтобы оно не сопротивлялось нашему lerp
+      this.controls.enableDamping = false; 
+      // 3. ВРЕМЕННО снимаем лимиты зума, чтобы камера не билась о невидимую стену старых настроек
+      this.controls.minDistance = 0;
+      this.controls.maxDistance = Infinity;
+      
+      const animateFlight = (time) => {
+        let t = (time - startTime) / duration;
+        if (t > 1) t = 1;
+        
+        // Математика плавности
+        const ease = t * t * (3 - 2 * t);
+        
+        // Вычисляем промежуточную позицию и летим
+        this.camera.position.lerpVectors(startPos, endPos, ease);
+        this.controls.target.lerpVectors(startTarget, endTarget, ease);
+        this.camera.fov = startFov + (endFov - startFov) * ease;
+        
+        this.camera.updateProjectionMatrix();
+        // Примечание: this.controls.update() крутится в главном цикле tick() в main.js, 
+        // он сам подхватит новые координаты без инерции.
+        
+        if (t < 1) {
+          requestAnimationFrame(animateFlight);
+        } else {
+          // Полет окончен! Возвращаем физику мыши и ставим игровые лимиты
+          this.controls.enabled = true;
+          this.controls.enableDamping = true; // Возвращаем инерцию
+          this.controls.minDistance = cfg.minDist;
+          this.controls.maxDistance = cfg.maxDist;
+        }
+      };
+      
+      // Запускаем полет
+      requestAnimationFrame(animateFlight);
+    }
+  }
   _initResizeHandler() {
     window.addEventListener('resize', () => {
       this.camera.aspect = window.innerWidth / window.innerHeight;
+// ... (тут продолжается твой старый код)
       this.camera.updateProjectionMatrix();
       this.renderer.setSize(window.innerWidth, window.innerHeight);
       this.composer.setSize(window.innerWidth, window.innerHeight);

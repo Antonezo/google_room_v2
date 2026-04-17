@@ -20,15 +20,35 @@
 .beacon-layer {
   animation: beaconPulse 0.6s infinite alternate ease-in-out;
 }
+
+/* Стандартное зеленое свечение */
 @keyframes beaconPulse {
   0% {
-    opacity: 0;
-    filter: drop-shadow(0 0 0px #00ff00);
+    opacity: 0.1;
+    filter: drop-shadow(0 0 2px #00ff00);
   }
   100% {
     opacity: 1;
-    filter: drop-shadow(0 0 10px #00ff00);
+    filter: drop-shadow(0 0 15px #00ff00);
   }
+}
+
+/* Анимация тревоги (красная лампочка) */
+@keyframes beaconPulseError {
+  0% {
+    opacity: 0.1;
+    filter: drop-shadow(0 0 2px #ff4444);
+  }
+  100% {
+    opacity: 1;
+    /* Добавил brightness, чтобы она прям вспыхивала */
+    filter: drop-shadow(0 0 25px #ff4444) brightness(1.5); 
+  }
+}
+
+/* 0.15s сделает пульсацию очень быстрой и нервной! */
+.beacon-layer.error-pulse {
+  animation: beaconPulseError 0.15s infinite alternate ease-in-out !important;
 }
 
 /* ==========================================================================
@@ -550,4 +570,32 @@
 }
 #corner-light.corner-light-pulse {
   animation: cornerLightPulse 1.5s infinite alternate ease-in-out !important;
+}
+
+
+/* ==========================================================================
+   ПОДСВЕТКА КНОПОК В ОКНЕ РЕГИСТРАЦИИ ПРИ НАВЕДЕНИИ (ЧИСТЫЙ КОД)
+   ========================================================================== */
+.registration-form .holo-btn {
+  transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
+}
+
+/* Увеличиваем "вес" селектора, чтобы он честно победил .active-state */
+.registration-form .holo-btn:hover,
+.registration-form .holo-btn.active-state:hover {
+  background: rgba(0, 243, 255, 0.2);
+  border-color: #fff;
+  color: #fff;
+  text-shadow: 0 0 10px #00f3ff;
+  box-shadow: 
+    0 0 20px rgba(0, 243, 255, 0.5), 
+    inset 0 0 15px rgba(0, 243, 255, 0.3);
+  transform: translateY(-2px) scale(1.02);
+  cursor: var(--cur-ui-arrow);
+}
+
+.registration-form .holo-btn:active,
+.registration-form .holo-btn.active-state:active {
+  transform: translateY(0) scale(0.96);
+  box-shadow: 0 0 10px rgba(0, 243, 255, 0.3);
 }

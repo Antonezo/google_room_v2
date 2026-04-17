@@ -24,7 +24,34 @@ export class MenuManager {
     this.initBindings();
   }
 
-  initBindings() {
+initBindings() {
+// === ЗВУКИ НАВЕДЕНИЯ И КЛИКОВ ДЛЯ ВСЕХ КНОПОК ===
+    const menuButtons = [
+      { id: "btn-start-game", clickSound: "start" },
+      { id: "btn-resume-game", clickSound: "start" },
+      { id: "btn-open-settings", clickSound: "click" },
+      { id: "btn-exit", clickSound: "click" },
+      { id: "btn-back-main", clickSound: "click" }
+    ];
+
+    menuButtons.forEach(item => {
+      const btn = document.getElementById(item.id);
+      if (btn) {
+        // Звук при наведении (играет ТОЛЬКО если браузер уже разблокировал звук после клика)
+        btn.addEventListener("mouseenter", () => {
+          if (audioManager?.ctx?.state === "running" && !this.ui.isMenuLocked && !this.ui.blockHoverSound) {
+            audioManager.playUI("mouse_menu");
+          }
+        });
+        
+        // Звук при клике (любой клик автоматически разблокирует звук для браузера)
+        btn.addEventListener("click", () => {
+          if (audioManager?.playUI) audioManager.playUI(item.clickSound);
+        });
+      }
+    });
+    // ===================================================
+
     // --- Навигация по меню ---
     const toggleView = (hideView, showView) => {
       this.ui.blockHoverSound = true;

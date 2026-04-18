@@ -234,30 +234,34 @@
 }
 
 /* ==========================================================================
-   BIOS BOOT MODE
+   BIOS BOOT MODE (Clean Code, без !important)
    ========================================================================== */
 #aice-dialogue-container.bios-mode .aice-portrait-wrap,
 #aice-dialogue-container.bios-mode .aice-nameplate {
   display: none;
 }
+
 #aice-dialogue-container.bios-mode {
   justify-content: center;
   width: 80%;
   max-width: 800px;
-  bottom: 8%;
-  background-color: rgba(5, 15, 5, 0.95);
-  border: 1px solid #0f0;
-  box-shadow:
-    0 0 15px rgba(0, 255, 0, 0.2),
-    inset 0 0 20px rgba(0, 255, 0, 0.1);
-  border-radius: 4px;
-  padding: 30px;
+  /* Убираем bottom и центрируем по вертикали и горизонтали */
+  bottom: auto;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  background: none;
+  border: none;
+  box-shadow: none;
 }
+
 #aice-dialogue-container.bios-mode .aice-dialogue-content {
   flex-grow: 0;
   width: clamp(450px, 50vw, 800px);
   height: clamp(120px, 15vh, 200px);
-  border: 2px solid #00ff00;
+  /* Специфичность селектора (120) бьет оригинал (10), !important не нужен */
+  border: none;
+  box-shadow: none;
+  border-radius: 0;
   background: rgba(0, 5, 0, 0.98);
   padding: 25px;
   justify-content: center;
@@ -265,57 +269,85 @@
   cursor: var(--cur-ui-arrow);
   pointer-events: auto;
 }
+
+/* === УГЛОВЫЕ РАМКИ (Без масок, рисуем градиентами) === */
+#aice-dialogue-container.bios-mode .aice-dialogue-content::before {
+  content: '';
+  position: absolute;
+  inset: 0; 
+  pointer-events: none;
+  
+  /* Рисуем уголки напрямую (100px длина горизонтали, 40px длина вертикали, 3px толщина) */
+  background:
+    /* Левый верхний */
+    linear-gradient(#00f3ff, #00f3ff) top left / 100px 3px no-repeat,
+    linear-gradient(#00f3ff, #00f3ff) top left / 3px 40px no-repeat,
+    
+    /* Правый верхний */
+    linear-gradient(#00f3ff, #00f3ff) top right / 100px 3px no-repeat,
+    linear-gradient(#00f3ff, #00f3ff) top right / 3px 40px no-repeat,
+    
+    /* Левый нижний */
+    linear-gradient(#00f3ff, #00f3ff) bottom left / 100px 3px no-repeat,
+    linear-gradient(#00f3ff, #00f3ff) bottom left / 3px 40px no-repeat,
+    
+    /* Правый нижний */
+    linear-gradient(#00f3ff, #00f3ff) bottom right / 100px 3px no-repeat,
+    linear-gradient(#00f3ff, #00f3ff) bottom right / 3px 40px no-repeat;
+    
+  /* Теперь свечению ничто не мешает рассеиваться, никаких обрезанных краев! */
+  filter: drop-shadow(0 0 12px rgba(0, 243, 255, 0.8)) drop-shadow(0 0 25px rgba(0, 243, 255, 0.4));
+}
+
+/* === ТЕКСТ === */
 #aice-dialogue-container.bios-mode #aice-dialogue-text {
   font-family: "Courier New", Courier, monospace;
-  color: #00ff00;
+  color: #ffffff;
   font-size: clamp(18px, 1.5vw, 24px);
   line-height: 1.3;
   text-transform: uppercase;
-}
-#aice-dialogue-container.bios-mode .aice-dialogue-text {
-  text-shadow: 0 0 5px rgba(0, 255, 0, 0.8);
   text-align: left;
   letter-spacing: 1px;
+  text-shadow: none; 
 }
 
+/* === КНОПКА ПРОДОЛЖИТЬ === */
 .bios-continue-prompt {
   display: none;
   position: absolute;
   bottom: 15px;
   right: 25px;
   font-family: "Courier New", Courier, monospace;
-  color: #00ff00;
+  color: #ffffff;
   font-size: 16px;
   animation: blinkBios 1s infinite step-end;
   pointer-events: none;
   z-index: 100;
 }
+
 #aice-dialogue-container.bios-mode .bios-continue-prompt:not(.hidden) {
   display: block;
 }
+
+/* === ВЫРОВНЕННЫЙ КУРСОР === */
 .bios-cursor {
   display: inline-block;
   width: 12px;
-  height: 4px;
-  background-color: #00ff00;
+  background-color: #ffffff;
   margin-left: 4px;
   animation: blinkCursor 0.8s infinite step-end;
 }
+
 #aice-dialogue-container.bios-mode .bios-cursor {
   height: 1.2rem;
-  vertical-align: bottom;
   margin-left: 5px;
-  box-shadow: 0 0 5px #0f0;
-  animation: blinkCursor 1s step-end infinite;
+  box-shadow: none; 
+  transform: translateY(4px);
 }
+
 @keyframes blinkCursor {
-  0%,
-  100% {
-    opacity: 1;
-  }
-  50% {
-    opacity: 0;
-  }
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0; }
 }
 
 .menu-robot-image {

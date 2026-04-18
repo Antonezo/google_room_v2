@@ -52,6 +52,19 @@ initBindings() {
     });
     // ===================================================
 
+// === ЗВУКИ НАВЕДЕНИЯ ДЛЯ ПОЛЗУНКОВ (без кнопок внутри языков) ===
+    const settingsElements = document.querySelectorAll(
+      '#slider-sfx, #slider-music, #btn-toggle-lang' 
+    );
+
+    settingsElements.forEach(el => {
+      el.addEventListener('mouseenter', () => {
+        if (audioManager?.ctx?.state === "running" && !this.ui.isMenuLocked && !this.ui.blockHoverSound) {
+          audioManager.playUI("mouse_menu");
+        }
+      });
+    });
+
     // --- Навигация по меню ---
     const toggleView = (hideView, showView) => {
       this.ui.blockHoverSound = true;
@@ -96,36 +109,43 @@ initBindings() {
 
           this.btnLang.classList.remove("open");
           e.stopPropagation();
+
+if (audioManager?.playUI) audioManager.playUI("click");
+
         } else {
           this.btnLang.classList.toggle("open");
         }
       });
     }
 
-    // --- Ползунки громкости ---
-    const setupSlider = (slider, valDisplay, funcName, multiplier) => {
+// --- Ползунки громкости ---
+    const setupSlider = (slider, valDisplay, funcName, multiplier, playClick = false) => {
       if (!slider) return;
 
+      // 1. При перетаскивании (input) только меняем цифры и реальную громкость в системе
       slider.addEventListener("input", (e) => {
         if (audioManager?.resumeContext) audioManager.resumeContext();
         const value = e.target.value;
         valDisplay.textContent = `${value}%`;
+        
         const volumeFloat = Math.pow(value / 100, 2) * multiplier;
+        
         if (audioManager && typeof audioManager[funcName] === "function") {
           audioManager[funcName](volumeFloat);
         }
       });
 
-      // Звук клика при отпускании ползунка
+      // 2. При отпускании ползунка (change) проигрываем тестовый щелчок (если нужно)
       slider.addEventListener("change", () => {
-        if (typeof audioManager !== "undefined" && audioManager.playUI) {
+        if (playClick && audioManager?.playUI) {
           audioManager.playUI("click");
         }
       });
     };
 
-    setupSlider(this.sliderSfx, this.valSfx, "setSfxVolume", 2.0);
-    setupSlider(this.sliderMusic, this.valMusic, "setMusicVolume", 1.5);
+    // Вызываем настройки (true для звуков, false для музыки)
+    setupSlider(this.sliderSfx, this.valSfx, "setSfxVolume", 2.0, true); 
+    setupSlider(this.sliderMusic, this.valMusic, "setMusicVolume", 1.5, false);
   }
 
   // Вызывается, когда мы нажимаем "Новая игра"

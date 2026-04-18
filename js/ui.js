@@ -171,37 +171,16 @@ export class UIManager {
       if (el.doors) el.doors.classList.add("loaded");
       document.body.classList.remove("loading");
 
- // 3. ЗАПУСКАЕМ СЮЖЕТНУЮ ЧАСТЬ (БИОС + Регистрация)
+      // 3. ЗАПУСКАЕМ СЮЖЕТНУЮ ЧАСТЬ (БИОС + Регистрация)
+   this.dialogueSystem.isRegistrationComplete = false;
       
-      /* --- ВРЕМЕННО СКРЫТО ДЛЯ ТЕСТОВ ---
-      this.dialogueSystem.isRegistrationComplete = false;
       this.dialogueSystem.runBiosSequence(() => {
+        // Ждем 2.5 секунды: 1.2с на анимацию ламп + 1.3с тишины для атмосферы
         setTimeout(() => {
+          // Запускаем сцену знакомства
           this.dialogueSystem.startIntroDialogue();
         }, 2500);
       });
-      ----------------------------------- */
-
-      // === DEV MODE: БЫСТРЫЙ ПРЫЖОК В ПЕСОЧНИЦУ ===
-      this.dialogueSystem.isRegistrationComplete = true;
-      
-      // Включаем свет
-      if (this.cb?.onFlickerLights) this.cb.onFlickerLights();
-      document.body.classList.add("lights-on"); 
-      
-      // Разблокируем все кнопки и инструменты
-      this.unlockFeature("feature-equipment");
-      this.unlockFeature("feature-word");
-      this.unlockFeature("feature-physics");
-      
-      // Показываем верхний HUD
-      if (this.hudManager.elements.hudControls) {
-        this.hudManager.elements.hudControls.classList.remove("hud-hidden");
-      }
-      
-      // Даем сигнал камере подлететь к столу
-      if (this.cb?.onRegistrationEnd) this.cb.onRegistrationEnd();
-      // ===========================================
     };
 
     // Биндим кнопки меню, которые вызывают запуск игры

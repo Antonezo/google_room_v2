@@ -156,8 +156,8 @@ export class DialogueSystem {
 
       const typeChar = () => {
         if (i < text.length) {
-          if (text.charAt(i) !== " " && audioManager?.playBiosBeep) {
-            audioManager.playBiosBeep();
+         if (text.charAt(i) !== " " && audioManager?.playBiosClick) {
+            audioManager.playBiosClick(); // Вызываем твой mp3
           }
           element.innerHTML = text.substring(0, i + 1) + cursor;
           i++;

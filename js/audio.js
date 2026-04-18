@@ -122,16 +122,17 @@ export class AudioManager {
       }
     };
 
- // Загружаем всё параллельно для скорости
-   const [m, s, c, p, conn, err, wake, lamps] = await Promise.all([ // <-- Добавили слово wake
+// Обрати внимание на bios_click в квадратных скобках!
+    const [m, s, c, p, conn, err, wake, lamps, bios_click] = await Promise.all([ 
       load("audio/mouse_menu.mp3"),
       load("audio/start.mp3"),
       load("audio/click.mp3"),
       load("audio/gurgle.mp3"),
       load("audio/sound-connection.mp3"),
       load("audio/error.mp3"),
-      load("audio/robot-wake-up.mp3"), // <-- ДОБАВИЛИ ТВОЙ НОВЫЙ ЗВУК
+      load("audio/robot-wake-up.mp3"), 
       load("audio/fluorescent_lamps.mp3"),
+      load("audio/bios-click.mp3") // <-- Загружаем файл
     ]);
 
     this.uiBuffers.mouse_menu = m;
@@ -142,6 +143,7 @@ export class AudioManager {
     this.uiBuffers.error = err;
     this.uiBuffers.wake = wake;
     this.uiBuffers.lamps = lamps;
+    this.uiBuffers.biosClick = bios_click; // <-- Сохраняем файл в буфер
 
     console.log("📂 Все буферы UI обновлены", this.uiBuffers);
   }
@@ -295,33 +297,20 @@ export class AudioManager {
     src.start();
     src.stop(t + dur);
   }
-  // Синтетический звук старого терминала (нулевая задержка, без файлов)
-  playBiosBeep() {
-    if (!this.ctx || this.ctx.state === "suspended") return;
+ // Воспроизведение звука печати из файла
+  playBiosClick() {
+    if (!this.ctx || this.ctx.state === "suspended" || !this.uiBuffers.biosClick) return;
 
-    const osc = this.ctx.createOscillator();
-    const gainNode = this.ctx.createGain();
+    const source = this.ctx.createBufferSource();
+    source.buffer = this.uiBuffers.biosClick;
+    
+    // ФИШКА: Чуть-чуть меняем тональность каждого щелчка (Pitch), 
+    // чтобы звук казался живой клавиатурой, а не пулеметом
+    source.playbackRate.value = 0.9 + Math.random() * 0.2; 
 
-    // 'square' (квадратная волна) — основа 8-битного звука
-    osc.type = "square";
-    const t = this.ctx.currentTime;
-
-    // ВЫСОКАЯ ЧАСТОТА: 900-1100 Гц дает тот самый "писк" терминала
-    osc.frequency.setValueAtTime(900 + Math.random() * 200, t);
-
-    // ГРОМКОСТЬ: Делаем звук громким изначально.
-    // Даже если sfxVolume низкий, звук будет отчетливым.
-    const boostedVolume = Math.max(this.sfxVolume, 0.5) * 0.3;
-    gainNode.gain.setValueAtTime(boostedVolume, t);
-
-    // Очень короткий "пип"
-    gainNode.gain.exponentialRampToValueAtTime(0.001, t + 0.03);
-
-    osc.connect(gainNode);
-    gainNode.connect(this.ctx.destination);
-
-    osc.start(t);
-    osc.stop(t + 0.03);
+    // Подключаем к каналу интерфейса
+    source.connect(this.uiGainNode);
+    source.start(0);
   }
 }
 

@@ -136,17 +136,19 @@ export class UIManager {
       }
     };
 
- const executeNewGame = async () => {
-      // 1. Подготовка сцены
-      document.body.classList.remove("lights-on");
-      if (this.cb?.onForceLightsOff) this.cb.onForceLightsOff();
+    const executeNewGame = async () => {
+      // 1. Подготовка сцены (БЕЗ отключения света)
       if (this.cb?.onReset) this.cb.onReset();
-      
-      // СБРАСЫВАЕМ ВРАЩЕНИЕ И ОТДАЛЯЕМ КАМЕРУ ДЛЯ РЕГИСТРАЦИИ
+
       if (this.cb?.onRegistrationStart) this.cb.onRegistrationStart();
 
+      // СРАЗУ ПЕРЕДАЕМ СИГНАЛ: Камера, лети в центр для геймплея!
+      if (this.cb?.onRegistrationEnd) this.cb.onRegistrationEnd();
+
       this.hudManager.resetWordInput();
-      if (store?.update) store.update({ mode: "lab" });
+
+      // Сразу задаем дефолтное имя, чтобы HUD не сломался
+      if (store?.update) store.update({ mode: "lab", playerName: "Dev" });
 
       // 2. Блокируем меню и начинаем вход
       this.isMenuLocked = true;
@@ -159,28 +161,55 @@ export class UIManager {
       }
 
       this.menuManager.hideMenu();
-      
+
       if (el.centerHub) {
         el.centerHub.classList.remove("fade-in-volumetric", "hub-hidden");
         el.centerHub.classList.add("fade-out-fast");
         setTimeout(() => el.centerHub.classList.add("hub-hidden"), 500);
       }
 
-      // Ждем и открываем двери в темноту
+      // Ждем и открываем двери
       await new Promise((res) => setTimeout(res, 600));
       if (el.doors) el.doors.classList.add("loaded");
       document.body.classList.remove("loading");
 
-      // 3. ЗАПУСКАЕМ СЮЖЕТНУЮ ЧАСТЬ (БИОС + Регистрация)
-   this.dialogueSystem.isRegistrationComplete = false;
-      
+      // ==========================================
+      // 3. БЫСТРЫЙ СТАРТ (Пропуск сюжета)
+      // ==========================================
+
+      // Включаем свет
+      document.body.classList.add("lights-on");
+
+      // Показываем боковые панели HUD
+      if (this.hudManager.elements.hudControls) {
+        this.hudManager.elements.hudControls.classList.remove("hud-hidden");
+      }
+
+      // Выводим бейджик игрока (опционально, если хочешь видеть имя)
+      const userBadge = document.getElementById("hud-user-status");
+      const userNameText = document.getElementById("hud-user-name");
+      if (userBadge && userNameText) {
+        userNameText.innerText = `USER: DEV`;
+        userBadge.classList.remove("hidden");
+      }
+
+      // Разблокируем интерфейс (Кнопки слева и справа)
+      this.unlockFeature("feature-equipment");
+      this.unlockFeature("feature-word");
+      this.unlockFeature("feature-physics");
+
+      // Говорим инпутам и паузе, что регистрация пройдена
+      this.dialogueSystem.isRegistrationComplete = true;
+
+      // ЗАКОММЕНТИРОВАН СТАРЫЙ СЮЖЕТ:
+      /*
+      this.dialogueSystem.isRegistrationComplete = false;
       this.dialogueSystem.runBiosSequence(() => {
-        // Ждем 2.5 секунды: 1.2с на анимацию ламп + 1.3с тишины для атмосферы
         setTimeout(() => {
-          // Запускаем сцену знакомства
           this.dialogueSystem.startIntroDialogue();
         }, 2500);
       });
+      */
     };
 
     // Биндим кнопки меню, которые вызывают запуск игры

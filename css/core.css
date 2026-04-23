@@ -94,6 +94,31 @@ body[class*="tool-"] #hud-controls * {
 }
 
 /* ==========================================================================
+   ЭФФЕКТ МОНИТОРА / ВИЗОРА
+   ========================================================================== */
+#game-monitor {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  overflow: hidden;
+  z-index: 0; 
+}
+
+#canvas-container {
+  width: 100%;
+  height: 100%;
+}
+
+#canvas-container canvas {
+  display: block;
+  width: 100% !important;
+  height: 100% !important;
+  outline: none;
+}
+
+/* ==========================================================================
    МОДАЛЬНОЕ ОКНО ПОДТВЕРЖДЕНИЯ
    ========================================================================== */
 .modal-overlay {

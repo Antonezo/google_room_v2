@@ -92,7 +92,9 @@ update(isSlowMoVal) {
 
       if (p.life <= 0) {
         p.mesh.visible = false;
-        this.activeParticles.splice(i, 1); 
+       const lastParticle = this.activeParticles[this.activeParticles.length - 1];
+this.activeParticles[i] = lastParticle;
+this.activeParticles.pop();
         this.pool.push(p);                  
       }
     }
@@ -155,7 +157,7 @@ export class MiniBeadPool {
     this.world = world;
     this.scene = scene;
     this.pool = [];
-    this.activeBeads = [];
+    this.activeBeads = []; // <--- ВОТ ЭТА СТРОКА ПОТЕРЯЛАСЬ, ВЕРНУЛИ!
 
     const geo = new THREE.SphereGeometry(0.04, 16, 16);
     const shape = new CANNON.Sphere(0.04);
@@ -224,7 +226,12 @@ export class MiniBeadPool {
       if (bead.life <= 0 || bead.body.position.y < CONFIG.WORLD.FLOOR_LEVEL - 2) {
         bead.mesh.visible = false;
         this.world.removeBody(bead.body); 
-        this.activeBeads.splice(i, 1);
+        
+        // Правильный Swap and Pop
+        const lastBead = this.activeBeads[this.activeBeads.length - 1];
+        this.activeBeads[i] = lastBead;
+        this.activeBeads.pop();
+
         this.pool.push(bead);
       }
     }

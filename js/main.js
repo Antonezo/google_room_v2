@@ -29,6 +29,11 @@ export class GoogleRoomApp {
     this.composer = this.sceneManager.composer;
     this.bloomPass = this.sceneManager.bloomPass;
 
+    this._tempVec = new THREE.Vector3();
+    this._tempSpread = new THREE.Vector3();
+    this._tempDir = new THREE.Vector3();
+    this._tempCannonVec = new CANNON.Vec3();
+
     this.currentWord = "GOOGLE";
     this.globalFont = null;
     this.lettersEnabled = false;
@@ -71,7 +76,7 @@ export class GoogleRoomApp {
       120,
     );
 
-   this.uiManager = new UIManager({
+    this.uiManager = new UIManager({
       onTogglePause: () => {
         this.isPaused = !this.isPaused;
         return this.isPaused;
@@ -96,7 +101,7 @@ export class GoogleRoomApp {
           }
         }
       },
-      
+
       onToggleLetters: () => {
         if (this.isPaused) return this.lettersEnabled;
 
@@ -132,17 +137,17 @@ export class GoogleRoomApp {
           this.changeWordSmoothly(word);
         }
       },
-     onForceLightsOff: () => {
-        this.currentExposure = 0; 
+      onForceLightsOff: () => {
+        this.currentExposure = 0;
         this.renderer.toneMappingExposure = 0;
       },
       // === НОВЫЕ КОЛЛБЕКИ ДЛЯ КАМЕРЫ ===
       onRegistrationStart: () => {
-        this.sceneManager.setCameraMode('registration');
+        this.sceneManager.setCameraMode("registration");
       },
       onRegistrationEnd: () => {
-        this.sceneManager.setCameraMode('gameplay');
-      }
+        this.sceneManager.setCameraMode("gameplay");
+      },
     });
 
     this.initSceneObjects();
@@ -150,7 +155,8 @@ export class GoogleRoomApp {
     this.inputManager = new InputManager(
       this.camera,
       this.world,
-      () => this.isPaused || !this.uiManager.dialogueSystem.isRegistrationComplete,
+      () =>
+        this.isPaused || !this.uiManager.dialogueSystem.isRegistrationComplete,
       () => store.get().currentTool,
       () => {
         const meshes = [
@@ -174,7 +180,9 @@ export class GoogleRoomApp {
         if (isDragging) document.body.classList.add("is-dragging");
         else document.body.classList.remove("is-dragging");
       },
-      () => this.sceneManager.walls.map((w) => w.mesh),
+
+     // ИЗМЕНЕННАЯ СТРОКА: Игнорируем стекло для raycaster'а
+      () => this.sceneManager.walls.filter(w => !w.mesh.userData.isGlass).map((w) => w.mesh),
       () =>
         store.get().paintToolColor !== undefined
           ? store.get().paintToolColor
@@ -183,19 +191,19 @@ export class GoogleRoomApp {
 
     this.setupStateReactions();
 
-  const fontLoader = new FontLoader();
+    const fontLoader = new FontLoader();
     fontLoader.load(
       "https://threejs.org/examples/fonts/helvetiker_bold.typeface.json",
       (font) => {
         this.globalFont = font;
         this.spawnLetters(this.currentWord);
-        
+
         // Сразу прячем буквы и отключаем им физику при старте
         if (!this.lettersEnabled) {
           this.letterObjects.forEach((obj) => {
             if (obj.setVisible) obj.setVisible(false);
             else if (obj.mesh) obj.mesh.visible = false;
-            
+
             if (obj.body) obj.body.collisionFilterMask = 0; // Чтобы не было невидимых препятствий
           });
         }
@@ -222,6 +230,146 @@ export class GoogleRoomApp {
     this.renderer.toneMappingExposure = this.currentExposure;
 
     requestAnimationFrame(this.tick);
+  }
+
+initSceneObjects() {
+    this.sceneManager.buildEnvironment();
+
+    const h = CONFIG.WORLD.ROOM_SIZE;
+    const w = CONFIG.WORLD.ROOM_SIZE;
+    const floorY = CONFIG.WORLD.FLOOR_LEVEL;
+    const ceilingY = CONFIG.WORLD.CEILING_HEIGHT;
+
+    // Вспомогательная функция для создания стен.
+    const addTiledWall = (width, height, pos, rot) => {
+      const mat = new THREE.MeshStandardMaterial({
+        color: 0xffffff,
+        side: THREE.FrontSide,
+        roughness: 0.1,
+        metalness: 0.1,
+      });
+      this.sceneManager.createWallMesh(width, height, pos, rot, mat);
+    };
+
+    // --- ЗОНА 1: ОСНОВНАЯ ЛАБОРАТОРИЯ (за окном) ---
+    addTiledWall(w, h, new THREE.Vector3(0, floorY, 0), new THREE.Vector3(-Math.PI / 2, 0, 0)); // Пол
+    addTiledWall(w, h, new THREE.Vector3(0, ceilingY, 0), new THREE.Vector3(Math.PI / 2, 0, 0)); // Потолок
+    addTiledWall(w, 20, new THREE.Vector3(0, 2.5, -10), new THREE.Vector3(0, 0, 0)); // Задняя стена
+    addTiledWall(w, 20, new THREE.Vector3(-15, 2.5, 0), new THREE.Vector3(0, Math.PI / 2, 0)); // Левая
+    addTiledWall(w, 20, new THREE.Vector3(15, 2.5, 0), new THREE.Vector3(0, -Math.PI / 2, 0)); // Правая
+
+    // --- ЗОНА 2: КОРИДОР ПЕРЕД ОКНОМ (где стоит камера) ---
+    const corridorDepth = 30; 
+    const corridorZ = 15 + corridorDepth / 2;
+
+    addTiledWall(w, corridorDepth, new THREE.Vector3(0, floorY, corridorZ), new THREE.Vector3(-Math.PI / 2, 0, 0)); // Пол коридора
+    addTiledWall(w, corridorDepth, new THREE.Vector3(0, ceilingY, corridorZ), new THREE.Vector3(Math.PI / 2, 0, 0)); // Потолок коридора
+    addTiledWall(corridorDepth, 20, new THREE.Vector3(-15, 2.5, corridorZ), new THREE.Vector3(0, Math.PI / 2, 0)); // Левая стена
+    addTiledWall(corridorDepth, 20, new THREE.Vector3(15, 2.5, corridorZ), new THREE.Vector3(0, -Math.PI / 2, 0)); // Правая стена
+
+    // ==========================================================
+    // --- ЗОНА 3: РАЗДЕЛИТЕЛЬНАЯ СТЕНА СО СТЕКЛОМ (НОВЫЙ КОД) ---
+    // ==========================================================
+    
+    // 1. Создаем красивые материалы для стены и стекла
+    const wallMat = new THREE.MeshStandardMaterial({
+      color: 0xffffff,
+      roughness: 0.1,
+      metalness: 0.1,
+    });
+    
+    const glassMat = new THREE.MeshPhysicalMaterial({
+      color: 0xffffff, 
+      metalness: 0.1, 
+      roughness: 0.05,
+      transmission: 0.8, // Сильная прозрачность (эффект стекла)
+      transparent: true, 
+      opacity: 1,
+      ior: 1.5, // Индекс преломления стекла
+      thickness: 0.1 
+    });
+
+   // 2. Настраиваем размеры
+    const wallThickness = 2.0; // СДЕЛАЛИ ТОЛЩЕ (было 1.0, попробуй 3.0 или больше)
+    const holeWidth = 24;  
+    const holeHeight = 11; 
+    const cornerRadius = 1.5; 
+    
+    // ПОДВИНУЛИ БЛИЖЕ К КАМЕРЕ (Увеличили Z: было 12, стало 18)
+    const wallPos = new THREE.Vector3(0, 2.5, 14);
+
+    // 3. Создаем визуал (вызываем функцию из scene.js)
+    const glassWallGroup = this.sceneManager.createWallWithWindow(
+      w, 20, wallThickness, 
+      holeWidth, holeHeight, cornerRadius, 
+      wallPos, null, 
+      wallMat, glassMat
+    );
+
+    // 4. Добавляем пометку, чтобы мышка "проходила" сквозь стекло
+    // (Я вижу, что в InputManager у вас уже есть фильтр: !w.mesh.userData.isGlass)
+    glassWallGroup.children.forEach(child => {
+      if (child.material === glassMat) {
+        child.userData.isGlass = true; 
+      }
+    });
+
+    // 5. Создаем физику (вызываем функцию из physics.js)
+    this.physicsManager.createWallWithHole(
+      w, 20, wallThickness, 
+      holeWidth, holeHeight, 
+      wallPos, null, 
+      CONFIG.PHYSICS.GROUPS
+    );
+
+// ==========================================
+    // 6. ДОБАВЛЯЕМ ТВЕРДОЕ ФИЗИЧЕСКОЕ СТЕКЛО
+    // ==========================================
+    // Создаем невидимый физический ящик (ширина/2, высота/2, толщина/2)
+    const glassPhysicsShape = new CANNON.Box(new CANNON.Vec3(holeWidth / 2, holeHeight / 2, 0.1));
+    
+    const glassBody = new CANNON.Body({
+      mass: 0, // 0 означает, что объект статичный (его нельзя сдвинуть)
+      material: this.matStandard, // Стандартный материал для отскока
+      collisionFilterGroup: CONFIG.PHYSICS.GROUPS.SCENE, // Это часть сцены
+      collisionFilterMask: CONFIG.PHYSICS.GROUPS.OBJECTS | CONFIG.PHYSICS.GROUPS.TINY, // С чем сталкивается (шарики, буквы)
+    });
+    
+    glassBody.addShape(glassPhysicsShape);
+    // Ставим физическое стекло ровно в те же координаты, что и саму стену
+    glassBody.position.set(wallPos.x, wallPos.y, wallPos.z); 
+    
+    // Добавляем в физический мир
+    this.world.addBody(glassBody);
+    // ==========================================
+
+    // Физический пол для всей сцены
+    const floorBody = new CANNON.Body({
+      mass: 0,
+      material: this.matStandard,
+      collisionFilterGroup: CONFIG.PHYSICS.GROUPS.SCENE,
+      collisionFilterMask: CONFIG.PHYSICS.GROUPS.OBJECTS | CONFIG.PHYSICS.GROUPS.TINY,
+    });
+    floorBody.addShape(new CANNON.Box(new CANNON.Vec3(50, 1, 50))); 
+    floorBody.position.set(0, floorY - 1, 0);
+    this.world.addBody(floorBody);
+
+    // Инициализация шариков и инстансов
+    const ballGeo = new THREE.SphereGeometry(CONFIG.PHYSICS.BALL_RADIUS, 16, 16);
+    this.ballShape = new CANNON.Sphere(CONFIG.PHYSICS.BALL_RADIUS);
+    this.ballInstancedMesh = new THREE.InstancedMesh(ballGeo, this.ballMat, CONFIG.PHYSICS.MAX_BALLS);
+    this.ballInstancedMesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+    this.ballInstancedMesh.castShadow = true;
+    this.ballInstancedMesh.receiveShadow = true;
+    this.scene.add(this.ballInstancedMesh);
+
+    this.dummyObj = new THREE.Object3D();
+    this.dummyObj.scale.set(0, 0, 0);
+    this.dummyObj.updateMatrix();
+    for (let i = 0; i < CONFIG.PHYSICS.MAX_BALLS; i++) {
+      this.ballInstancedMesh.setMatrixAt(i, this.dummyObj.matrix);
+      this.ballInstancedMesh.setColorAt(i, new THREE.Color(0xffffff));
+    }
   }
 
   clearBalls() {
@@ -266,7 +414,7 @@ export class GoogleRoomApp {
 
       // Переключаем класс туда-сюда для вспышки
       document.body.classList.toggle("lights-on");
-      
+
       setTimeout(() => {
         nextFlicker();
       }, sequence[currentStep++]);
@@ -326,7 +474,7 @@ export class GoogleRoomApp {
       body.userData.googleColor = palette[i % palette.length];
     });
 
-   // Если буквы уже открыты (по сюжету) — возвращаем их на старт.
+    // Если буквы уже открыты (по сюжету) — возвращаем их на старт.
     // Если еще закрыты — не трогаем, пусть сидят в невидимости.
     if (this.lettersEnabled) {
       this.returnLettersToStart();
@@ -345,7 +493,7 @@ export class GoogleRoomApp {
         lastMode = state.mode;
       }
       this.sceneManager.setAtmosphere(state.mode, CONFIG.COLORS);
-   // КОММЕНТИРУЕМ ЭТИ ДВЕ СТРОКИ:
+      // КОММЕНТИРУЕМ ЭТИ ДВЕ СТРОКИ:
       // if (!this.world.bodies.includes(this.platformBody))
       //   this.world.addBody(this.platformBody);
 
@@ -391,126 +539,6 @@ export class GoogleRoomApp {
     });
   }
 
-  initSceneObjects() {
-    this.sceneManager.buildEnvironment();
-
-    const platformShape = new CANNON.Cylinder(5, 6, 0.2, 16);
-    this.platformBody = new CANNON.Body({
-      mass: 0,
-      material: this.matSlippery,
-      collisionFilterGroup: CONFIG.PHYSICS.GROUPS.SCENE,
-      collisionFilterMask:
-        CONFIG.PHYSICS.GROUPS.OBJECTS | CONFIG.PHYSICS.GROUPS.TINY,
-    });
-    this.platformBody.addShape(
-      platformShape,
-      new CANNON.Vec3(0, 0, 0),
-      new CANNON.Quaternion().setFromAxisAngle(
-        new CANNON.Vec3(1, 0, 0),
-        -Math.PI / 2,
-      ),
-    );
-    this.platformBody.position.set(0, CONFIG.WORLD.FLOOR_LEVEL + 0.1, 0);
-    this.platformBody.userData = { isRubber: true };
-    // КОММЕНТИРУЕМ ЭТУ СТРОКУ, чтобы платформа не стала физическим препятствием:
-    // this.world.addBody(this.platformBody);
-
-    const createWall = (w, h, pos, rot) => {
-      this.physicsManager.createStaticPlane(pos, rot, CONFIG.PHYSICS.GROUPS);
-      const material = new THREE.MeshStandardMaterial({
-        color: 0xffffff,
-        side: THREE.FrontSide,
-        roughness: 0.1,
-        metalness: 0.1,
-      });
-      this.sceneManager.createWallMesh(w, h, pos, rot, material);
-    };
-
-    const h = CONFIG.WORLD.ROOM_SIZE;
-    const w = CONFIG.WORLD.ROOM_SIZE;
-    const thickness = 2.0;
-    const floorBody = new CANNON.Body({
-      mass: 0,
-      material: this.matStandard,
-      collisionFilterGroup: CONFIG.PHYSICS.GROUPS.SCENE,
-      collisionFilterMask:
-        CONFIG.PHYSICS.GROUPS.OBJECTS | CONFIG.PHYSICS.GROUPS.TINY,
-    });
-    floorBody.addShape(
-      new CANNON.Box(new CANNON.Vec3(w / 2, thickness / 2, h / 2)),
-      new CANNON.Vec3(0, -thickness / 2, 0),
-    );
-    floorBody.position.set(0, CONFIG.WORLD.FLOOR_LEVEL, 0);
-    this.world.addBody(floorBody);
-    const floorMaterial = new THREE.MeshStandardMaterial({
-      color: 0xffffff,
-      side: THREE.FrontSide,
-      roughness: 0.1,
-      metalness: 0.1,
-    });
-    this.sceneManager.createWallMesh(
-      w,
-      h,
-      new THREE.Vector3(0, CONFIG.WORLD.FLOOR_LEVEL, 0),
-      new THREE.Vector3(-Math.PI / 2, 0, 0),
-      floorMaterial,
-    );
-
-    createWall(
-      CONFIG.WORLD.ROOM_SIZE,
-      CONFIG.WORLD.ROOM_SIZE,
-      new THREE.Vector3(0, CONFIG.WORLD.CEILING_HEIGHT, 0),
-      new THREE.Vector3(Math.PI / 2, 0, 0),
-    );
-    createWall(
-      CONFIG.WORLD.ROOM_SIZE,
-      20,
-      new THREE.Vector3(0, 2.5, -10),
-      new THREE.Vector3(0, 0, 0),
-    );
-    createWall(
-      CONFIG.WORLD.ROOM_SIZE,
-      20,
-      new THREE.Vector3(-15, 2.5, 0),
-      new THREE.Vector3(0, Math.PI / 2, 0),
-    );
-    createWall(
-      CONFIG.WORLD.ROOM_SIZE,
-      20,
-      new THREE.Vector3(15, 2.5, 0),
-      new THREE.Vector3(0, -Math.PI / 2, 0),
-    );
-    createWall(
-      CONFIG.WORLD.ROOM_SIZE,
-      20,
-      new THREE.Vector3(0, 2.5, 12),
-      new THREE.Vector3(0, Math.PI, 0),
-    );
-
-    const ballGeo = new THREE.SphereGeometry(
-      CONFIG.PHYSICS.BALL_RADIUS,
-      16,
-      16,
-    );
-    this.ballShape = new CANNON.Sphere(CONFIG.PHYSICS.BALL_RADIUS);
-    this.ballInstancedMesh = new THREE.InstancedMesh(
-      ballGeo,
-      this.ballMat,
-      CONFIG.PHYSICS.MAX_BALLS,
-    );
-    this.ballInstancedMesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
-    this.ballInstancedMesh.castShadow = true;
-    this.ballInstancedMesh.receiveShadow = true;
-    this.scene.add(this.ballInstancedMesh);
-
-    this.dummyObj = new THREE.Object3D();
-    this.dummyObj.scale.set(0, 0, 0);
-    this.dummyObj.updateMatrix();
-    for (let i = 0; i < CONFIG.PHYSICS.MAX_BALLS; i++) {
-      this.ballInstancedMesh.setMatrixAt(i, this.dummyObj.matrix);
-      this.ballInstancedMesh.setColorAt(i, new THREE.Color(0xffffff));
-    }
-  }
 
   setBallGlow(enabled) {
     if (enabled) {
@@ -641,31 +669,36 @@ export class GoogleRoomApp {
     for (let i = 0; i < CONFIG.PHYSICS.MAX_BALLS; i++) {
       const body = this.ballsPool[i];
       if (body) {
-        const v = new THREE.Vector3().subVectors(body.position, camPos);
-        const distAlongRay = v.dot(sprayDir);
+        this._tempVec.subVectors(body.position, camPos);
+        const distAlongRay = this._tempVec.dot(sprayDir);
 
         if (distAlongRay > 0 && distAlongRay < 40) {
-          const perpDist = v.clone().cross(sprayDir).length();
+          const perpDist = this._tempVec.cross(sprayDir).length();
           const ballRadius = 0.5 + distAlongRay * 0.075;
 
           if (perpDist < ballRadius) {
             body.userData.originalColorHex = targetColor;
             this.ballInstancedMesh.setColorAt(i, new THREE.Color(targetColor));
 
-            // Для шариков оставляем физику, чтобы они разлетались от струи
             const pushForce = 1.0 - distAlongRay / 40.0;
-            const spread = new THREE.Vector3(
+            this._tempSpread.set(
               (Math.random() - 0.5) * 0.6,
               (Math.random() - 0.5) * 0.6,
               (Math.random() - 0.5) * 0.6,
             );
-            const randomizedDir = sprayDir.clone().add(spread).normalize();
-            const impulseVec = randomizedDir.multiplyScalar(pushForce * 0.0005);
 
-            body.applyImpulse(
-              new CANNON.Vec3(impulseVec.x, impulseVec.y, impulseVec.z),
-              body.position,
+            this._tempDir
+              .copy(sprayDir)
+              .add(this._tempSpread)
+              .normalize()
+              .multiplyScalar(pushForce * 0.0005);
+            this._tempCannonVec.set(
+              this._tempDir.x,
+              this._tempDir.y,
+              this._tempDir.z,
             );
+
+            body.applyImpulse(this._tempCannonVec, body.position);
           }
         }
       }
@@ -1018,7 +1051,7 @@ export class GoogleRoomApp {
     const isLightsOn = document.body.classList.contains("lights-on");
     const targetExposure = isLightsOn ? this.baseExposure : 0.0; // Снизил lerp с 0.015 до 0.01. Свет будет разгораться более "лениво" и плавно.
 
-// ГАСИМ ВСЕ ЛАМПЫ НА ПОТОЛКЕ (если они Meshes)
+    // ГАСИМ ВСЕ ЛАМПЫ НА ПОТОЛКЕ (если они Meshes)
     this.scene.traverse((obj) => {
       if (obj.isMesh && obj.material && obj.material.emissive) {
         // Если свет выключен — гасим эмиссию в 0, если включен — возвращаем (например, 1.0)

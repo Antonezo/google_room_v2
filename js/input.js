@@ -64,10 +64,11 @@ update(dt) {
       const floorLimit = CONFIG.WORLD.FLOOR_LEVEL + h + 0.05;
       const ceilingLimit = (CONFIG.WORLD.CEILING_HEIGHT || 18.0) - h - 0.5; 
 
-      // Ограничиваем движение курсора по всем осям
+ // Ограничиваем движение курсора по всем осям
       targetPoint.y = Math.max(floorLimit, Math.min(ceilingLimit, targetPoint.y));
       targetPoint.x = Math.max(-14.3, Math.min(14.3, targetPoint.x));
-      targetPoint.z = Math.max(-14.3, Math.min(14.3, targetPoint.z));
+      // ИЗМЕНЕНО: Ограничили Z до 11.5 (чтобы курсор не выходил за стекло)
+      targetPoint.z = Math.max(-14.3, Math.min(11.5, targetPoint.z));
       
       this.mouseBody.position.copy(targetPoint);
     }

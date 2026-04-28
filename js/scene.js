@@ -5,79 +5,53 @@ import { UnrealBloomPass } from "three/addons/postprocessing/UnrealBloomPass.js"
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
 import { CONFIG } from "./config.js";
 
-// --- ГЕНЕРАЦИЯ ТЕКСТУР ---
-export const tileTex = (() => {
-  const size = 512;
-  const canvas = document.createElement("canvas");
-  canvas.width = size;
-  canvas.height = size;
-  const ctx = canvas.getContext("2d");
-  ctx.fillStyle = "#f0f0f0";
-  ctx.fillRect(0, 0, size, size);
-  ctx.strokeStyle = "#d0d0d0";
-  ctx.lineWidth = 2;
-  const st = size / 8;
-  ctx.beginPath();
-  for (let i = 0; i <= 8; i++) {
-    ctx.moveTo(i * st, 0);
-    ctx.lineTo(i * st, size);
-    ctx.moveTo(0, i * st);
-    ctx.lineTo(size, i * st);
-  }
-  ctx.stroke();
-  const tex = new THREE.CanvasTexture(canvas);
+// --- ЗАГРУЗКА ТЕКСТУР ---
+const textureLoader = new THREE.TextureLoader();
+
+// Функция для удобной настройки тайлинга сразу для всех карт
+const setupTiling = (texture, repeatX, repeatY) => {
+  texture.wrapS = THREE.RepeatWrapping;
+  texture.wrapT = THREE.RepeatWrapping;
+  texture.repeat.set(repeatX, repeatY);
+};
+
+// Значение 0.3 означает, что одна картинка с плиткой будет занимать примерно 3.3 метра.
+// Можешь менять эту цифру, чтобы сделать плитку крупнее или мельче (например, 0.5)
+const repeatX = 0.05;
+const repeatY = 0.05;
+
+// Я оставил старое название 'tileTex' для цвета, чтобы не сломать импорты в других файлах (например, в main.js)
+export const tileTex = textureLoader.load("Image/diff_1k.png", (t) =>
+  setupTiling(t, repeatX, repeatY),
+);
+export const tileNormalTex = textureLoader.load("Image/nor_gl_1k.png", (t) =>
+  setupTiling(t, repeatX, repeatY),
+);
+export const tileRoughTex = textureLoader.load("Image/rough_1k.png", (t) =>
+  setupTiling(t, repeatX, repeatY),
+);
+
+export const heatTex = textureLoader.load("Image/heat.png");
+
+export const ventGridTex = textureLoader.load("Image/ventGrid.png", (tex) => {
   tex.wrapS = THREE.RepeatWrapping;
   tex.wrapT = THREE.RepeatWrapping;
-  return tex;
-})();
+  tex.repeat.set(1, 1);
+});
 
-export const heatTex = (() => {
+export const lampGlowTex = (() => {
   const c = document.createElement("canvas");
   c.width = 256;
   c.height = 256;
   const ctx = c.getContext("2d");
-  const g = ctx.createRadialGradient(128, 128, 0, 128, 128, 120);
-  g.addColorStop(0.0, "rgba(255,220,170,0.65)");
-  g.addColorStop(0.35, "rgba(255,180,120,0.22)");
-  g.addColorStop(1.0, "rgba(255,160,90,0)");
+  // Рисуем мягкое пятно света для ореола
+  const g = ctx.createRadialGradient(128, 128, 10, 128, 128, 120);
+  g.addColorStop(0.0, "rgba(255,255,255,1.0)"); // Центр яркий
+  g.addColorStop(0.4, "rgba(255,255,255,0.3)"); // Края мягкие
+  g.addColorStop(1.0, "rgba(255,255,255,0.0)"); // Уходит в прозрачность
   ctx.fillStyle = g;
   ctx.fillRect(0, 0, 256, 256);
   return new THREE.CanvasTexture(c);
-})();
-
-export const ventGridTex = (() => {
-  const c = document.createElement("canvas");
-  c.width = 1024;
-  c.height = 1024;
-  const ctx = c.getContext("2d");
-  ctx.clearRect(0, 0, 1024, 1024);
-  ctx.fillStyle = "rgba(255, 170, 120, 0.05)";
-  ctx.fillRect(0, 0, 1024, 1024);
-  ctx.strokeStyle = "rgba(255, 195, 150, 0.35)";
-  ctx.lineWidth = 5;
-  const step = 64;
-  for (let x = 0; x <= 1024; x += step) {
-    ctx.beginPath();
-    ctx.moveTo(x, 0);
-    ctx.lineTo(x, 1024);
-    ctx.stroke();
-  }
-  for (let y = 0; y <= 1024; y += step) {
-    ctx.beginPath();
-    ctx.moveTo(0, y);
-    ctx.lineTo(1024, y);
-    ctx.stroke();
-  }
-  const g = ctx.createRadialGradient(512, 512, 280, 512, 512, 720);
-  g.addColorStop(0, "rgba(255, 190, 140, 0.0)");
-  g.addColorStop(1, "rgba(255, 140, 90, 0.18)");
-  ctx.fillStyle = g;
-  ctx.fillRect(0, 0, 1024, 1024);
-  const tex = new THREE.CanvasTexture(c);
-  tex.wrapS = THREE.RepeatWrapping;
-  tex.wrapT = THREE.RepeatWrapping;
-  tex.repeat.set(1, 1);
-  return tex;
 })();
 
 // --- КЛАСС SCENE MANAGER ---
@@ -142,6 +116,7 @@ export class SceneManager {
 
     this.walls = [];
     this.discoSpots = [];
+    this.labPanels = []; // <-- НОВАЯ СТРОКА: Хранилище для независимого управления лампами
     this._initResizeHandler();
   }
 
@@ -192,7 +167,7 @@ export class SceneManager {
   buildEnvironment() {
     this.dayLights = new THREE.Group();
     this.scene.add(this.dayLights);
-    this.ambientLight = new THREE.AmbientLight(0xffffff, 0.8);
+    this.ambientLight = new THREE.HemisphereLight(0xffffff, 0xb0c4de, 0.8);
     this.dayLights.add(this.ambientLight);
     this.leftLight = new THREE.DirectionalLight(0x9bb7ff, 0.0);
     this.leftLight.position.set(-10, 6, 8);
@@ -236,58 +211,37 @@ export class SceneManager {
 
     this.labLampsGroup = new THREE.Group();
     this.scene.add(this.labLampsGroup);
+
     this.discoLampsGroup = new THREE.Group();
     this.scene.add(this.discoLampsGroup);
     this.discoLampsGroup.visible = false;
 
-    const createOfficeLamp = (x) => {
-      const group = new THREE.Group();
-      group.position.set(x, CONFIG.WORLD.CEILING_HEIGHT - 0.05, 0);
-      const housing = new THREE.Mesh(
-        new THREE.BoxGeometry(2.4, 0.05, 6.8),
-        new THREE.MeshStandardMaterial({
-          color: 0xeeeeee,
-          roughness: 0.5,
-          metalness: 0.1,
-        }),
-      );
-      group.add(housing);
-      const diffuser = new THREE.Mesh(
-        new THREE.PlaneGeometry(2.0, 6.4),
-        new THREE.MeshStandardMaterial({
-          color: 0xffffff,
-          emissive: 0xffffff,
-          emissiveIntensity: 1.2,
-          roughness: 0.1,
-        }),
-      );
-      diffuser.rotation.x = Math.PI / 2;
-      diffuser.position.y = -0.026;
-      group.add(diffuser);
-      const rectLight = new THREE.RectAreaLight(0xffffff, 6.0, 2.0, 6.4);
-      rectLight.position.set(0, -0.05, 0);
-      rectLight.lookAt(0, -10, 0);
-      group.add(rectLight);
-      const shadowLight = new THREE.SpotLight(0xffffff, 40, 13);
-      shadowLight.position.set(0, -0.05, 0);
-      shadowLight.angle = Math.PI / 2.5;
-      shadowLight.penumbra = 1.0;
-      shadowLight.castShadow = true;
-      shadowLight.shadow.bias = -0.0001;
-      shadowLight.shadow.mapSize.set(1024, 1024);
-      group.add(shadowLight);
-      group.add(shadowLight.target);
-      shadowLight.target.position.set(0, -10, 0);
-      this.labLampsGroup.add(group);
-    };
-    createOfficeLamp(-5);
-    createOfficeLamp(5);
+    if (!this.corridorLampsGroup) {
+      this.corridorLampsGroup = new THREE.Group();
+      this.scene.add(this.corridorLampsGroup);
+    }
+
+    // ==========================================
+    // 1. МЯГКИЙ СВЕТ В КОРИДОРЕ (Без выжигания глаз)
+    // ==========================================
+    this.createCorridorLight(-5, 22);
+    this.createCorridorLight(5, 22);
+
+    // ==========================================
+    // 2. ФИЗИЧЕСКИЕ ЛАМПЫ В ЛАБЕ (Квадратные панели)
+    // ==========================================
+    this.createOfficePanel(-7, 0);
+    this.createOfficePanel(7, 0);
 
     const createDiscoSpot = (x, z, colorHex) => {
-      const spotLight = new THREE.SpotLight(colorHex, 500, 13);
-      spotLight.position.set(x, CONFIG.WORLD.CEILING_HEIGHT - 0.5, z);
-      spotLight.angle = Math.PI / 12;
-      spotLight.penumbra = 0.5;
+      // 1. Меняем яркость с 40 на 500 (или 800, если покажется темновато)
+      const spotLight = new THREE.SpotLight(0xfff0e0, 500, 25);
+      spotLight.position.set(x, CONFIG.WORLD.CEILING_HEIGHT - 0.05, z);
+
+   // 2. Делаем конус света шире: меняем Math.PI / 3 на Math.PI / 2.5
+    spotLight.angle = Math.PI / 2.5; 
+    spotLight.penumbra = 1.0;
+    spotLight.decay = 2.0;
       spotLight.castShadow = true;
       spotLight.shadow.bias = -0.0001;
       spotLight.target.position.set(0, CONFIG.WORLD.FLOOR_LEVEL, 0);
@@ -349,7 +303,7 @@ export class SceneManager {
     this.floorLight = new THREE.PointLight(0x0088ff, 12, 7);
     this.floorLight.position.set(0, CONFIG.WORLD.FLOOR_LEVEL + 1.5, 0);
     this.labProps.add(this.floorLight);
-   this.holoLight = new THREE.PointLight(0x0088ff, 20, 12);
+    this.holoLight = new THREE.PointLight(0x0088ff, 20, 12);
     this.holoLight.position.set(0, CONFIG.WORLD.FLOOR_LEVEL + 1, 0);
     this.labProps.add(this.holoLight);
 
@@ -392,11 +346,158 @@ export class SceneManager {
     this.scene.add(this.magnetReticle);
   }
 
-  createWallMesh(width, height, pos, rot, material) {
-    const mesh = new THREE.Mesh(
-      new THREE.PlaneGeometry(width, height),
-      material,
+  createOfficePanel(x, z) {
+    const group = new THREE.Group();
+    // Оставляем чуть ниже потолка
+    group.position.set(x, CONFIG.WORLD.CEILING_HEIGHT - 0.05, z);
+
+    // СТАВИМ intensity: 1, чтобы свет горел сразу при загрузке
+    group.userData = { intensity: 0, isAnimating: false };
+
+    // Корпус стал больше: 4.5 x 4.5
+    const housing = new THREE.Mesh(
+      new THREE.BoxGeometry(4.5, 0.1, 4.5),
+      new THREE.MeshStandardMaterial({ color: 0x222222, roughness: 0.7 }),
     );
+    group.add(housing);
+
+    // Светящаяся часть тоже больше: 4.2 x 4.2
+    const diffuser = new THREE.Mesh(
+      new THREE.PlaneGeometry(4.2, 4.2),
+      new THREE.MeshStandardMaterial({
+        color: 0xffffff,
+        emissive: 0xffffff,
+        emissiveIntensity: 0, // Это значение будет обновляться в tick()
+        roughness: 0.2,
+      }),
+    );
+    diffuser.rotation.x = Math.PI / 2;
+    diffuser.position.y = -0.051;
+    group.add(diffuser);
+
+    // Площадной свет (RectAreaLight)
+    const rectLight = new THREE.RectAreaLight(0xffffff, 0, 4.2, 4.2);
+    rectLight.position.set(0, -0.06, 0);
+    rectLight.lookAt(0, -10, 0); // ИСПРАВЛЕНО: теперь светит ровно вниз
+    group.add(rectLight);
+
+    // Прожектор для теней
+    const shadowLight = new THREE.SpotLight(0xffffff, 0, 35);
+    shadowLight.position.set(0, -0.1, 0);
+    shadowLight.castShadow = true;
+    shadowLight.shadow.mapSize.set(1024, 1024);
+
+    // === НАСТРОЙКИ МЯГКОСТИ ЛУЧА ===
+    shadowLight.angle = Math.PI / 2.5; // Делаем конус света широким
+    shadowLight.penumbra = 1.0; // Максимальное размытие краев луча (никаких четких кругов)
+    shadowLight.decay = 2.0; // Реалистичное затухание света к полу
+
+    shadowLight.target.position.set(0, -10, 0); // ИСПРАВЛЕНО: теперь цель луча ровно под лампой
+    group.add(shadowLight);
+    group.add(shadowLight.target);
+
+    this.scene.add(group);
+    this.labLampsGroup.add(group);
+    this.labPanels.push({ group, diffuser, rectLight, shadowLight });
+  }
+
+  animatePanelOn(index) {
+    const panel = this.labPanels[index];
+    if (!panel || panel.group.userData.isAnimating) return;
+
+    panel.group.userData.isAnimating = true;
+
+    // Тайминги вспышек (в мс) для эффекта моргания
+    const sequence = [
+      { val: 0.1, delay: 100 },
+      { val: 0, delay: 50 },
+      { val: 0.2, delay: 150 },
+      { val: 0, delay: 50 },
+      { val: 1.0, delay: 0 },
+    ];
+
+    let currentStep = 0;
+    const flicker = () => {
+      if (currentStep < sequence.length) {
+        panel.group.userData.intensity = sequence[currentStep].val;
+        setTimeout(
+          () => {
+            currentStep++;
+            flicker();
+          },
+          sequence[currentStep - 1]?.delay || 0,
+        );
+      } else {
+        panel.group.userData.isAnimating = false;
+      }
+    };
+    flicker();
+  }
+
+createCorridorLight(x, z) {
+    // 1. Плашка на потолке (Возвращаем ей способность светиться для ореола)
+    const lampMesh = new THREE.Mesh(
+      new THREE.PlaneGeometry(1.2, 0.3),
+      new THREE.MeshStandardMaterial({ 
+        color: 0xffffff,
+        emissive: 0xfff0e0,
+        emissiveIntensity: 40.0, // <--- Эта цифра отвечает за размер ореола (Bloom)
+        side: THREE.DoubleSide
+      })
+    );
+    lampMesh.rotation.x = Math.PI / 2;
+    lampMesh.position.set(x, CONFIG.WORLD.CEILING_HEIGHT - 0.02, z); 
+    this.scene.add(lampMesh);
+
+    // 2. Уменьшаем мощность света, чтобы не выжигать пол
+    const spotLight = new THREE.SpotLight(0xfff0e0, 350, 25); // <--- Поставили 150 вместо 800
+    spotLight.position.set(x, CONFIG.WORLD.CEILING_HEIGHT - 0.05, z);
+    
+    // Настройки конуса
+    spotLight.angle = Math.PI / 2.5; 
+    spotLight.penumbra = 1.0;      
+    spotLight.decay = 2.0;
+    
+    // Направляем ровно в пол
+    spotLight.target.position.set(x, CONFIG.WORLD.FLOOR_LEVEL, z);
+    
+    this.scene.add(spotLight);
+    this.scene.add(spotLight.target);
+
+// Понижаем интенсивность с 15 до 0.8 или 1.2
+    // При затухании 0.1 даже единица — это очень много!
+    const fillLight = new THREE.PointLight(0xfff0e0, 0.8, 40, 0.1); 
+    
+    // Опускаем чуть ниже потолка
+    fillLight.position.set(x, CONFIG.WORLD.CEILING_HEIGHT - 1.0, z);
+    
+    this.scene.add(fillLight);
+    this.corridorLampsGroup.add(fillLight);
+    // 3. Группируем
+    this.corridorLampsGroup.add(lampMesh);
+    this.corridorLampsGroup.add(spotLight);
+    this.corridorLampsGroup.add(spotLight.target);
+  }
+
+  createWallMesh(width, height, pos, rot, material) {
+    const geom = new THREE.PlaneGeometry(width, height);
+
+    // === АБСОЛЮТНЫЙ ТАЙЛИНГ (ПУЛЕНЕПРОБИВАЕМЫЙ ВАРИАНТ) ===
+    // Обращаемся напрямую к сырому массиву Float32Array
+    const uvArray = geom.attributes.uv.array;
+
+    // Массив плоский: [u1, v1, u2, v2, u3, v3 ...]
+    // Шагаем по +2, чтобы обрабатывать пары
+    for (let i = 0; i < uvArray.length; i += 2) {
+      uvArray[i] = uvArray[i] * width; // Координата U (по ширине)
+      uvArray[i + 1] = uvArray[i + 1] * height; // Координата V (по высоте)
+    }
+
+    // Обязательно сообщаем видеокарте, что сырые данные изменились
+    geom.attributes.uv.needsUpdate = true;
+    // ========================================================
+
+    const mesh = new THREE.Mesh(geom, material);
     mesh.position.copy(pos);
     if (rot) mesh.rotation.set(rot.x, rot.y, rot.z);
     mesh.receiveShadow = true;
@@ -404,93 +505,142 @@ export class SceneManager {
     this.walls.push({
       mesh,
       isFloor: pos.y === CONFIG.WORLD.FLOOR_LEVEL,
+      isCeiling: pos.y === CONFIG.WORLD.CEILING_HEIGHT,
       isBack: rot && rot.x === 0 && rot.y === 0,
     });
     return mesh;
   }
 
   createWallWithWindow(
-    width, height, thickness, holeWidth, holeHeight, radius, pos, rot, wallMaterial, glassMaterial
+    width,
+    height,
+    thickness,
+    holeWidth,
+    holeHeight,
+    radius,
+    pos,
+    rot,
+    wallMaterial,
+    glassMaterial,
   ) {
     const group = new THREE.Group();
     group.position.copy(pos);
     if (rot) group.rotation.set(rot.x, rot.y, rot.z);
 
-    // 1. Создаем контур стены
     const shape = new THREE.Shape();
     shape.moveTo(-width / 2, -height / 2);
     shape.lineTo(width / 2, -height / 2);
     shape.lineTo(width / 2, height / 2);
     shape.lineTo(-width / 2, height / 2);
 
-    // 2. Создаем вырез (окно с закругленными углами)
     const holePath = new THREE.Path();
     const hw = holeWidth / 2;
     const hh = holeHeight / 2;
-
     holePath.moveTo(-hw + radius, -hh);
     holePath.lineTo(hw - radius, -hh);
     holePath.absarc(hw - radius, -hh + radius, radius, -Math.PI / 2, 0, false);
     holePath.lineTo(hw, hh - radius);
     holePath.absarc(hw - radius, hh - radius, radius, 0, Math.PI / 2, false);
     holePath.lineTo(-hw + radius, hh);
-    holePath.absarc(-hw + radius, hh - radius, radius, Math.PI / 2, Math.PI, false);
+    holePath.absarc(
+      -hw + radius,
+      hh - radius,
+      radius,
+      Math.PI / 2,
+      Math.PI,
+      false,
+    );
     holePath.lineTo(-hw, -hh + radius);
-    holePath.absarc(-hw + radius, -hh + radius, radius, Math.PI, Math.PI * 1.5, false);
-
+    holePath.absarc(
+      -hw + radius,
+      -hh + radius,
+      radius,
+      Math.PI,
+      Math.PI * 1.5,
+      false,
+    );
     shape.holes.push(holePath);
 
-    // 3. Выдавливаем стену (придаем толщину)
     const extrudeSettings = { depth: thickness, bevelEnabled: false };
     const wallGeom = new THREE.ExtrudeGeometry(shape, extrudeSettings);
     wallGeom.translate(0, 0, -thickness / 2);
 
-    // Стираем системное разделение граней, чтобы наш материал лег монолитно
-    wallGeom.clearGroups();
-    wallGeom.computeVertexNormals();
+    // Создаем отдельный чистый материал для торцов (reveal)
+    const revealMaterial = new THREE.MeshStandardMaterial({
+      color: wallMaterial.color,
+      roughness: 0.9,
+      metalness: 0.0,
+    });
 
-    // --- УМНЫЙ ФИКС ТЕКСТУРЫ ---
+    // Настраиваем UV только для лицевых граней (группа 0)
     const posAttr = wallGeom.attributes.position;
-    const normAttr = wallGeom.attributes.normal;
     const uvAttr = wallGeom.attributes.uv;
-
     for (let i = 0; i < uvAttr.count; i++) {
       const x = posAttr.getX(i);
       const y = posAttr.getY(i);
       const z = posAttr.getZ(i);
-
-      const nx = Math.abs(normAttr.getX(i));
-      const ny = Math.abs(normAttr.getY(i));
-      const nz = Math.abs(normAttr.getZ(i));
-
-      if (nz > nx && nz > ny) {
-        uvAttr.setXY(i, (x + width / 2) / width, (y + height / 2) / height);
-      } else if (nx > ny && nx > nz) {
-        uvAttr.setXY(i, (z + thickness / 2) / thickness, (y + height / 2) / height);
+      // Если точка на фасаде или задней части — применяем мировые координаты для плитки
+      if (Math.abs(z) > thickness / 2 - 0.01) {
+        uvAttr.setXY(i, x, y);
       } else {
-        uvAttr.setXY(i, (x + width / 2) / width, (z + thickness / 2) / thickness);
+        // Для торцов сбрасываем UV в ноль, чтобы текстура там не тянулась
+        uvAttr.setXY(i, 0, 0);
       }
     }
     uvAttr.needsUpdate = true;
-    // ----------------------------------------------------
 
-    const wallMesh = new THREE.Mesh(wallGeom, wallMaterial);
+    // ВАЖНО: передаем массив из двух материалов
+    const wallMesh = new THREE.Mesh(wallGeom, [wallMaterial, revealMaterial]);
     wallMesh.receiveShadow = true;
     group.add(wallMesh);
-    this.walls.push({ mesh: wallMesh, isFloor: false, isBack: true });
+
+    this.walls.push({
+      mesh: wallMesh,
+      isFloor: false,
+      isBack: true,
+      isDivider: true,
+    });
 
     // 4. Создаем стекло в раму
     if (glassMaterial) {
       const glassShape = new THREE.Shape();
       glassShape.moveTo(-hw + radius, -hh);
       glassShape.lineTo(hw - radius, -hh);
-      glassShape.absarc(hw - radius, -hh + radius, radius, -Math.PI / 2, 0, false);
+      glassShape.absarc(
+        hw - radius,
+        -hh + radius,
+        radius,
+        -Math.PI / 2,
+        0,
+        false,
+      );
       glassShape.lineTo(hw, hh - radius);
-      glassShape.absarc(hw - radius, hh - radius, radius, 0, Math.PI / 2, false);
+      glassShape.absarc(
+        hw - radius,
+        hh - radius,
+        radius,
+        0,
+        Math.PI / 2,
+        false,
+      );
       glassShape.lineTo(-hw + radius, hh);
-      glassShape.absarc(-hw + radius, hh - radius, radius, Math.PI / 2, Math.PI, false);
+      glassShape.absarc(
+        -hw + radius,
+        hh - radius,
+        radius,
+        Math.PI / 2,
+        Math.PI,
+        false,
+      );
       glassShape.lineTo(-hw, -hh + radius);
-      glassShape.absarc(-hw + radius, -hh + radius, radius, Math.PI, Math.PI * 1.5, false);
+      glassShape.absarc(
+        -hw + radius,
+        -hh + radius,
+        radius,
+        Math.PI,
+        Math.PI * 1.5,
+        false,
+      );
 
       const glassGeom = new THREE.ShapeGeometry(glassShape);
       const glassMesh = new THREE.Mesh(glassGeom, glassMaterial);
@@ -508,13 +658,41 @@ export class SceneManager {
       const gasketShape = new THREE.Shape();
       gasketShape.moveTo(-outHw + outRad, -outHh);
       gasketShape.lineTo(outHw - outRad, -outHh);
-      gasketShape.absarc(outHw - outRad, -outHh + outRad, outRad, -Math.PI / 2, 0, false);
+      gasketShape.absarc(
+        outHw - outRad,
+        -outHh + outRad,
+        outRad,
+        -Math.PI / 2,
+        0,
+        false,
+      );
       gasketShape.lineTo(outHw, outHh - outRad);
-      gasketShape.absarc(outHw - outRad, outHh - outRad, outRad, 0, Math.PI / 2, false);
+      gasketShape.absarc(
+        outHw - outRad,
+        outHh - outRad,
+        outRad,
+        0,
+        Math.PI / 2,
+        false,
+      );
       gasketShape.lineTo(-outHw + outRad, outHh);
-      gasketShape.absarc(-outHw + outRad, outHh - outRad, outRad, Math.PI / 2, Math.PI, false);
+      gasketShape.absarc(
+        -outHw + outRad,
+        outHh - outRad,
+        outRad,
+        Math.PI / 2,
+        Math.PI,
+        false,
+      );
       gasketShape.lineTo(-outHw, -outHh + outRad);
-      gasketShape.absarc(-outHw + outRad, -outHh + outRad, outRad, Math.PI, Math.PI * 1.5, false);
+      gasketShape.absarc(
+        -outHw + outRad,
+        -outHh + outRad,
+        outRad,
+        Math.PI,
+        Math.PI * 1.5,
+        false,
+      );
 
       const inHw = hw - gWidth;
       const inHh = hh - gWidth;
@@ -523,27 +701,55 @@ export class SceneManager {
       const gasketHole = new THREE.Path();
       gasketHole.moveTo(-inHw + inRad, -inHh);
       gasketHole.lineTo(inHw - inRad, -inHh);
-      gasketHole.absarc(inHw - inRad, -inHh + inRad, inRad, -Math.PI / 2, 0, false);
+      gasketHole.absarc(
+        inHw - inRad,
+        -inHh + inRad,
+        inRad,
+        -Math.PI / 2,
+        0,
+        false,
+      );
       gasketHole.lineTo(inHw, inHh - inRad);
-      gasketHole.absarc(inHw - inRad, inHh - inRad, inRad, 0, Math.PI / 2, false);
+      gasketHole.absarc(
+        inHw - inRad,
+        inHh - inRad,
+        inRad,
+        0,
+        Math.PI / 2,
+        false,
+      );
       gasketHole.lineTo(-inHw + inRad, inHh);
-      gasketHole.absarc(-inHw + inRad, inHh - inRad, inRad, Math.PI / 2, Math.PI, false);
+      gasketHole.absarc(
+        -inHw + inRad,
+        inHh - inRad,
+        inRad,
+        Math.PI / 2,
+        Math.PI,
+        false,
+      );
       gasketHole.lineTo(-inHw, -inHh + inRad);
-      gasketHole.absarc(-inHw + inRad, -inHh + inRad, inRad, Math.PI, Math.PI * 1.5, false);
+      gasketHole.absarc(
+        -inHw + inRad,
+        -inHh + inRad,
+        inRad,
+        Math.PI,
+        Math.PI * 1.5,
+        false,
+      );
 
       gasketShape.holes.push(gasketHole);
 
       const gasketGeom = new THREE.ExtrudeGeometry(gasketShape, {
         depth: gThick,
-        bevelEnabled: false
+        bevelEnabled: false,
       });
       gasketGeom.translate(0, 0, -gThick / 2);
 
-     // Светло-серый пластик/металл
-      const gasketMat = new THREE.MeshStandardMaterial({ 
-        color: 0xaaaaaa,   // Поменяли на 0x888888 (средне-серый). Можно поставить 0xaaaaaa для еще более светлого.
-        roughness: 0.2,    // Немного увеличили шероховатость, чтобы рамка не слишком сильно бликовала
-        metalness: 0.2     // Оставили небольшую металличность для реализма
+      // Светло-серый пластик/металл
+      const gasketMat = new THREE.MeshStandardMaterial({
+        color: 0xaaaaaa, // Поменяли на 0x888888 (средне-серый). Можно поставить 0xaaaaaa для еще более светлого.
+        roughness: 0.2, // Немного увеличили шероховатость, чтобы рамка не слишком сильно бликовала
+        metalness: 0.2, // Оставили небольшую металличность для реализма
       });
 
       const gasketMesh = new THREE.Mesh(gasketGeom, gasketMat);
@@ -555,35 +761,68 @@ export class SceneManager {
     return group;
   }
 
-setAtmosphere(mode, configColors) {
+  setAtmosphere(mode, configColors) {
     this.labProps.visible = false;
 
-    // Вектор для вычисления реальной позиции стены в пространстве
-    const tempVec = new THREE.Vector3();
-
+    // --- 1. ОБНОВЛЕНИЕ ТЕКСТУР И ГЛЯНЦА ---
     for (const w of this.walls) {
-      w.mesh.material.map = tileTex;
-      w.mesh.material.color.setHex(0xffffff);
+      const applyToMat = (mat, props) => {
+        if (Array.isArray(mat)) {
+          if (mat[0]) Object.assign(mat[0], props);
+          if (mat[1]) {
+            mat[1].map = null;
+            mat[1].normalMap = null;
+            mat[1].roughnessMap = null;
+          }
+        } else if (mat) {
+          Object.assign(mat, props);
+        }
+      };
 
-      // Получаем координаты стены
-      w.mesh.getWorldPosition(tempVec);
-
-      // Если стена находится в коридоре (координата Z больше 14)
-      if (tempVec.z > 14) {
-        w.mesh.material.roughness = 0.95; // Делаем коридор супер-матовым, чтобы убрать отражения
-        w.mesh.material.metalness = 0.0;
+      if (w.isFloor || w.isCeiling) {
+        applyToMat(w.mesh.material, {
+          map: null,
+          normalMap: null,
+          roughnessMap: null,
+          color: new THREE.Color(0xffffff),
+          roughness: w.isFloor ? 0.35 : 1.0,
+        });
       } else {
-        w.mesh.material.roughness = 0.1;  // Лаборатория остается глянцевой и красивой
-        w.mesh.material.metalness = 0.1;
+        applyToMat(w.mesh.material, {
+          map: tileTex,
+          normalMap: tileNormalTex,
+          roughnessMap: tileRoughTex,
+          color: new THREE.Color(0xffffff),
+          roughness: w.isDivider || w.mesh.position.z > 10 ? 1.0 : 0.5,
+        });
       }
-      
-      w.mesh.material.needsUpdate = true;
+
+      const mats = Array.isArray(w.mesh.material)
+        ? w.mesh.material
+        : [w.mesh.material];
+      mats.forEach((m) => {
+        if (m) {
+          m.metalness = 0.0;
+          m.needsUpdate = true;
+        }
+      });
     }
 
+    // --- УТИЛИТА ДЛЯ БЕЗОПАСНОЙ ПОКРАСКИ ---
+    const safeSetColor = (material, colorHex) => {
+      if (Array.isArray(material)) {
+        if (material[0]) material[0].color.setHex(colorHex);
+        if (material[1]) material[1].color.setHex(colorHex);
+      } else if (material) {
+        material.color.setHex(colorHex);
+      }
+    };
+
+    // --- 2. РЕЖИМЫ ОСВЕЩЕНИЯ ---
     if (mode === "disco") {
       this.scene.background = new THREE.Color(configColors.BG_DISCO);
       this.scene.fog = new THREE.Fog(configColors.BG_DISCO, 40, 120);
-      this.ambientLight.intensity = 0.4;
+      this.ambientLight.intensity = 0;
       this.holoLight.intensity = 8;
       this.ringMesh.material.emissiveIntensity = 0.8;
       this.floorLight.intensity = 4;
@@ -592,15 +831,32 @@ setAtmosphere(mode, configColors) {
       this.labLampsGroup.visible = false;
       this.discoLampsGroup.visible = true;
       this.nightLights.visible = true;
-      for (const w of this.walls) w.mesh.material.color.setHex(0x666aa6);
+
+      // Используем безопасную покраску для режима диско
+      for (const w of this.walls) {
+        safeSetColor(w.mesh.material, 0x666aa6);
+      }
+
       this.renderer.toneMappingExposure = 1.1;
       this.bloomPass.strength = 0.7;
       this.bloomPass.threshold = 0.1;
       this.bloomPass.radius = 0.5;
-    } else {
-      this.scene.background = new THREE.Color(configColors.BG_DAY);
-      this.scene.fog = new THREE.Fog(configColors.BG_DAY, 50, 150);
-      this.ambientLight.intensity = 0.8;
+   } else {
+      // --- ПРАВКИ ДЛЯ МЯГКОГО РАССЕИВАНИЯ НА ПОТОЛКЕ ---
+
+      // 1. Делаем фон сцены не черным (0x000000), а очень-очень темно-серым (0x050505).
+      // Это поможет потолку не "сливаться" с пустотой.
+      this.scene.background = new THREE.Color(0x050505);
+      this.scene.fog = new THREE.Fog(0x050505, 50, 150);
+
+      // 2. ВОЗВРАЩАЕМ ФОНОВЫЙ СВЕТ, НО С ОЧЕНЬ НИЗКОЙ ЯРКОСТЬЮ!
+      // Поставь 0.05 (это всего 5% от нормы). Это значение "натурально" подсветит потолок
+      // и верхние углы, имитируя отраженный свет от пола.
+      this.ambientLight.intensity = 0.15; // <--- Было 0.0, стало 0.09
+
+      // --- КОНЕЦ ПРАВОК ДЛЯ ПОТОЛКА ---
+
+      // Остальной код в блоке else оставляем без изменений:
       this.ringMesh.material.color.setHex(0x0088ff);
       this.ringMesh.material.emissive.setHex(0x0055ff);
       this.floorLight.color.setHex(0x0088ff);
@@ -614,8 +870,12 @@ setAtmosphere(mode, configColors) {
       this.labLampsGroup.visible = true;
       this.discoLampsGroup.visible = false;
       this.nightLights.visible = false;
-      for (const w of this.walls) w.mesh.material.color.setHex(0xffffff);
-      this.renderer.toneMappingExposure = 0.8;
+
+      for (const w of this.walls) {
+        safeSetColor(w.mesh.material, 0xffffff);
+      }
+
+      this.renderer.toneMappingExposure = 1.5;
       this.bloomPass.strength = 0.3;
       this.bloomPass.threshold = 0.9;
       this.bloomPass.radius = 0.2;

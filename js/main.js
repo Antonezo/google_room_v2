@@ -181,8 +181,11 @@ export class GoogleRoomApp {
         else document.body.classList.remove("is-dragging");
       },
 
-     // ИЗМЕНЕННАЯ СТРОКА: Игнорируем стекло для raycaster'а
-      () => this.sceneManager.walls.filter(w => !w.mesh.userData.isGlass).map((w) => w.mesh),
+      // ИЗМЕНЕННАЯ СТРОКА: Игнорируем стекло для raycaster'а
+      () =>
+        this.sceneManager.walls
+          .filter((w) => !w.mesh.userData.isGlass)
+          .map((w) => w.mesh),
       () =>
         store.get().paintToolColor !== undefined
           ? store.get().paintToolColor
@@ -225,14 +228,10 @@ export class GoogleRoomApp {
       this.renderer.toneMapping = THREE.LinearToneMapping;
     }
 
-    // Игра начинается в абсолютной темноте
-    this.currentExposure = 0.0;
-    this.renderer.toneMappingExposure = this.currentExposure;
-
     requestAnimationFrame(this.tick);
   }
 
-initSceneObjects() {
+  initSceneObjects() {
     this.sceneManager.buildEnvironment();
 
     const h = CONFIG.WORLD.ROOM_SIZE;
@@ -252,93 +251,151 @@ initSceneObjects() {
     };
 
     // --- ЗОНА 1: ОСНОВНАЯ ЛАБОРАТОРИЯ (за окном) ---
-    addTiledWall(w, h, new THREE.Vector3(0, floorY, 0), new THREE.Vector3(-Math.PI / 2, 0, 0)); // Пол
-    addTiledWall(w, h, new THREE.Vector3(0, ceilingY, 0), new THREE.Vector3(Math.PI / 2, 0, 0)); // Потолок
-    addTiledWall(w, 20, new THREE.Vector3(0, 2.5, -10), new THREE.Vector3(0, 0, 0)); // Задняя стена
-    addTiledWall(w, 20, new THREE.Vector3(-15, 2.5, 0), new THREE.Vector3(0, Math.PI / 2, 0)); // Левая
-    addTiledWall(w, 20, new THREE.Vector3(15, 2.5, 0), new THREE.Vector3(0, -Math.PI / 2, 0)); // Правая
+    addTiledWall(
+      w,
+      h,
+      new THREE.Vector3(0, floorY, 0),
+      new THREE.Vector3(-Math.PI / 2, 0, 0),
+    ); // Пол
+    addTiledWall(
+      w,
+      h,
+      new THREE.Vector3(0, ceilingY, 0),
+      new THREE.Vector3(Math.PI / 2, 0, 0),
+    ); // Потолок
+    addTiledWall(
+      w,
+      20,
+      new THREE.Vector3(0, 2.5, -10),
+      new THREE.Vector3(0, 0, 0),
+    ); // Задняя стена
+    addTiledWall(
+      w,
+      20,
+      new THREE.Vector3(-15, 2.5, 0),
+      new THREE.Vector3(0, Math.PI / 2, 0),
+    ); // Левая
+    addTiledWall(
+      w,
+      20,
+      new THREE.Vector3(15, 2.5, 0),
+      new THREE.Vector3(0, -Math.PI / 2, 0),
+    ); // Правая
 
     // --- ЗОНА 2: КОРИДОР ПЕРЕД ОКНОМ (где стоит камера) ---
-    const corridorDepth = 30; 
+    const corridorDepth = 30;
     const corridorZ = 15 + corridorDepth / 2;
 
-    addTiledWall(w, corridorDepth, new THREE.Vector3(0, floorY, corridorZ), new THREE.Vector3(-Math.PI / 2, 0, 0)); // Пол коридора
-    addTiledWall(w, corridorDepth, new THREE.Vector3(0, ceilingY, corridorZ), new THREE.Vector3(Math.PI / 2, 0, 0)); // Потолок коридора
-    addTiledWall(corridorDepth, 20, new THREE.Vector3(-15, 2.5, corridorZ), new THREE.Vector3(0, Math.PI / 2, 0)); // Левая стена
-    addTiledWall(corridorDepth, 20, new THREE.Vector3(15, 2.5, corridorZ), new THREE.Vector3(0, -Math.PI / 2, 0)); // Правая стена
+    addTiledWall(
+      w,
+      corridorDepth,
+      new THREE.Vector3(0, floorY, corridorZ),
+      new THREE.Vector3(-Math.PI / 2, 0, 0),
+    ); // Пол коридора
+    addTiledWall(
+      w,
+      corridorDepth,
+      new THREE.Vector3(0, ceilingY, corridorZ),
+      new THREE.Vector3(Math.PI / 2, 0, 0),
+    ); // Потолок коридора
+    addTiledWall(
+      corridorDepth,
+      20,
+      new THREE.Vector3(-15, 2.5, corridorZ),
+      new THREE.Vector3(0, Math.PI / 2, 0),
+    ); // Левая стена
+    addTiledWall(
+      corridorDepth,
+      20,
+      new THREE.Vector3(15, 2.5, corridorZ),
+      new THREE.Vector3(0, -Math.PI / 2, 0),
+    ); // Правая стена
 
     // ==========================================================
     // --- ЗОНА 3: РАЗДЕЛИТЕЛЬНАЯ СТЕНА СО СТЕКЛОМ (НОВЫЙ КОД) ---
     // ==========================================================
-    
+
     // 1. Создаем красивые материалы для стены и стекла
     const wallMat = new THREE.MeshStandardMaterial({
       color: 0xffffff,
-      roughness: 0.1,
-      metalness: 0.1,
-    });
-    
-    const glassMat = new THREE.MeshPhysicalMaterial({
-      color: 0xffffff, 
-      metalness: 0.1, 
-      roughness: 0.05,
-      transmission: 0.8, // Сильная прозрачность (эффект стекла)
-      transparent: true, 
-      opacity: 1,
-      ior: 1.5, // Индекс преломления стекла
-      thickness: 0.1 
+      roughness: 0.95, // <-- ИСПРАВЛЕНО: Делаем матовым, чтобы убрать пятна над окном
+      metalness: 0.0, // <-- ИСПРАВЛЕНО: Убираем металличность
     });
 
-   // 2. Настраиваем размеры
+    const glassMat = new THREE.MeshPhysicalMaterial({
+      color: 0xffffff,
+      metalness: 0.1,
+      roughness: 0.05,
+      transmission: 0.8, // Сильная прозрачность (эффект стекла)
+      transparent: true,
+      opacity: 1,
+      ior: 1.5, // Индекс преломления стекла
+      thickness: 0.1,
+    });
+
+    // 2. Настраиваем размеры
     const wallThickness = 2.0; // СДЕЛАЛИ ТОЛЩЕ (было 1.0, попробуй 3.0 или больше)
-    const holeWidth = 24;  
-    const holeHeight = 11; 
-    const cornerRadius = 1.5; 
-    
+    const holeWidth = 24;
+    const holeHeight = 11;
+    const cornerRadius = 1.5;
+
     // ПОДВИНУЛИ БЛИЖЕ К КАМЕРЕ (Увеличили Z: было 12, стало 18)
     const wallPos = new THREE.Vector3(0, 2.5, 14);
 
     // 3. Создаем визуал (вызываем функцию из scene.js)
     const glassWallGroup = this.sceneManager.createWallWithWindow(
-      w, 20, wallThickness, 
-      holeWidth, holeHeight, cornerRadius, 
-      wallPos, null, 
-      wallMat, glassMat
+      w,
+      20,
+      wallThickness,
+      holeWidth,
+      holeHeight,
+      cornerRadius,
+      wallPos,
+      null,
+      wallMat,
+      glassMat,
     );
 
     // 4. Добавляем пометку, чтобы мышка "проходила" сквозь стекло
     // (Я вижу, что в InputManager у вас уже есть фильтр: !w.mesh.userData.isGlass)
-    glassWallGroup.children.forEach(child => {
+    glassWallGroup.children.forEach((child) => {
       if (child.material === glassMat) {
-        child.userData.isGlass = true; 
+        child.userData.isGlass = true;
       }
     });
 
     // 5. Создаем физику (вызываем функцию из physics.js)
     this.physicsManager.createWallWithHole(
-      w, 20, wallThickness, 
-      holeWidth, holeHeight, 
-      wallPos, null, 
-      CONFIG.PHYSICS.GROUPS
+      w,
+      20,
+      wallThickness,
+      holeWidth,
+      holeHeight,
+      wallPos,
+      null,
+      CONFIG.PHYSICS.GROUPS,
     );
 
-// ==========================================
+    // ==========================================
     // 6. ДОБАВЛЯЕМ ТВЕРДОЕ ФИЗИЧЕСКОЕ СТЕКЛО
     // ==========================================
     // Создаем невидимый физический ящик (ширина/2, высота/2, толщина/2)
-    const glassPhysicsShape = new CANNON.Box(new CANNON.Vec3(holeWidth / 2, holeHeight / 2, 0.1));
-    
+    const glassPhysicsShape = new CANNON.Box(
+      new CANNON.Vec3(holeWidth / 2, holeHeight / 2, 0.1),
+    );
+
     const glassBody = new CANNON.Body({
       mass: 0, // 0 означает, что объект статичный (его нельзя сдвинуть)
       material: this.matStandard, // Стандартный материал для отскока
       collisionFilterGroup: CONFIG.PHYSICS.GROUPS.SCENE, // Это часть сцены
-      collisionFilterMask: CONFIG.PHYSICS.GROUPS.OBJECTS | CONFIG.PHYSICS.GROUPS.TINY, // С чем сталкивается (шарики, буквы)
+      collisionFilterMask:
+        CONFIG.PHYSICS.GROUPS.OBJECTS | CONFIG.PHYSICS.GROUPS.TINY, // С чем сталкивается (шарики, буквы)
     });
-    
+
     glassBody.addShape(glassPhysicsShape);
     // Ставим физическое стекло ровно в те же координаты, что и саму стену
-    glassBody.position.set(wallPos.x, wallPos.y, wallPos.z); 
-    
+    glassBody.position.set(wallPos.x, wallPos.y, wallPos.z);
+
     // Добавляем в физический мир
     this.world.addBody(glassBody);
     // ==========================================
@@ -348,16 +405,25 @@ initSceneObjects() {
       mass: 0,
       material: this.matStandard,
       collisionFilterGroup: CONFIG.PHYSICS.GROUPS.SCENE,
-      collisionFilterMask: CONFIG.PHYSICS.GROUPS.OBJECTS | CONFIG.PHYSICS.GROUPS.TINY,
+      collisionFilterMask:
+        CONFIG.PHYSICS.GROUPS.OBJECTS | CONFIG.PHYSICS.GROUPS.TINY,
     });
-    floorBody.addShape(new CANNON.Box(new CANNON.Vec3(50, 1, 50))); 
+    floorBody.addShape(new CANNON.Box(new CANNON.Vec3(50, 1, 50)));
     floorBody.position.set(0, floorY - 1, 0);
     this.world.addBody(floorBody);
 
     // Инициализация шариков и инстансов
-    const ballGeo = new THREE.SphereGeometry(CONFIG.PHYSICS.BALL_RADIUS, 16, 16);
+    const ballGeo = new THREE.SphereGeometry(
+      CONFIG.PHYSICS.BALL_RADIUS,
+      16,
+      16,
+    );
     this.ballShape = new CANNON.Sphere(CONFIG.PHYSICS.BALL_RADIUS);
-    this.ballInstancedMesh = new THREE.InstancedMesh(ballGeo, this.ballMat, CONFIG.PHYSICS.MAX_BALLS);
+    this.ballInstancedMesh = new THREE.InstancedMesh(
+      ballGeo,
+      this.ballMat,
+      CONFIG.PHYSICS.MAX_BALLS,
+    );
     this.ballInstancedMesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
     this.ballInstancedMesh.castShadow = true;
     this.ballInstancedMesh.receiveShadow = true;
@@ -538,7 +604,6 @@ initSceneObjects() {
       }
     });
   }
-
 
   setBallGlow(enabled) {
     if (enabled) {
@@ -1047,29 +1112,33 @@ initSceneObjects() {
 
     this.updateLetterAnimations(currentTime);
     this.updateBallInstances(currentTime);
-    // ДОБАВЛЕНО: Смотрим на независимый флаг, а не на анимацию дверей
-    const isLightsOn = document.body.classList.contains("lights-on");
-    const targetExposure = isLightsOn ? this.baseExposure : 0.0; // Снизил lerp с 0.015 до 0.01. Свет будет разгораться более "лениво" и плавно.
 
-    // ГАСИМ ВСЕ ЛАМПЫ НА ПОТОЛКЕ (если они Meshes)
-    this.scene.traverse((obj) => {
-      if (obj.isMesh && obj.material && obj.material.emissive) {
-        // Если свет выключен — гасим эмиссию в 0, если включен — возвращаем (например, 1.0)
-        obj.material.emissiveIntensity = isLightsOn ? 1.0 : 0.0;
-      }
-      // Если это RectAreaLight (прямоугольные лампы)
-      if (obj.isRectAreaLight) {
-        obj.intensity = isLightsOn ? 5.0 : 0.0; // Тут подбери свою яркость
-      }
+// ==========================================
+    // ЛОГИКА НЕЗАВИСИМОГО СВЕТА В ЛАБОРАТОРИИ
+    // ==========================================
+    
+    // Проходим по каждой панели, которую мы создали в SceneManager
+    this.sceneManager.labPanels.forEach((panel) => {
+      // Берем значение intensity (0 или 1), которое мы задали в userData
+      const intensity = panel.group.userData.intensity;
+
+      // 1. Свечение самой белой панели (визуальный эффект)
+      // Мы ставим 5.0, чтобы сработал эффект Bloom (свечение)
+      panel.diffuser.material.emissiveIntensity = 5.0 * intensity;
+
+      // 2. Площадной свет (мягкое освещение комнаты)
+      panel.rectLight.intensity = 15.0 * intensity;
+
+      // 3. Прожектор (для отрисовки теней от шариков и букв)
+      panel.shadowLight.intensity = 80.0 * intensity;
     });
 
-    this.currentExposure = THREE.MathUtils.lerp(
-      this.currentExposure,
-      targetExposure,
-      0.01,
-    );
-    this.renderer.toneMappingExposure = this.currentExposure; // Эту строку ни в коем случае не трогаем, она рисует кадр!
-    this.sceneManager.controls.update(); // <--- НОВАЯ СТРОКА (Обновление камеры)
+    // Опциональная подсветка окружения (голограммы и кольцо на полу)
+    // Эти параметры можно оставить включенными или тоже привязать к логике
+    this.sceneManager.holoLight.intensity = 20;
+    this.sceneManager.floorLight.intensity = 10;
+    this.sceneManager.ringMesh.material.emissiveIntensity = 1.2;
+    // ==========================================
     this.composer.render();
   }
 
@@ -1132,14 +1201,16 @@ initSceneObjects() {
     return { isMagnetEquipped, isMagnetPulling, activeColor };
   }
 
-  updatePhysics(dt, timeSec, isMagnetEquipped, isMagnetPulling, activeColor) {
+updatePhysics(dt, timeSec, isMagnetEquipped, isMagnetPulling, activeColor) {
     const limit = 30;
 
     for (const obj of this.letterObjects) {
-      if (!obj.body) continue;
+      // --- ПРЕДОХРАНИТЕЛЬ ЗДЕСЬ ---
+      if (!obj || !obj.body) continue; 
 
       const pos = obj.body.position;
-
+      if (!pos) continue;
+      
       if (
         pos.y < -5 ||
         pos.y > 40 ||

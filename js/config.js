@@ -1,6 +1,7 @@
 export const CONFIG = {
+  DEBUG_MODE: false, // <-- НОВАЯ СТРОКА (Поставь true, когда снова понадобится плашка)
   WORLD: { ROOM_SIZE: 50, FLOOR_LEVEL: -5, CEILING_HEIGHT: 10, GRAVITY: -5.0 },
-
+  
 // === НОВЫЙ БЛОК НАСТРОЕК КАМЕРЫ ===
   CAMERA: {
     REGISTRATION: {

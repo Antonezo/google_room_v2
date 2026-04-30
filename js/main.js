@@ -322,14 +322,14 @@ export class GoogleRoomApp {
       metalness: 0.0, // <-- ИСПРАВЛЕНО: Убираем металличность
     });
 
-    const glassMat = new THREE.MeshPhysicalMaterial({
+const glassMat = new THREE.MeshPhysicalMaterial({
       color: 0xffffff,
-      metalness: 0.1,
-      roughness: 0.05,
-      transmission: 0.8, // Сильная прозрачность (эффект стекла)
+      metalness: 0.0,      // Убрали металл (был 0.1) — он давал серость
+      roughness: 0.0,      // Убрали матовость (была 0.05) — теперь идеально гладкое
+      transmission: 1.0,   // Выкрутили на 100% (было 0.8) — максимальная прозрачность
       transparent: true,
       opacity: 1,
-      ior: 1.5, // Индекс преломления стекла
+      ior: 1.5, 
       thickness: 0.1,
     });
 

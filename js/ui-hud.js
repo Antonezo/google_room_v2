@@ -1,5 +1,6 @@
 import { store } from "./state.js";
 import { audioManager } from "./audio.js";
+import { CONFIG } from "./config.js";
 
 export class GameHudManager {
   constructor(uiDispatcher) {
@@ -14,6 +15,7 @@ export class GameHudManager {
     // Собираем все элементы HUD
     this.elements = {
       hudControls: document.getElementById("hud-controls"),
+      userBadge: document.getElementById("hud-user-status"),
       holoWrapper: document.getElementById("holo-wrapper"),
       btnLetters: document.getElementById("btn-letters"),
       btnBalls: document.getElementById("btn-balls"),
@@ -27,6 +29,11 @@ export class GameHudManager {
       btnRestart: document.getElementById("btn-restart-level"),
       terminalHandle: document.getElementById("terminal-handle"),
     };
+
+// НОВЫЙ БЛОК: Скрываем плашку, если дебаг выключен
+    if (!CONFIG.DEBUG_MODE && this.elements.userBadge) {
+      this.elements.userBadge.style.display = "none";
+    }
 
     this.initBindings();
     this.initStoreSubscriptions();

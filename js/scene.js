@@ -435,46 +435,54 @@ export class SceneManager {
   }
 
 createCorridorLight(x, z) {
-    // 1. Плашка на потолке (Возвращаем ей способность светиться для ореола)
+    // 1. САМА ЛАМПА (Визуал)
+    // Убираем ядерный взрыв. Ставим emissiveIntensity = 4.0. 
+    // Этого хватит для приятного свечения, но без жестких засветов вокруг.
     const lampMesh = new THREE.Mesh(
       new THREE.PlaneGeometry(1.2, 0.3),
       new THREE.MeshStandardMaterial({ 
         color: 0xffffff,
         emissive: 0xfff0e0,
-        emissiveIntensity: 40.0, // <--- Эта цифра отвечает за размер ореола (Bloom)
-        side: THREE.DoubleSide
+        emissiveIntensity: 4.0, 
+        side: THREE.FrontSide // Не тратим ресурсы на рендер изнанки
       })
     );
     lampMesh.rotation.x = Math.PI / 2;
     lampMesh.position.set(x, CONFIG.WORLD.CEILING_HEIGHT - 0.02, z); 
     this.scene.add(lampMesh);
 
-    // 2. Уменьшаем мощность света, чтобы не выжигать пол
-    const spotLight = new THREE.SpotLight(0xfff0e0, 350, 25); // <--- Поставили 150 вместо 800
+    // 2. ОСНОВНОЙ СВЕТ (Панельный)
+    // Тот самый мягкий свет, который бьет вниз. 
+    const rectLight = new THREE.RectAreaLight(0xfff0e0, 15.0, 3.5, 3.5); 
+    rectLight.position.set(x, CONFIG.WORLD.CEILING_HEIGHT - 0.05, z);
+    rectLight.lookAt(x, CONFIG.WORLD.FLOOR_LEVEL, z); // Светит строго в пол
+    this.scene.add(rectLight);
+
+    // 3. ФЕЙКОВОЕ ОТРАЖЕНИЕ (Bounce Light)
+    // Очень тусклый точечный свет (intensity: 0.5), который мы ставим чуть ниже потолка.
+    // Его единственная задача — мягко подсветить потолок и верхние углы, 
+    // чтобы они не проваливались в черную бездну.
+    const bounceLight = new THREE.PointLight(0xfff0e0, 0.5, 20, 2.0); 
+    bounceLight.position.set(x, CONFIG.WORLD.CEILING_HEIGHT - 0.6, z);
+    this.scene.add(bounceLight);
+
+    // 4. Направленный свет для теней (SpotLight) - опционально
+    // Оставляем его только для того, чтобы шарики и буквы отбрасывали тени.
+    // Делаем его тусклым и с широким углом.
+    const spotLight = new THREE.SpotLight(0xfff0e0, 30, 25); 
     spotLight.position.set(x, CONFIG.WORLD.CEILING_HEIGHT - 0.05, z);
-    
-    // Настройки конуса
     spotLight.angle = Math.PI / 2.5; 
     spotLight.penumbra = 1.0;      
     spotLight.decay = 2.0;
-    
-    // Направляем ровно в пол
     spotLight.target.position.set(x, CONFIG.WORLD.FLOOR_LEVEL, z);
     
     this.scene.add(spotLight);
     this.scene.add(spotLight.target);
 
-// Понижаем интенсивность с 15 до 0.8 или 1.2
-    // При затухании 0.1 даже единица — это очень много!
-    const fillLight = new THREE.PointLight(0xfff0e0, 0.8, 40, 0.1); 
-    
-    // Опускаем чуть ниже потолка
-    fillLight.position.set(x, CONFIG.WORLD.CEILING_HEIGHT - 1.0, z);
-    
-    this.scene.add(fillLight);
-    this.corridorLampsGroup.add(fillLight);
-    // 3. Группируем
+    // 5. Группируем
     this.corridorLampsGroup.add(lampMesh);
+    this.corridorLampsGroup.add(rectLight);
+    this.corridorLampsGroup.add(bounceLight);
     this.corridorLampsGroup.add(spotLight);
     this.corridorLampsGroup.add(spotLight.target);
   }

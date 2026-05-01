@@ -1,6 +1,6 @@
 export const CONFIG = {
   DEBUG_MODE: false, // <-- НОВАЯ СТРОКА (Поставь true, когда снова понадобится плашка)
-  WORLD: { ROOM_SIZE: 50, FLOOR_LEVEL: -5, CEILING_HEIGHT: 10, GRAVITY: -5.0 },
+  WORLD: { ROOM_SIZE: 50, FLOOR_LEVEL: -5, CEILING_HEIGHT: 10, GRAVITY: -25.0 },
   
 // === НОВЫЙ БЛОК НАСТРОЕК КАМЕРЫ ===
   CAMERA: {
@@ -18,6 +18,12 @@ export const CONFIG = {
   minDist: 25,
   maxDist: 50
 }
+  },
+
+
+PLAYER: {
+    RADIUS: 1.3, 
+    MASS: 20.0,
   },
 
   COLORS: {

@@ -31,6 +31,16 @@ export const tileRoughTex = textureLoader.load("Image/rough_1k.png", (t) =>
   setupTiling(t, repeatX, repeatY),
 );
 
+export const marbleBaseTex = textureLoader.load(
+  "Image/marble_69_basecolor-1K.png",
+);
+export const marbleNormalTex = textureLoader.load(
+  "Image/marble_69_normal-1K.png",
+);
+export const marbleRoughTex = textureLoader.load(
+  "Image/marble_69_roughness-1K.png",
+);
+
 export const heatTex = textureLoader.load("Image/heat.png");
 
 export const ventGridTex = textureLoader.load("Image/ventGrid.png", (tex) => {
@@ -118,6 +128,23 @@ export class SceneManager {
     this.discoSpots = [];
     this.labPanels = []; // <-- НОВАЯ СТРОКА: Хранилище для независимого управления лампами
     this._initResizeHandler();
+  }
+
+createPlayerMesh(radius) {
+    const geometry = new THREE.SphereGeometry(radius, 32, 32); // 32 полигона для гладкости
+    const material = new THREE.MeshStandardMaterial({
+      map: marbleBaseTex,
+      normalMap: marbleNormalTex,
+      roughnessMap: marbleRoughTex,
+      roughness: 0.2, // Можно будет подкрутить потом для глянцевости
+      metalness: 0.1
+    });
+    const mesh = new THREE.Mesh(geometry, material);
+    mesh.castShadow = true;
+    mesh.receiveShadow = true;
+    this.scene.add(mesh);
+    
+    return mesh;
   }
 
   setCameraMode(mode) {
@@ -238,10 +265,10 @@ export class SceneManager {
       const spotLight = new THREE.SpotLight(0xfff0e0, 500, 25);
       spotLight.position.set(x, CONFIG.WORLD.CEILING_HEIGHT - 0.05, z);
 
-   // 2. Делаем конус света шире: меняем Math.PI / 3 на Math.PI / 2.5
-    spotLight.angle = Math.PI / 2.5; 
-    spotLight.penumbra = 1.0;
-    spotLight.decay = 2.0;
+      // 2. Делаем конус света шире: меняем Math.PI / 3 на Math.PI / 2.5
+      spotLight.angle = Math.PI / 2.5;
+      spotLight.penumbra = 1.0;
+      spotLight.decay = 2.0;
       spotLight.castShadow = true;
       spotLight.shadow.bias = -0.0001;
       spotLight.target.position.set(0, CONFIG.WORLD.FLOOR_LEVEL, 0);
@@ -434,48 +461,48 @@ export class SceneManager {
     flicker();
   }
 
-createCorridorLight(x, z) {
+  createCorridorLight(x, z) {
     // 1. САМА ЛАМПА (Визуал)
-    // Убираем ядерный взрыв. Ставим emissiveIntensity = 4.0. 
+    // Убираем ядерный взрыв. Ставим emissiveIntensity = 4.0.
     // Этого хватит для приятного свечения, но без жестких засветов вокруг.
     const lampMesh = new THREE.Mesh(
       new THREE.PlaneGeometry(1.2, 0.3),
-      new THREE.MeshStandardMaterial({ 
+      new THREE.MeshStandardMaterial({
         color: 0xffffff,
         emissive: 0xfff0e0,
-        emissiveIntensity: 4.0, 
-        side: THREE.FrontSide // Не тратим ресурсы на рендер изнанки
-      })
+        emissiveIntensity: 4.0,
+        side: THREE.FrontSide, // Не тратим ресурсы на рендер изнанки
+      }),
     );
     lampMesh.rotation.x = Math.PI / 2;
-    lampMesh.position.set(x, CONFIG.WORLD.CEILING_HEIGHT - 0.02, z); 
+    lampMesh.position.set(x, CONFIG.WORLD.CEILING_HEIGHT - 0.02, z);
     this.scene.add(lampMesh);
 
     // 2. ОСНОВНОЙ СВЕТ (Панельный)
-    // Тот самый мягкий свет, который бьет вниз. 
-    const rectLight = new THREE.RectAreaLight(0xfff0e0, 15.0, 3.5, 3.5); 
+    // Тот самый мягкий свет, который бьет вниз.
+    const rectLight = new THREE.RectAreaLight(0xfff0e0, 15.0, 3.5, 3.5);
     rectLight.position.set(x, CONFIG.WORLD.CEILING_HEIGHT - 0.05, z);
     rectLight.lookAt(x, CONFIG.WORLD.FLOOR_LEVEL, z); // Светит строго в пол
     this.scene.add(rectLight);
 
     // 3. ФЕЙКОВОЕ ОТРАЖЕНИЕ (Bounce Light)
     // Очень тусклый точечный свет (intensity: 0.5), который мы ставим чуть ниже потолка.
-    // Его единственная задача — мягко подсветить потолок и верхние углы, 
+    // Его единственная задача — мягко подсветить потолок и верхние углы,
     // чтобы они не проваливались в черную бездну.
-    const bounceLight = new THREE.PointLight(0xfff0e0, 0.5, 20, 2.0); 
+    const bounceLight = new THREE.PointLight(0xfff0e0, 0.5, 20, 2.0);
     bounceLight.position.set(x, CONFIG.WORLD.CEILING_HEIGHT - 0.6, z);
     this.scene.add(bounceLight);
 
     // 4. Направленный свет для теней (SpotLight) - опционально
     // Оставляем его только для того, чтобы шарики и буквы отбрасывали тени.
     // Делаем его тусклым и с широким углом.
-    const spotLight = new THREE.SpotLight(0xfff0e0, 30, 25); 
+    const spotLight = new THREE.SpotLight(0xfff0e0, 30, 25);
     spotLight.position.set(x, CONFIG.WORLD.CEILING_HEIGHT - 0.05, z);
-    spotLight.angle = Math.PI / 2.5; 
-    spotLight.penumbra = 1.0;      
+    spotLight.angle = Math.PI / 2.5;
+    spotLight.penumbra = 1.0;
     spotLight.decay = 2.0;
     spotLight.target.position.set(x, CONFIG.WORLD.FLOOR_LEVEL, z);
-    
+
     this.scene.add(spotLight);
     this.scene.add(spotLight.target);
 
@@ -849,7 +876,7 @@ createCorridorLight(x, z) {
       this.bloomPass.strength = 0.7;
       this.bloomPass.threshold = 0.1;
       this.bloomPass.radius = 0.5;
-   } else {
+    } else {
       // --- ПРАВКИ ДЛЯ МЯГКОГО РАССЕИВАНИЯ НА ПОТОЛКЕ ---
 
       // 1. Делаем фон сцены не черным (0x000000), а очень-очень темно-серым (0x050505).

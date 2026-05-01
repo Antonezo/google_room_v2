@@ -2,13 +2,17 @@ import * as CANNON from "cannon-es";
 import { CONFIG } from "./config.js";
 
 export class PhysicsManager {
-  constructor() {
+constructor() {
     this.world = new CANNON.World({
       gravity: new CANNON.Vec3(0, CONFIG.WORLD.GRAVITY, 0),
     });
     this.matStandard = new CANNON.Material("standard");
     this.matBouncy = new CANNON.Material("bouncy");
     this.matSlippery = new CANNON.Material("slippery");
+    
+    // === НОВЫЙ МАТЕРИАЛ ДЛЯ ТЯЖЕЛОГО ШАРА ===
+    this.matHeavy = new CANNON.Material("heavy");
+
     this.world.addContactMaterial(
       new CANNON.ContactMaterial(this.matStandard, this.matBouncy, {
         friction: 0.3,
@@ -27,6 +31,27 @@ export class PhysicsManager {
         restitution: 0.5,
       }),
     );
+
+   // === ПРАВИЛА СТОЛКНОВЕНИЯ: ТЯЖЕЛЫЙ ШАР + СТЕНА/ПОЛ ===
+    this.world.addContactMaterial(
+      new CANNON.ContactMaterial(this.matStandard, this.matHeavy, {
+        friction: 0.6,
+        restitution: 0.15, // <--- СНИЗИЛИ ДО МИНИМУМА (было 0.35)
+        contactEquationStiffness: 5e7, 
+        contactEquationRelaxation: 4
+      }),
+    );
+
+    // === ПРАВИЛА СТОЛКНОВЕНИЯ: ТЯЖЕЛЫЙ ШАР + СКОЛЬЗКАЯ СТЕНА ===
+    this.world.addContactMaterial(
+      new CANNON.ContactMaterial(this.matSlippery, this.matHeavy, {
+        friction: 0.0,      // Идеально скользко! Никакого эффекта "шины".
+        restitution: 0.15,  // Отскок такой же глухой, как у пола
+        contactEquationStiffness: 5e7,
+        contactEquationRelaxation: 4
+      }),
+    );
+    
     this._tempForce = new CANNON.Vec3();
   }
 
@@ -44,10 +69,19 @@ export class PhysicsManager {
     return body;
   }
 
-  createWallWithHole(width, height, thickness, holeWidth, holeHeight, pos, rot, configGroups) {
+createWallWithHole(
+    width,
+    height,
+    thickness,
+    holeWidth,
+    holeHeight,
+    pos,
+    rot,
+    configGroups,
+  ) {
     const body = new CANNON.Body({
-      mass: 0, // Статичная стена
-      material: this.matStandard,
+      mass: 0, 
+      material: this.matSlippery, // <--- БЫЛ matStandard, СТАЛ matSlippery
       collisionFilterGroup: configGroups.SCENE,
       collisionFilterMask: configGroups.OBJECTS | configGroups.TINY,
     });
@@ -61,29 +95,66 @@ export class PhysicsManager {
     // 1. Нижняя панель
     const bottomH = (height - holeHeight) / 2;
     if (bottomH > 0) {
-      body.addShape(new CANNON.Box(new CANNON.Vec3(hw, bottomH/2, hThick)), new CANNON.Vec3(0, -hh + bottomH/2, 0));
+      body.addShape(
+        new CANNON.Box(new CANNON.Vec3(hw, bottomH / 2, hThick)),
+        new CANNON.Vec3(0, -hh + bottomH / 2, 0),
+      );
     }
-    
+
     // 2. Верхняя панель
     const topH = (height - holeHeight) / 2;
     if (topH > 0) {
-      body.addShape(new CANNON.Box(new CANNON.Vec3(hw, topH/2, hThick)), new CANNON.Vec3(0, hh - topH/2, 0));
+      body.addShape(
+        new CANNON.Box(new CANNON.Vec3(hw, topH / 2, hThick)),
+        new CANNON.Vec3(0, hh - topH / 2, 0),
+      );
     }
 
     // 3. Левая панель
     const sideW = (width - holeWidth) / 2;
     if (sideW > 0) {
-      body.addShape(new CANNON.Box(new CANNON.Vec3(sideW/2, hHoleH, hThick)), new CANNON.Vec3(-hw + sideW/2, 0, 0));
+      body.addShape(
+        new CANNON.Box(new CANNON.Vec3(sideW / 2, hHoleH, hThick)),
+        new CANNON.Vec3(-hw + sideW / 2, 0, 0),
+      );
     }
 
     // 4. Правая панель
     if (sideW > 0) {
-      body.addShape(new CANNON.Box(new CANNON.Vec3(sideW/2, hHoleH, hThick)), new CANNON.Vec3(hw - sideW/2, 0, 0));
+      body.addShape(
+        new CANNON.Box(new CANNON.Vec3(sideW / 2, hHoleH, hThick)),
+        new CANNON.Vec3(hw - sideW / 2, 0, 0),
+      );
     }
 
     body.position.copy(pos);
     if (rot) body.quaternion.setFromEuler(rot.x, rot.y, rot.z);
-    
+
+    this.world.addBody(body);
+    return body;
+  }
+  
+  // НОВЫЙ МЕТОД ДЛЯ ШАРА-ИГРОКА
+
+createPlayerBody(radius, mass, posVec) {
+    const shape = new CANNON.Sphere(radius);
+    const body = new CANNON.Body({
+      mass: mass,
+      material: this.matHeavy, // <--- ИЗМЕНИЛИ: теперь он "Тяжелый", а не "Стандартный"
+      position: new CANNON.Vec3(posVec.x, posVec.y, posVec.z),
+      collisionFilterGroup: 2, // Группа OBJECTS
+      collisionFilterMask: 3,  // Сталкивается с 1 и 2
+    });
+
+    body.addShape(shape); 
+
+  body.linearDamping = 0.05; // Почти не тормозит об воздух
+    body.angularDamping = 0.4; // Чуть снизили, тормозить будет за счет трения качения
+
+    // Учим шар чувствовать микро-вибрации перед сном
+    body.sleepSpeedLimit = 0.02; // По умолчанию 0.1. Позволяем дребезжать на низких скоростях.
+    body.sleepTimeLimit = 1.5;   // Даем ему полторы секунды на вибрации, прежде чем "уснуть".
+
     this.world.addBody(body);
     return body;
   }

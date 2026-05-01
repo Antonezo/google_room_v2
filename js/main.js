@@ -3,6 +3,7 @@ import { FontLoader } from "three/addons/loaders/FontLoader.js";
 import { TextGeometry } from "three/addons/geometries/TextGeometry.js";
 import * as CANNON from "cannon-es";
 import { RectAreaLightUniformsLib } from "three/addons/lights/RectAreaLightUniformsLib.js";
+import { PointerLockControls } from "three/addons/controls/PointerLockControls.js";
 
 import { CONFIG } from "./config.js";
 import { audioManager } from "./audio.js";
@@ -213,6 +214,39 @@ export class GoogleRoomApp {
       },
     );
 
+    // === СОЗДАНИЕ ШАРА-ИГРОКА ===
+    const playerRadius = CONFIG.PLAYER.RADIUS; // В config.js оставь 1.5
+
+    const startPos = {
+      x: 0,
+      y: 0, // Сбросим его с высоты 5 метров (уровень пола у нас -5)
+      z: 18, // Прямо перед стеклом (стекло на 14)
+    };
+
+    this.playerMesh = this.sceneManager.createPlayerMesh(playerRadius);
+    this.playerBody = this.physicsManager.createPlayerBody(
+      playerRadius,
+      CONFIG.PLAYER.MASS,
+      startPos,
+    );
+
+    // ==========================================
+    // ВСТАВЛЯЕМ СЮДА: ФЕЙКОВАЯ ТЕНЬ ДЛЯ ПЛАТФОРМИНГА
+    // ==========================================
+    const shadowGeo = new THREE.CircleGeometry(playerRadius, 32);
+    shadowGeo.rotateX(-Math.PI / 2); // Кладем круг плашмя на пол
+
+    const shadowMat = new THREE.MeshBasicMaterial({
+      color: 0x000000,
+      transparent: true,
+      opacity: 0.5,
+      depthWrite: false, // ВАЖНО: Запрещаем тени конфликтовать с текстурой пола (убирает мерцание)
+    });
+
+    this.playerShadowMesh = new THREE.Mesh(shadowGeo, shadowMat);
+    this.scene.add(this.playerShadowMesh);
+    // ==========================================
+
     // ==========================================
     // ФИЗИКА СВЕТА: Настройка экспозиции камеры
     // ==========================================
@@ -227,6 +261,128 @@ export class GoogleRoomApp {
     if (this.renderer.toneMapping === THREE.NoToneMapping) {
       this.renderer.toneMapping = THREE.LinearToneMapping;
     }
+
+    // === СЛУШАТЕЛИ КЛАВИАТУРЫ ДЛЯ ИГРОКА ===
+    this.keys = {
+      w: false,
+      a: false,
+      s: false,
+      d: false,
+      space: false, // <--- ДОБАВЛЯЕМ СЮДА
+    };
+
+    // === НОВЫЙ БЛОК KEYDOWN (ТОЛЬКО ЧТЕНИЕ КНОПОК) ===
+    window.addEventListener("keydown", (e) => {
+      if (document.activeElement.tagName === "INPUT") return;
+
+      const key = e.key.toLowerCase();
+      if (this.keys.hasOwnProperty(key)) this.keys[key] = true;
+
+      if (e.code === "Space") {
+        e.preventDefault();
+        e.stopImmediatePropagation();
+
+        if (
+          document.activeElement &&
+          document.activeElement.tagName !== "BODY"
+        ) {
+          document.activeElement.blur();
+        }
+
+        // Просто запоминаем, что пробел зажат. Вся физика теперь в tick()!
+        this.keys.space = true;
+      }
+    });
+
+    // === НОВЫЙ БЛОК KEYUP ===
+    window.addEventListener("keyup", (e) => {
+      if (e.code === "Space") {
+        e.preventDefault();
+        e.stopImmediatePropagation();
+
+        // Запоминаем, что пробел отпущен
+        this.keys.space = false;
+      }
+
+      const key = e.key.toLowerCase();
+      if (this.keys.hasOwnProperty(key)) this.keys[key] = false;
+    });
+
+    // ==========================================
+    // НАСТРОЙКА УПРАВЛЕНИЯ МЫШЬЮ И ПЛАВНОГО ЗУМА
+    // ==========================================
+
+    // Создаем "штатив" для камеры
+    this.cameraPivot = new THREE.Object3D();
+    this.cameraPivot.rotation.order = "YXZ";
+    this.scene.add(this.cameraPivot);
+
+    // Привязываем камеру к штативу
+    this.cameraPivot.add(this.camera);
+
+    // Переменные для плавного зума (дистанция от шара)
+    this.targetZoom = 8.0;
+    this.currentZoom = 8.0;
+
+    // Устанавливаем начальную позицию (позже она будет плавно меняться в tick)
+    this.camera.position.set(0, this.targetZoom * 0.35, this.targetZoom);
+    // Считаем начальный наклон (rotation.x), чтобы смотреть на шар
+    this.camera.rotation.set(
+      -Math.atan2(this.camera.position.y, this.camera.position.z),
+      0,
+      0,
+    );
+
+    // Инициализируем контроллер мыши
+    this.controls = new PointerLockControls(this.cameraPivot, document.body);
+
+    // Логика захвата курсора
+    document.addEventListener("click", (e) => {
+      if (
+        e.target.closest("#holo-wrapper") ||
+        e.target.closest("#hud-controls") ||
+        e.target.tagName === "INPUT"
+      )
+        return;
+
+      if (!this.controls.isLocked) {
+        this.controls.lock();
+      }
+    });
+
+    // Колесико мыши теперь только меняет ЦЕЛЬ (targetZoom)
+    window.addEventListener("wheel", (e) => {
+      if (!this.controls.isLocked) return;
+
+      const zoomSpeed = 0.005;
+      this.targetZoom += e.deltaY * zoomSpeed;
+
+      // Ограничиваем дистанцию: не ближе 4.5 и не дальше 15
+      this.targetZoom = THREE.MathUtils.clamp(this.targetZoom, 4.5, 15.0);
+    });
+
+    // ==========================================
+    // ЛОГИКА ЗУМА КАМЕРЫ (КОЛЕСИКО МЫШИ)
+    // ==========================================
+    window.addEventListener("wheel", (e) => {
+      if (!this.controls.isLocked) return;
+
+      const zoomSpeed = 0.005;
+      let newZ = this.camera.position.z + e.deltaY * zoomSpeed;
+
+      // Ограничиваем зум: увеличили минимум до 4.0, чтобы камера больше не вселялась в шар!
+      newZ = THREE.MathUtils.clamp(newZ, 4.0, 15.0);
+
+      // Меняем позицию (отдаляем назад и немного вверх пропорционально)
+      this.camera.position.z = newZ;
+      this.camera.position.y = newZ * 0.35;
+
+      // Пересчитываем угол наклона при каждом зуме, чтобы фокус не сбивался
+      this.camera.rotation.x = -Math.atan2(
+        this.camera.position.y,
+        this.camera.position.z,
+      );
+    });
 
     requestAnimationFrame(this.tick);
   }
@@ -322,14 +478,14 @@ export class GoogleRoomApp {
       metalness: 0.0, // <-- ИСПРАВЛЕНО: Убираем металличность
     });
 
-const glassMat = new THREE.MeshPhysicalMaterial({
+    const glassMat = new THREE.MeshPhysicalMaterial({
       color: 0xffffff,
-      metalness: 0.0,      // Убрали металл (был 0.1) — он давал серость
-      roughness: 0.0,      // Убрали матовость (была 0.05) — теперь идеально гладкое
-      transmission: 1.0,   // Выкрутили на 100% (было 0.8) — максимальная прозрачность
+      metalness: 0.0, // Убрали металл (был 0.1) — он давал серость
+      roughness: 0.0, // Убрали матовость (была 0.05) — теперь идеально гладкое
+      transmission: 1.0, // Выкрутили на 100% (было 0.8) — максимальная прозрачность
       transparent: true,
       opacity: 1,
-      ior: 1.5, 
+      ior: 1.5,
       thickness: 0.1,
     });
 
@@ -379,17 +535,16 @@ const glassMat = new THREE.MeshPhysicalMaterial({
     // ==========================================
     // 6. ДОБАВЛЯЕМ ТВЕРДОЕ ФИЗИЧЕСКОЕ СТЕКЛО
     // ==========================================
-    // Создаем невидимый физический ящик (ширина/2, высота/2, толщина/2)
     const glassPhysicsShape = new CANNON.Box(
       new CANNON.Vec3(holeWidth / 2, holeHeight / 2, 0.1),
     );
 
     const glassBody = new CANNON.Body({
-      mass: 0, // 0 означает, что объект статичный (его нельзя сдвинуть)
-      material: this.matStandard, // Стандартный материал для отскока
-      collisionFilterGroup: CONFIG.PHYSICS.GROUPS.SCENE, // Это часть сцены
+      mass: 0,
+      material: this.matSlippery, // <--- ИЗМЕНИЛИ ЗДЕСЬ
+      collisionFilterGroup: CONFIG.PHYSICS.GROUPS.SCENE,
       collisionFilterMask:
-        CONFIG.PHYSICS.GROUPS.OBJECTS | CONFIG.PHYSICS.GROUPS.TINY, // С чем сталкивается (шарики, буквы)
+        CONFIG.PHYSICS.GROUPS.OBJECTS | CONFIG.PHYSICS.GROUPS.TINY,
     });
 
     glassBody.addShape(glassPhysicsShape);
@@ -411,6 +566,39 @@ const glassMat = new THREE.MeshPhysicalMaterial({
     floorBody.addShape(new CANNON.Box(new CANNON.Vec3(50, 1, 50)));
     floorBody.position.set(0, floorY - 1, 0);
     this.world.addBody(floorBody);
+
+    // ==========================================
+    // 7. НЕВИДИМЫЕ ФИЗИЧЕСКИЕ СТЕНЫ ПО ПЕРИМЕТРУ
+    // ==========================================
+    const createPhysicsWall = (x, y, z, halfX, halfY, halfZ) => {
+      const wallBody = new CANNON.Body({
+        mass: 0,
+        material: this.matSlippery, // <--- ИЗМЕНИЛИ ЗДЕСЬ
+        collisionFilterGroup: CONFIG.PHYSICS.GROUPS.SCENE,
+        collisionFilterMask:
+          CONFIG.PHYSICS.GROUPS.OBJECTS | CONFIG.PHYSICS.GROUPS.TINY,
+      });
+      wallBody.addShape(new CANNON.Box(new CANNON.Vec3(halfX, halfY, halfZ)));
+      wallBody.position.set(x, y, z);
+      this.world.addBody(wallBody);
+    };
+
+    // Параметры: (X, Y, Z, половина_ширины, половина_высоты, половина_длины)
+
+    // 1. Левая стена (чуть левее визуала на x: -15)
+    createPhysicsWall(-16, 2.5, 10, 1, 10, 35);
+
+    // 2. Правая стена (чуть правее визуала на x: 15)
+    createPhysicsWall(16, 2.5, 10, 1, 10, 35);
+
+    // 3. Задняя стена лаборатории (за окном, визуально на z: -10)
+    // Делаем ее широкой, чтобы перекрывала углы с запасом
+    createPhysicsWall(0, 2.5, -11, 25, 10, 1);
+
+    // 4. Невидимая "четвертая стена" сзади камеры в коридоре (z: 46)
+    // Чтобы шар не мог уехать назад за пределы экрана
+    createPhysicsWall(0, 2.5, 46, 25, 10, 1);
+    // ==========================================
 
     // Инициализация шариков и инстансов
     const ballGeo = new THREE.SphereGeometry(
@@ -436,6 +624,31 @@ const glassMat = new THREE.MeshPhysicalMaterial({
       this.ballInstancedMesh.setMatrixAt(i, this.dummyObj.matrix);
       this.ballInstancedMesh.setColorAt(i, new THREE.Color(0xffffff));
     }
+
+    // 1. Визуальная часть (Three.js)
+    const boxGeo = new THREE.BoxGeometry(4, 4, 4); // Размер 4x4x4
+    const boxMat = new THREE.MeshStandardMaterial({
+      color: 0xffaa00,
+      roughness: 0.5,
+    });
+    const boxMesh = new THREE.Mesh(boxGeo, boxMat);
+    boxMesh.castShadow = true;
+    boxMesh.receiveShadow = true;
+    this.scene.add(boxMesh);
+
+    // 2. Физическая часть (Cannon.js)
+    // ВАЖНО: В Cannon.js размеры Box задаются ПОЛОВИНАМИ от реальных!
+    const boxShape = new CANNON.Box(new CANNON.Vec3(2, 2, 2));
+    const boxBody = new CANNON.Body({
+      mass: 5, // Легче шара (у шара 20), поэтому мы сможем его толкать!
+      material: this.matStandard,
+      position: new CANNON.Vec3(10, 5, 0), // Спавним где-нибудь сбоку
+    });
+    boxBody.addShape(boxShape);
+    this.world.addBody(boxBody);
+
+    // 3. Сохраняем, чтобы синхронизировать в tick()
+    this.interactiveBox = { mesh: boxMesh, body: boxBody };
   }
 
   clearBalls() {
@@ -1081,6 +1294,10 @@ const glassMat = new THREE.MeshPhysicalMaterial({
   }
 
   tick(currentTime) {
+    // Жестко фиксируем горизонт, чтобы камеру не кренило
+        if (this.cameraPivot) this.cameraPivot.rotation.z = 0;
+        this.camera.rotation.z = 0;
+
     requestAnimationFrame(this.tick);
 
     if (!this.isPaused) {
@@ -1106,20 +1323,214 @@ const glassMat = new THREE.MeshPhysicalMaterial({
       this.heatPool.update(isSlowMo());
       this.paintPools.forEach((pool) => pool.update(isSlowMo()));
       this.miniBeadPool.update(dt);
+
+      // === 7. ПЛАВНОЕ СЛЕДОВАНИЕ КАМЕРЫ (CHASE CAMERA) ===
+      if (this.cameraPivot) {
+        // Берем позицию шара
+        const targetPos = this.playerMesh.position.clone();
+
+        // Поднимаем точку фокусировки на полметра вверх (улучшает ракурс)
+        targetPos.y += 0.5;
+
+        // Плавная "резинка" следования. 15 - это жесткость (чем больше, тем резче)
+        this.cameraPivot.position.lerp(targetPos, 15 * dt);
+      }
+      // ==========================================
+      // СИНХРОНИЗАЦИЯ И УПРАВЛЕНИЕ ШАРОМ-ИГРОКОМ
+      // ==========================================
+      if (this.playerMesh && this.playerBody) {
+        // 1. Копируем координаты
+        this.playerMesh.position.copy(this.playerBody.position);
+        this.playerMesh.quaternion.copy(this.playerBody.quaternion);
+
+        // 2. Умная проверка пола с "Coyote Time" (Защита от углов)
+        let actualGroundContact = false;
+        for (let i = 0; i < this.world.contacts.length; i++) {
+          let contact = this.world.contacts[i];
+          if (
+            contact.bi === this.playerBody ||
+            contact.bj === this.playerBody
+          ) {
+            if (contact.bi === this.playerBody && contact.ni.y < -0.5)
+              actualGroundContact = true;
+            if (contact.bj === this.playerBody && contact.ni.y > 0.5)
+              actualGroundContact = true;
+          }
+        }
+
+        // Даем шару 150мс "памяти" о поле (помогает прыгать на уступах и в углах)
+        this.coyoteTimer = this.coyoteTimer || 0;
+        if (actualGroundContact) {
+          this.coyoteTimer = 0.15;
+        } else {
+          this.coyoteTimer -= dt;
+        }
+
+        // Сохраняем флаг глобально, чтобы его мог прочитать Пробел
+        this.isPlayerGrounded = this.coyoteTimer > 0;
+
+        // === 2.1 ПЛАВНЫЙ ЗУМ (Interpolation) ===
+        // Каждую секунду приближаемся к цели на 90% (очень плавно)
+        this.currentZoom = THREE.MathUtils.lerp(
+          this.currentZoom,
+          this.targetZoom,
+          10 * dt,
+        );
+        this.camera.position.z = this.currentZoom;
+        this.camera.position.y = this.currentZoom * 0.35;
+        this.camera.rotation.x = -Math.atan2(
+          this.camera.position.y,
+          this.camera.position.z,
+        );
+
+        // 3. Умная подготовка векторов (Относительно взгляда)
+        // Используем положительные значения, так как математика ниже сама найдет направление
+        const torqueForce = -400.0;
+        const airForce = -120.0;
+        const torqueVec = new CANNON.Vec3(0, 0, 0);
+        const forceVec = new CANNON.Vec3(0, 0, 0);
+
+        let inputX = 0;
+        let inputZ = 0;
+        if (this.keys.w) inputZ -= 1;
+        if (this.keys.s) inputZ += 1;
+        if (this.keys.a) inputX -= 1;
+        if (this.keys.d) inputX += 1;
+
+        if (inputX !== 0 || inputZ !== 0) {
+          // 1. Считаем направление "Вперед" и "Вправо" на основе поворота штатива
+          const forward = new THREE.Vector3(0, 0, -1).applyQuaternion(
+            this.cameraPivot.quaternion,
+          );
+          forward.y = 0;
+          forward.normalize();
+
+          const right = new THREE.Vector3(1, 0, 0).applyQuaternion(
+            this.cameraPivot.quaternion,
+          );
+          right.y = 0;
+          right.normalize();
+
+          // 2. Формируем итоговый вектор движения (куда хотим катиться)
+          const moveDir = new THREE.Vector3()
+            .addScaledVector(right, inputX)
+            .addScaledVector(forward, -inputZ)
+            .normalize();
+
+          // 3. МАГИЯ: Векторное произведение (Cross Product)
+          // Мы берем направление движения и "перемножаем" его с вектором Вверх (0, 1, 0).
+          // Результат — это ВСЕГДА идеальная ось, вокруг которой должен крутиться шар,
+          // чтобы ехать в сторону moveDir.
+          const torqueAxis = new THREE.Vector3().crossVectors(
+            moveDir,
+            new THREE.Vector3(0, 1, 0),
+          );
+
+          torqueVec.x = torqueAxis.x * torqueForce;
+          torqueVec.y = torqueAxis.y * torqueForce;
+          torqueVec.z = torqueAxis.z * torqueForce;
+
+          // Сила для управления в прыжке
+          forceVec.x = moveDir.x * airForce;
+          forceVec.z = moveDir.z * airForce;
+        }
+
+        // 4. ПРИМЕНЯЕМ РАЗНУЮ ФИЗИКУ
+        if (this.isPlayerGrounded) {
+          if (inputX !== 0 || inputZ !== 0) {
+            this.playerBody.wakeUp();
+            this.playerBody.applyTorque(torqueVec);
+
+            const maxSpin = 35.0;
+            if (this.playerBody.angularVelocity.length() > maxSpin) {
+              this.playerBody.angularVelocity.scale(
+                maxSpin / this.playerBody.angularVelocity.length(),
+                this.playerBody.angularVelocity,
+              );
+            }
+          }
+        } else {
+          // МЫ В ВОЗДУХЕ: Легкое подруливание
+          if (inputX !== 0 || inputZ !== 0) {
+            this.playerBody.wakeUp();
+            this.playerBody.applyForce(forceVec, new CANNON.Vec3(0, 0, 0));
+          }
+          this.playerBody.angularVelocity.scale(
+            0.92,
+            this.playerBody.angularVelocity,
+          );
+        }
+
+        // === 5. ПРЫЖОК (БАННИХОП) ===
+        if (this.keys.space && this.isPlayerGrounded) {
+          this.playerBody.wakeUp();
+          this.playerBody.velocity.y = 9.0;
+
+          // Жесткий сброс, чтобы не прыгнуть дважды за кадр
+          this.isPlayerGrounded = false;
+          this.coyoteTimer = 0;
+
+          if (
+            typeof audioManager !== "undefined" &&
+            audioManager.playPuffSound
+          ) {
+            audioManager.playPuffSound(0.5);
+          }
+        }
+      }
+
+      // ==========================================
+      // === 6. ЛОГИКА ФЕЙКОВОЙ ТЕНИ ===
+      // ==========================================
+      if (this.playerShadowMesh) {
+        const floorY = CONFIG.WORLD.FLOOR_LEVEL;
+
+        // Тень всегда ровно под шаром, чуть-чуть приподнята над полом (чтобы не проваливалась)
+        this.playerShadowMesh.position.set(
+          this.playerBody.position.x,
+          floorY + 0.05,
+          this.playerBody.position.z,
+        );
+
+        // Высчитываем высоту шара над полом
+        const heightOffset =
+          this.playerBody.position.y - CONFIG.PLAYER.RADIUS - floorY;
+
+        // Динамический размер: чем выше шар, тем меньше и бледнее тень
+        let shadowScale = 1.0 - heightOffset / 12.0; // 12.0 - сила уменьшения
+        if (shadowScale < 0.2) shadowScale = 0.2; // Тень никогда не исчезает полностью
+
+        this.playerShadowMesh.scale.set(shadowScale, shadowScale, shadowScale);
+        this.playerShadowMesh.material.opacity = 0.5 * shadowScale; // Бледнеет в полете
+      }
+
+      // БЛОКИРОВКА ГОРИЗОНТА (Убираем крен навсегда)
+      if (this.cameraPivot) {
+        this.cameraPivot.rotation.z = 0;
+        this.camera.rotation.z = 0; // На всякий случай обнуляем и у самой камеры
+      }
+
+      // ВСТАВЛЯЕМ СИНХРОНИЗАЦИЮ КОРОБКИ ПРЯМО СЮДА:
+      if (this.interactiveBox) {
+        this.interactiveBox.mesh.position.copy(
+          this.interactiveBox.body.position,
+        );
+        this.interactiveBox.mesh.quaternion.copy(
+          this.interactiveBox.body.quaternion,
+        );
+      }
     } else {
+      // Обрати внимание, чтобы это было ДО закрывающей скобки блока if (!this.isPaused)
       this.lastTime = currentTime;
     }
 
     this.updateLetterAnimations(currentTime);
     this.updateBallInstances(currentTime);
 
-// ==========================================
+    // ==========================================
     // ЛОГИКА НЕЗАВИСИМОГО СВЕТА В ЛАБОРАТОРИИ
     // ==========================================
-    
-    // Проходим по каждой панели, которую мы создали в SceneManager
     this.sceneManager.labPanels.forEach((panel) => {
-      // Берем значение intensity (0 или 1), которое мы задали в userData
       const intensity = panel.group.userData.intensity;
 
       // 1. Свечение самой белой панели (визуальный эффект)
@@ -1201,16 +1612,16 @@ const glassMat = new THREE.MeshPhysicalMaterial({
     return { isMagnetEquipped, isMagnetPulling, activeColor };
   }
 
-updatePhysics(dt, timeSec, isMagnetEquipped, isMagnetPulling, activeColor) {
+  updatePhysics(dt, timeSec, isMagnetEquipped, isMagnetPulling, activeColor) {
     const limit = 30;
 
     for (const obj of this.letterObjects) {
       // --- ПРЕДОХРАНИТЕЛЬ ЗДЕСЬ ---
-      if (!obj || !obj.body) continue; 
+      if (!obj || !obj.body) continue;
 
       const pos = obj.body.position;
       if (!pos) continue;
-      
+
       if (
         pos.y < -5 ||
         pos.y > 40 ||

@@ -388,7 +388,7 @@ export class UIManager {
     window.addEventListener("keydown", (e) => {
       if (document.activeElement.tagName === "INPUT") return;
       switch (e.code) {
-        case "Space":
+        case "KeyP":
           e.preventDefault();
           if (this.cb?.onTogglePause) this.cb.onTogglePause();
           break;

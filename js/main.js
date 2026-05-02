@@ -321,8 +321,8 @@ export class GoogleRoomApp {
     this.cameraPivot.add(this.camera);
 
     // Переменные для плавного зума (дистанция от шара)
-    this.targetZoom = 8.0;
-    this.currentZoom = 8.0;
+    this.targetZoom = 15.0;
+    this.currentZoom = 15.0;
 
     // Устанавливаем начальную позицию (позже она будет плавно меняться в tick)
     this.camera.position.set(0, this.targetZoom * 0.35, this.targetZoom);
@@ -333,8 +333,18 @@ export class GoogleRoomApp {
       0,
     );
 
-    // Инициализируем контроллер мыши
+// Инициализируем контроллер мыши
     this.controls = new PointerLockControls(this.cameraPivot, document.body);
+
+    // === НОВЫЕ ПРАВИЛЬНЫЕ ЛИМИТЫ (От 3-го лица) ===
+    // Горизонт — это Math.PI / 2. Чтобы смотреть вниз, угол должен быть БОЛЬШЕ горизонта!
+    this.controls.minPolarAngle = Math.PI / 4;   // Ограничитель неба: не дает задирать нос слишком высоко
+    this.controls.maxPolarAngle = Math.PI - 0.2; // Ограничитель пола: разрешает смотреть почти вертикально сверху вниз
+
+    // Задаем красивый стартовый ракурс! 
+    // При запуске игры камера уже будет наклонена на 30 градусов вниз и висеть над шаром.
+    this.cameraPivot.rotation.x = -Math.PI / 6; 
+    // =========================================
 
     // Логика захвата курсора
     document.addEventListener("click", (e) => {
@@ -357,33 +367,9 @@ export class GoogleRoomApp {
       const zoomSpeed = 0.005;
       this.targetZoom += e.deltaY * zoomSpeed;
 
-      // Ограничиваем дистанцию: не ближе 4.5 и не дальше 15
-      this.targetZoom = THREE.MathUtils.clamp(this.targetZoom, 4.5, 15.0);
+      // Ограничиваем дистанцию: от 2.0 (почти вплотную) до 40.0 (панорама)
+      this.targetZoom = THREE.MathUtils.clamp(this.targetZoom, 2.0, 40.0);
     });
-
-    // ==========================================
-    // ЛОГИКА ЗУМА КАМЕРЫ (КОЛЕСИКО МЫШИ)
-    // ==========================================
-    window.addEventListener("wheel", (e) => {
-      if (!this.controls.isLocked) return;
-
-      const zoomSpeed = 0.005;
-      let newZ = this.camera.position.z + e.deltaY * zoomSpeed;
-
-      // Ограничиваем зум: увеличили минимум до 4.0, чтобы камера больше не вселялась в шар!
-      newZ = THREE.MathUtils.clamp(newZ, 4.0, 15.0);
-
-      // Меняем позицию (отдаляем назад и немного вверх пропорционально)
-      this.camera.position.z = newZ;
-      this.camera.position.y = newZ * 0.35;
-
-      // Пересчитываем угол наклона при каждом зуме, чтобы фокус не сбивался
-      this.camera.rotation.x = -Math.atan2(
-        this.camera.position.y,
-        this.camera.position.z,
-      );
-    });
-
     requestAnimationFrame(this.tick);
   }
 
@@ -1295,8 +1281,8 @@ export class GoogleRoomApp {
 
   tick(currentTime) {
     // Жестко фиксируем горизонт, чтобы камеру не кренило
-        if (this.cameraPivot) this.cameraPivot.rotation.z = 0;
-        this.camera.rotation.z = 0;
+    if (this.cameraPivot) this.cameraPivot.rotation.z = 0;
+    this.camera.rotation.z = 0;
 
     requestAnimationFrame(this.tick);
 
@@ -1330,18 +1316,18 @@ export class GoogleRoomApp {
         const targetPos = this.playerMesh.position.clone();
 
         // Поднимаем точку фокусировки на полметра вверх (улучшает ракурс)
-        targetPos.y += 0.5;
+        targetPos.y += 2.5;
 
         // Плавная "резинка" следования. 15 - это жесткость (чем больше, тем резче)
         this.cameraPivot.position.lerp(targetPos, 15 * dt);
+        this.cameraPivot.updateMatrixWorld();
       }
       // ==========================================
       // СИНХРОНИЗАЦИЯ И УПРАВЛЕНИЕ ШАРОМ-ИГРОКОМ
       // ==========================================
       if (this.playerMesh && this.playerBody) {
-        // 1. Копируем координаты
-        this.playerMesh.position.copy(this.playerBody.position);
-        this.playerMesh.quaternion.copy(this.playerBody.quaternion);
+        this.playerMesh.position.copy(this.playerBody.interpolatedPosition);
+        this.playerMesh.quaternion.copy(this.playerBody.interpolatedQuaternion);
 
         // 2. Умная проверка пола с "Coyote Time" (Защита от углов)
         let actualGroundContact = false;
@@ -1369,19 +1355,43 @@ export class GoogleRoomApp {
         // Сохраняем флаг глобально, чтобы его мог прочитать Пробел
         this.isPlayerGrounded = this.coyoteTimer > 0;
 
-        // === 2.1 ПЛАВНЫЙ ЗУМ (Interpolation) ===
-        // Каждую секунду приближаемся к цели на 90% (очень плавно)
+       // ==========================================
+        // === 2.1 ПЛАВНЫЙ ЗУМ И УМНАЯ КАМЕРА (SPRING ARM) ===
+        // ==========================================
         this.currentZoom = THREE.MathUtils.lerp(
           this.currentZoom,
           this.targetZoom,
           10 * dt,
         );
-        this.camera.position.z = this.currentZoom;
-        this.camera.position.y = this.currentZoom * 0.35;
-        this.camera.rotation.x = -Math.atan2(
-          this.camera.position.y,
-          this.camera.position.z,
-        );
+
+        // Камера просто находится сзади на оси Z. Всю высоту задает наклон штатива!
+        const idealLocalPos = new THREE.Vector3(0, 0, this.currentZoom);
+        const idealWorldPos = idealLocalPos
+          .clone()
+          .applyMatrix4(this.cameraPivot.matrixWorld);
+
+        const pivotPos = this.cameraPivot.position;
+        const rayDir = new THREE.Vector3().subVectors(idealWorldPos, pivotPos);
+        const maxDist = rayDir.length();
+        rayDir.normalize();
+
+        if (!this.cameraRaycaster) this.cameraRaycaster = new THREE.Raycaster();
+        this.cameraRaycaster.set(pivotPos, rayDir);
+
+        const wallsMeshes = this.sceneManager.walls.map((w) => w.mesh);
+        const intersects = this.cameraRaycaster.intersectObjects(wallsMeshes);
+
+        let finalDist = maxDist;
+        if (intersects.length > 0 && intersects[0].distance < maxDist) {
+          finalDist = intersects[0].distance - 0.6;
+          if (finalDist < 1.5) finalDist = 1.5;
+        }
+
+        // Применяем финальную дистанцию
+        this.camera.position.set(0, 0, finalDist);
+        
+        // ВАЖНО: обнуляем вращение самой камеры, чтобы навсегда убрать "крен" пола
+        this.camera.rotation.set(0, 0, 0);
 
         // 3. Умная подготовка векторов (Относительно взгляда)
         // Используем положительные значения, так как математика ниже сама найдет направление
@@ -1485,16 +1495,16 @@ export class GoogleRoomApp {
       if (this.playerShadowMesh) {
         const floorY = CONFIG.WORLD.FLOOR_LEVEL;
 
-        // Тень всегда ровно под шаром, чуть-чуть приподнята над полом (чтобы не проваливалась)
         this.playerShadowMesh.position.set(
-          this.playerBody.position.x,
+          this.playerBody.interpolatedPosition.x,
           floorY + 0.05,
-          this.playerBody.position.z,
+          this.playerBody.interpolatedPosition.z,
         );
 
-        // Высчитываем высоту шара над полом
         const heightOffset =
-          this.playerBody.position.y - CONFIG.PLAYER.RADIUS - floorY;
+          this.playerBody.interpolatedPosition.y -
+          CONFIG.PLAYER.RADIUS -
+          floorY;
 
         // Динамический размер: чем выше шар, тем меньше и бледнее тень
         let shadowScale = 1.0 - heightOffset / 12.0; // 12.0 - сила уменьшения
@@ -1504,19 +1514,21 @@ export class GoogleRoomApp {
         this.playerShadowMesh.material.opacity = 0.5 * shadowScale; // Бледнеет в полете
       }
 
-      // БЛОКИРОВКА ГОРИЗОНТА (Убираем крен навсегда)
+      // ==========================================
+      // ОГРАНИЧЕНИЕ НАКЛОНА КАМЕРЫ И УБИРАНИЕ КРЕНА
+      // ==========================================
       if (this.cameraPivot) {
-        this.cameraPivot.rotation.z = 0;
-        this.camera.rotation.z = 0; // На всякий случай обнуляем и у самой камеры
+        this.cameraPivot.rotation.z = 0; // Блокируем крен "бочкой"
+        this.camera.rotation.z = 0;
       }
 
       // ВСТАВЛЯЕМ СИНХРОНИЗАЦИЮ КОРОБКИ ПРЯМО СЮДА:
       if (this.interactiveBox) {
         this.interactiveBox.mesh.position.copy(
-          this.interactiveBox.body.position,
+          this.interactiveBox.body.interpolatedPosition,
         );
         this.interactiveBox.mesh.quaternion.copy(
-          this.interactiveBox.body.quaternion,
+          this.interactiveBox.body.interpolatedQuaternion,
         );
       }
     } else {
@@ -1545,11 +1557,26 @@ export class GoogleRoomApp {
     });
 
     // Опциональная подсветка окружения (голограммы и кольцо на полу)
-    // Эти параметры можно оставить включенными или тоже привязать к логике
     this.sceneManager.holoLight.intensity = 20;
     this.sceneManager.floorLight.intensity = 10;
     this.sceneManager.ringMesh.material.emissiveIntensity = 1.2;
     // ==========================================
+
+    // === ЖЕСТКАЯ ЗАЩИТА КАМЕРЫ ОТ ПРОХОЖДЕНИЯ СКВОЗЬ ПОЛ ===
+    const camWorldPos = new THREE.Vector3();
+    this.camera.getWorldPosition(camWorldPos);
+
+    // Безопасная высота: уровень пола + 0.3 метра (чтобы линза не цепляла текстуру)
+    const safeFloorY = CONFIG.WORLD.FLOOR_LEVEL + 0.3;
+
+    if (camWorldPos.y < safeFloorY) {
+      camWorldPos.y = safeFloorY;
+      // Конвертируем обратно в локальные координаты штатива
+      this.cameraPivot.worldToLocal(camWorldPos);
+      this.camera.position.copy(camWorldPos);
+    }
+    // ========================================================
+
     this.composer.render();
   }
 

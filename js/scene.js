@@ -80,24 +80,37 @@ export class SceneManager {
     );
     this.camera.position.set(camCfg.pos.x, camCfg.pos.y, camCfg.pos.z);
 
-    this.renderer = new THREE.WebGLRenderer({ antialias: true });
+ this.renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: "high-performance" });
+    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
     this.renderer.setSize(window.innerWidth, window.innerHeight);
     this.renderer.shadowMap.enabled = true;
     this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
     this.renderer.outputColorSpace = THREE.SRGBColorSpace;
     this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
     this.renderer.toneMappingExposure = 0.8;
-    document
-      .getElementById("canvas-container")
-      .appendChild(this.renderer.domElement);
+    
+    // ВАЖНО: физически добавляем канвас на страницу
+    document.getElementById("canvas-container").appendChild(this.renderer.domElement);
 
-    this.composer = new EffectComposer(this.renderer);
+    // Настраиваем буфер со сглаживанием и поддержкой HDR (для Bloom)
+    const renderTarget = new THREE.WebGLRenderTarget(
+      window.innerWidth,
+      window.innerHeight,
+      { 
+        samples: 4,
+        type: THREE.HalfFloatType, // Критично для правильной работы свечения!
+        colorSpace: THREE.SRGBColorSpace 
+      }
+    );
+
+    this.composer = new EffectComposer(this.renderer, renderTarget);
     this.composer.addPass(new RenderPass(this.scene, this.camera));
+    
     this.bloomPass = new UnrealBloomPass(
       new THREE.Vector2(window.innerWidth, window.innerHeight),
       0.15,
       0.6,
-      0.15,
+      0.15
     );
     this.composer.addPass(this.bloomPass);
 
@@ -105,8 +118,7 @@ export class SceneManager {
     this.controls = new OrbitControls(this.camera, this.renderer.domElement);
     this.controls.enableDamping = true;
     this.controls.dampingFactor = 0.05;
-    this.controls.minPolarAngle = Math.PI / 2;
-    this.controls.maxPolarAngle = Math.PI / 2;
+   
     this.controls.enablePan = false;
 
     // Отключаем вращение камеры (по твоему запросу)
@@ -130,20 +142,20 @@ export class SceneManager {
     this._initResizeHandler();
   }
 
-createPlayerMesh(radius) {
+  createPlayerMesh(radius) {
     const geometry = new THREE.SphereGeometry(radius, 32, 32); // 32 полигона для гладкости
     const material = new THREE.MeshStandardMaterial({
       map: marbleBaseTex,
       normalMap: marbleNormalTex,
       roughnessMap: marbleRoughTex,
       roughness: 0.2, // Можно будет подкрутить потом для глянцевости
-      metalness: 0.1
+      metalness: 0.1,
     });
     const mesh = new THREE.Mesh(geometry, material);
     mesh.castShadow = true;
     mesh.receiveShadow = true;
     this.scene.add(mesh);
-    
+
     return mesh;
   }
 
@@ -183,11 +195,12 @@ createPlayerMesh(radius) {
   _initResizeHandler() {
     window.addEventListener("resize", () => {
       this.camera.aspect = window.innerWidth / window.innerHeight;
-      // ... (тут продолжается твой старый код)
       this.camera.updateProjectionMatrix();
       this.renderer.setSize(window.innerWidth, window.innerHeight);
       this.composer.setSize(window.innerWidth, window.innerHeight);
       this.bloomPass.setSize(window.innerWidth, window.innerHeight);
+      // Добавь обновление пикселей при ресайзе
+      this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
     });
   }
 

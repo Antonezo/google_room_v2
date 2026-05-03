@@ -219,8 +219,8 @@ export class GoogleRoomApp {
 
     const startPos = {
       x: 0,
-      y: 0, // Сбросим его с высоты 5 метров (уровень пола у нас -5)
-      z: 18, // Прямо перед стеклом (стекло на 14)
+      y: 0,
+      z: 30, // <-- Было 18 (коридор), стало 0 (самый центр лаборатории)
     };
 
     this.playerMesh = this.sceneManager.createPlayerMesh(playerRadius);
@@ -333,17 +333,17 @@ export class GoogleRoomApp {
       0,
     );
 
-// Инициализируем контроллер мыши
+    // Инициализируем контроллер мыши
     this.controls = new PointerLockControls(this.cameraPivot, document.body);
 
     // === НОВЫЕ ПРАВИЛЬНЫЕ ЛИМИТЫ (От 3-го лица) ===
     // Горизонт — это Math.PI / 2. Чтобы смотреть вниз, угол должен быть БОЛЬШЕ горизонта!
-    this.controls.minPolarAngle = Math.PI / 4;   // Ограничитель неба: не дает задирать нос слишком высоко
+    this.controls.minPolarAngle = Math.PI / 4; // Ограничитель неба: не дает задирать нос слишком высоко
     this.controls.maxPolarAngle = Math.PI - 0.2; // Ограничитель пола: разрешает смотреть почти вертикально сверху вниз
 
-    // Задаем красивый стартовый ракурс! 
+    // Задаем красивый стартовый ракурс!
     // При запуске игры камера уже будет наклонена на 30 градусов вниз и висеть над шаром.
-    this.cameraPivot.rotation.x = -Math.PI / 6; 
+    this.cameraPivot.rotation.x = -Math.PI / 6;
     // =========================================
 
     // Логика захвата курсора
@@ -370,6 +370,21 @@ export class GoogleRoomApp {
       // Ограничиваем дистанцию: от 2.0 (почти вплотную) до 40.0 (панорама)
       this.targetZoom = THREE.MathUtils.clamp(this.targetZoom, 2.0, 40.0);
     });
+
+    // === ЗАЩИТА ОТ ЗАЛИПАНИЯ КЛАВИШ (STUCK KEYS BUG) ===
+    window.addEventListener("blur", () => {
+      for (const key in this.keys) {
+        this.keys[key] = false;
+      }
+    });
+
+    this.controls.addEventListener("unlock", () => {
+      for (const key in this.keys) {
+        this.keys[key] = false;
+      }
+    });
+    // ====================================================
+
     requestAnimationFrame(this.tick);
   }
 
@@ -452,27 +467,128 @@ export class GoogleRoomApp {
       new THREE.Vector3(15, 2.5, corridorZ),
       new THREE.Vector3(0, -Math.PI / 2, 0),
     ); // Правая стена
+    addTiledWall(
+      w,
+      20,
+      new THREE.Vector3(0, 2.5, 45),
+      new THREE.Vector3(0, Math.PI, 0),
+    ); // Задняя стена коридора (за камерой)
 
-    // ==========================================================
-    // --- ЗОНА 3: РАЗДЕЛИТЕЛЬНАЯ СТЕНА СО СТЕКЛОМ (НОВЫЙ КОД) ---
-    // ==========================================================
+    // ==========================================
+    // --- ПАНЕЛИ ОСВЕЩЕНИЯ (КОРИДОР И ЛАБА) ---
+    // ==========================================
+    this.sceneManager.corridorPanels = [];
+    this.sceneManager.labPanels = [];
+
+    const createLightPanel = (x, y, z, isCorridor = false) => {
+      const group = new THREE.Group();
+      group.position.set(x, y, z);
+
+      group.userData = {
+        intensity: isCorridor ? 1.0 : 0.0,
+        isCorridor: isCorridor,
+        isAnimating: false,
+      };
+
+      // 1. КОРПУС ЛАМПЫ (Светло-серый)
+      const housingGeo = new THREE.BoxGeometry(4.2, 0.2, 4.2);
+      const housingMat = new THREE.MeshStandardMaterial({
+        color: 0xd0d0d0,
+        roughness: 0.6,
+        metalness: 0.3,
+      });
+      const housing = new THREE.Mesh(housingGeo, housingMat);
+      housing.position.y = -0.1;
+      group.add(housing);
+
+      // 2. ДИФФУЗОР (Пластик лампы, без фейкового свечения)
+      const diffuserGeo = new THREE.PlaneGeometry(3.8, 3.8);
+      const diffuserMat = new THREE.MeshStandardMaterial({
+        color: 0xdddddd,
+        emissive: 0xffffff,
+        emissiveIntensity: isCorridor ? 2.0 : 0.0, // <-- строго 0.0 для выключенных
+        roughness: 0.6,
+        metalness: 0.1,
+      });
+      const diffuser = new THREE.Mesh(diffuserGeo, diffuserMat);
+      diffuser.rotation.x = Math.PI / 2;
+      diffuser.position.y = -0.201;
+      group.add(diffuser);
+
+      this.scene.add(group);
+
+      // 3. ОСНОВНОЙ СВЕТ (Добавляем напрямую в мир, чтобы избежать бага кривых осей!)
+      const rectLight = new THREE.RectAreaLight(
+        0xffffff,
+        isCorridor ? 15.0 : 0.0,
+        3.8,
+        3.8,
+      );
+      rectLight.position.set(x, y - 0.21, z);
+      rectLight.lookAt(x, -10, z); // Теперь он на 100% бьет ровно в пол!
+      rectLight.visible = isCorridor;
+      this.scene.add(rectLight);
+
+      // 4. ПРОЖЕКТОР (Только ради генерации резких теней объектов, тоже живет в мире)
+      const shadowLight = new THREE.SpotLight(0xffffff, isCorridor ? 3.0 : 0.0);
+      shadowLight.position.set(x, y - 0.25, z);
+      shadowLight.angle = Math.PI / 3.5;
+      shadowLight.penumbra = 1.0;
+      shadowLight.decay = 1.5;
+      shadowLight.distance = 40;
+      shadowLight.castShadow = true;
+      shadowLight.shadow.mapSize.set(1024, 1024);
+      shadowLight.shadow.bias = -0.0001;
+      shadowLight.visible = isCorridor;
+
+      const targetObj = new THREE.Object3D();
+      targetObj.position.set(x, -10, z);
+      this.scene.add(targetObj);
+      shadowLight.target = targetObj;
+      this.scene.add(shadowLight);
+
+      return { group, diffuser, rectLight, shadowLight };
+    };
+
+    // 1. Создаем 2 панели в КОРИДОРЕ (Располагаем слева и справа по оси X)
+    const corridorPanelPositions = [
+      { x: -6, z: 30 },
+      { x: 6, z: 30 },
+    ];
+    corridorPanelPositions.forEach((pos) => {
+      const panel = createLightPanel(pos.x, ceilingY, pos.z, true);
+      this.sceneManager.corridorPanels.push(panel);
+    });
+
+    // 2. Создаем 2 панели в ЛАБОРАТОРИИ (Эти остаются по оси X: -7 и 7)
+    const labPanelPositions = [
+      { x: -7, z: 0 },
+      { x: 7, z: 0 },
+    ];
+    labPanelPositions.forEach((pos) => {
+      const panel = createLightPanel(pos.x, ceilingY, pos.z, false);
+      this.sceneManager.labPanels.push(panel);
+    });
+    // ==========================================
 
     // 1. Создаем красивые материалы для стены и стекла
     const wallMat = new THREE.MeshStandardMaterial({
       color: 0xffffff,
-      roughness: 0.95, // <-- ИСПРАВЛЕНО: Делаем матовым, чтобы убрать пятна над окном
-      metalness: 0.0, // <-- ИСПРАВЛЕНО: Убираем металличность
+      roughness: 0.95,
+      metalness: 0.0,
     });
 
     const glassMat = new THREE.MeshPhysicalMaterial({
       color: 0xffffff,
-      metalness: 0.0, // Убрали металл (был 0.1) — он давал серость
-      roughness: 0.0, // Убрали матовость (была 0.05) — теперь идеально гладкое
-      transmission: 1.0, // Выкрутили на 100% (было 0.8) — максимальная прозрачность
+      metalness: 0.0,
+      roughness: 0.0,
+      transmission: 1.0,
       transparent: true,
       opacity: 1,
-      ior: 1.5,
       thickness: 0.1,
+      // === АНТИБЛИКОВОЕ ПОКРЫТИЕ ===
+      ior: 1.0, // 1.0 делает стекло оптически невидимым (без зеркального эффекта)
+      specularIntensity: 0.0, // Полностью запрещаем свету (RectAreaLight) отражаться на поверхности
     });
 
     // 2. Настраиваем размеры
@@ -549,8 +665,9 @@ export class GoogleRoomApp {
       collisionFilterMask:
         CONFIG.PHYSICS.GROUPS.OBJECTS | CONFIG.PHYSICS.GROUPS.TINY,
     });
-    floorBody.addShape(new CANNON.Box(new CANNON.Vec3(50, 1, 50)));
-    floorBody.position.set(0, floorY - 1, 0);
+    // Делаем толщину пола 10 метров вместо 1, чтобы шар не мог его проскочить на скорости
+    floorBody.addShape(new CANNON.Box(new CANNON.Vec3(50, 10, 50)));
+    floorBody.position.set(0, floorY - 10, 0);
     this.world.addBody(floorBody);
 
     // ==========================================
@@ -611,30 +728,69 @@ export class GoogleRoomApp {
       this.ballInstancedMesh.setColorAt(i, new THREE.Color(0xffffff));
     }
 
-    // 1. Визуальная часть (Three.js)
-    const boxGeo = new THREE.BoxGeometry(4, 4, 4); // Размер 4x4x4
+    // ==========================================
+    // ИНТЕРАКТИВНЫЙ ЖЕЛТЫЙ ЯЩИК (ДЛЯ ПРЫЖКОВ)
+    // ==========================================
+    // Задаем отдельные размеры: ширина(X), высота(Y), глубина(Z)
+    const boxSizeX = 4.0; // Широкий
+    const boxSizeY = 2; // Плоский (как поддон)
+    const boxSizeZ = 4.0; // Глубокий
+
+    // 1. Визуал (Three.js)
+    const boxGeo = new THREE.BoxGeometry(boxSizeX, boxSizeY, boxSizeZ);
     const boxMat = new THREE.MeshStandardMaterial({
       color: 0xffaa00,
       roughness: 0.5,
+      metalness: 0.1,
     });
     const boxMesh = new THREE.Mesh(boxGeo, boxMat);
     boxMesh.castShadow = true;
     boxMesh.receiveShadow = true;
     this.scene.add(boxMesh);
 
-    // 2. Физическая часть (Cannon.js)
-    // ВАЖНО: В Cannon.js размеры Box задаются ПОЛОВИНАМИ от реальных!
-    const boxShape = new CANNON.Box(new CANNON.Vec3(2, 2, 2));
+    // 2. Физика (Cannon.js)
+    // В Cannon.js размеры Box задаются ПОЛОВИНАМИ от реальных!
+    const boxHalfExtents = new CANNON.Vec3(
+      boxSizeX / 2,
+      boxSizeY / 2,
+      boxSizeZ / 2,
+    );
+    const boxShape = new CANNON.Box(boxHalfExtents);
+
+    // Спавним в КОРИДОРЕ
+    const boxStartX = 5;
+    // ВАЖНО: Убрали +0.1! Ставим ровно на пол, так как падать он больше не сможет
+    const boxStartY = CONFIG.WORLD.FLOOR_LEVEL + boxSizeY / 2;
+    const boxStartZ = 20;
+
     const boxBody = new CANNON.Body({
-      mass: 5, // Легче шара (у шара 20), поэтому мы сможем его толкать!
+      mass: 5, // <-- Можно вернуть массу побольше (например 5). Шар все равно легко её сдвинет!
       material: this.matStandard,
-      position: new CANNON.Vec3(10, 5, 0), // Спавним где-нибудь сбоку
+      position: new CANNON.Vec3(boxStartX, boxStartY, boxStartZ),
+      linearDamping: 0.8, // Сильное трение, чтобы ящик не скользил как на льду
+      angularDamping: 0.8,
+      collisionFilterGroup: CONFIG.PHYSICS.GROUPS.OBJECTS,
+      collisionFilterMask:
+        CONFIG.PHYSICS.GROUPS.SCENE |
+        CONFIG.PHYSICS.GROUPS.OBJECTS |
+        CONFIG.PHYSICS.GROUPS.TINY,
     });
+
+    // === МАГИЯ ЖЕЛЕЗОБЕТОННОЙ ПЛАТФОРМЫ ===
+    // 1. Блокируем перемещение вверх/вниз (Y = 0). Ящик ездит только по X и Z.
+    boxBody.linearFactor.set(1, 0, 1);
+
+    // 2. Запрещаем кувыркаться (X = 0, Z = 0). Разрешаем только крутиться вокруг своей оси (Y = 1).
+    // Если вообще не хочешь, чтобы он вращался, поставь (0, 0, 0)
+    boxBody.angularFactor.set(0, 1, 0);
+    // ======================================
+
     boxBody.addShape(boxShape);
     this.world.addBody(boxBody);
 
-    // 3. Сохраняем, чтобы синхронизировать в tick()
+    // Сохраняем для синхронизации
     this.interactiveBox = { mesh: boxMesh, body: boxBody };
+    // ==========================================
   }
 
   clearBalls() {
@@ -689,6 +845,40 @@ export class GoogleRoomApp {
   }
 
   resetScene() {
+    // === СБРОС ШАРИКА-ИГРОКА ===
+    if (this.playerBody) {
+      this.playerBody.velocity.set(0, 0, 0);
+      this.playerBody.angularVelocity.set(0, 0, 0);
+      this.playerBody.position.set(0, 0, 30);
+      this.playerBody.quaternion.set(0, 0, 0, 1);
+      this.playerBody.previousPosition.copy(this.playerBody.position);
+      this.playerBody.interpolatedPosition.copy(this.playerBody.position);
+      this.playerBody.previousQuaternion.copy(this.playerBody.quaternion);
+      this.playerBody.interpolatedQuaternion.copy(this.playerBody.quaternion);
+      this.playerBody.wakeUp();
+    }
+
+    // =========================================
+    // === ВСТАВЬ СБРОС ЖЕЛТОГО ЯЩИКА СЮДА ===
+    // =========================================
+    if (this.interactiveBox && this.interactiveBox.body) {
+      const box = this.interactiveBox.body;
+      box.velocity.set(0, 0, 0);
+      box.angularVelocity.set(0, 0, 0);
+
+      // Возвращаем на стартовые координаты.
+      // Y = пол + половина толщины(0.25) = ровно на полу
+      box.position.set(5, CONFIG.WORLD.FLOOR_LEVEL + 0.25, 20);
+      box.quaternion.set(0, 0, 0, 1);
+
+      box.previousPosition.copy(box.position);
+      box.interpolatedPosition.copy(box.position);
+      box.previousQuaternion.copy(box.quaternion);
+      box.interpolatedQuaternion.copy(box.quaternion);
+
+      box.wakeUp();
+    }
+
     if (store && typeof store.get === "function") {
       const currentState = store.get();
       if (typeof store.set === "function") {
@@ -852,6 +1042,53 @@ export class GoogleRoomApp {
     this.uiManager.updateBeadCounter(0, CONFIG.PHYSICS.MAX_BALLS);
 
     this.updateBeadsBlinking();
+  }
+
+  turnOnLabLights() {
+    this.sceneManager.labPanels.forEach((panel, index) => {
+      if (panel.group.userData.isAnimating) return;
+      panel.group.userData.isAnimating = true;
+
+      // Сценарий вспышек: val - яркость, delay - время до следующего шага
+      const sequence = [
+        { val: 0.2, delay: 100 },
+        { val: 0.0, delay: 50 + Math.random() * 50 }, // Случайная пауза для реализма
+        { val: 0.6, delay: 150 },
+        { val: 0.0, delay: 50 },
+        { val: 1.0, delay: 0 },
+      ];
+
+      let currentStep = 0;
+
+      // Делаем задержку: вторая лампа начнет моргать на четверть секунды позже первой
+      setTimeout(() => {
+        const flicker = () => {
+          if (currentStep < sequence.length) {
+            panel.group.userData.intensity = sequence[currentStep].val;
+
+            // Заготовка: когда добавим звук, он будет воспроизводиться на каждой вспышке
+            if (
+              sequence[currentStep].val > 0 &&
+              typeof audioManager !== "undefined" &&
+              audioManager.playFlickerSound
+            ) {
+              audioManager.playFlickerSound();
+            }
+
+            setTimeout(
+              () => {
+                currentStep++;
+                flicker();
+              },
+              sequence[currentStep - 1]?.delay || 0,
+            );
+          } else {
+            panel.group.userData.isAnimating = false;
+          }
+        };
+        flicker();
+      }, index * 250);
+    });
   }
 
   spawnBalls() {
@@ -1322,10 +1559,16 @@ export class GoogleRoomApp {
         this.cameraPivot.position.lerp(targetPos, 15 * dt);
         this.cameraPivot.updateMatrixWorld();
       }
-      // ==========================================
+
       // СИНХРОНИЗАЦИЯ И УПРАВЛЕНИЕ ШАРОМ-ИГРОКОМ
-      // ==========================================
+
       if (this.playerMesh && this.playerBody) {
+        // === НОВАЯ ЗАЩИТА: ЕСЛИ ШАР УПАЛ В БЕЗДНУ ===
+        if (this.playerBody.position.y < CONFIG.WORLD.FLOOR_LEVEL - 5) {
+          this.resetScene(); // Мгновенно возвращаем все на старт
+          return; // Прерываем этот кадр, чтобы не сломать камеру
+        }
+
         this.playerMesh.position.copy(this.playerBody.interpolatedPosition);
         this.playerMesh.quaternion.copy(this.playerBody.interpolatedQuaternion);
 
@@ -1355,7 +1598,7 @@ export class GoogleRoomApp {
         // Сохраняем флаг глобально, чтобы его мог прочитать Пробел
         this.isPlayerGrounded = this.coyoteTimer > 0;
 
-       // ==========================================
+        // ==========================================
         // === 2.1 ПЛАВНЫЙ ЗУМ И УМНАЯ КАМЕРА (SPRING ARM) ===
         // ==========================================
         this.currentZoom = THREE.MathUtils.lerp(
@@ -1389,7 +1632,7 @@ export class GoogleRoomApp {
 
         // Применяем финальную дистанцию
         this.camera.position.set(0, 0, finalDist);
-        
+
         // ВАЖНО: обнуляем вращение самой камеры, чтобы навсегда убрать "крен" пола
         this.camera.rotation.set(0, 0, 0);
 
@@ -1474,7 +1717,7 @@ export class GoogleRoomApp {
         // === 5. ПРЫЖОК (БАННИХОП) ===
         if (this.keys.space && this.isPlayerGrounded) {
           this.playerBody.wakeUp();
-          this.playerBody.velocity.y = 9.0;
+          this.playerBody.velocity.y = 12.0;
 
           // Жесткий сброс, чтобы не прыгнуть дважды за кадр
           this.isPlayerGrounded = false;
@@ -1540,20 +1783,34 @@ export class GoogleRoomApp {
     this.updateBallInstances(currentTime);
 
     // ==========================================
-    // ЛОГИКА НЕЗАВИСИМОГО СВЕТА В ЛАБОРАТОРИИ
+    // ЛОГИКА НЕЗАВИСИМОГО СВЕТА (ЛАБОРАТОРИЯ И КОРИДОР)
     // ==========================================
-    this.sceneManager.labPanels.forEach((panel) => {
+    const allLightPanels = [
+      ...this.sceneManager.labPanels,
+      ...(this.sceneManager.corridorPanels || []),
+    ];
+
+    allLightPanels.forEach((panel) => {
       const intensity = panel.group.userData.intensity;
+      const isCorridor = panel.group.userData.isCorridor;
+      const isOn = intensity > 0.01;
 
-      // 1. Свечение самой белой панели (визуальный эффект)
-      // Мы ставим 5.0, чтобы сработал эффект Bloom (свечение)
-      panel.diffuser.material.emissiveIntensity = 5.0 * intensity;
+      // Перекрашиваем сам пластик диффузора: белый если включен, светло-серый если выключен
+      panel.diffuser.material.color.setHex(isOn ? 0xffffff : 0xdddddd);
+      // Управляем свечением строго пропорционально включенности
+      panel.diffuser.material.emissiveIntensity = 2.0 * intensity;
 
-      // 2. Площадной свет (мягкое освещение комнаты)
-      panel.rectLight.intensity = 15.0 * intensity;
+      // Управляем основным светом
+      if (panel.rectLight) {
+        panel.rectLight.intensity = (isCorridor ? 15.0 : 25.0) * intensity;
+        panel.rectLight.visible = isOn;
+      }
 
-      // 3. Прожектор (для отрисовки теней от шариков и букв)
-      panel.shadowLight.intensity = 80.0 * intensity;
+      // Управляем теневым прожектором
+      if (panel.shadowLight) {
+        panel.shadowLight.intensity = (isCorridor ? 3.0 : 5.0) * intensity;
+        panel.shadowLight.visible = isOn;
+      }
     });
 
     // Опциональная подсветка окружения (голограммы и кольцо на полу)
@@ -1561,7 +1818,6 @@ export class GoogleRoomApp {
     this.sceneManager.floorLight.intensity = 10;
     this.sceneManager.ringMesh.material.emissiveIntensity = 1.2;
     // ==========================================
-
     // === ЖЕСТКАЯ ЗАЩИТА КАМЕРЫ ОТ ПРОХОЖДЕНИЯ СКВОЗЬ ПОЛ ===
     const camWorldPos = new THREE.Vector3();
     this.camera.getWorldPosition(camWorldPos);

@@ -186,7 +186,7 @@ update(dt) {
           return; 
       }
 
-      // Захват объектов (только если нет инструментов)
+   // Захват объектов (только если нет инструментов)
       this.raycaster.setFromCamera(this.inputCoord, this.camera);
       const interactables = this.getInteractables();
       if (!interactables || !interactables.meshes) return;
@@ -195,6 +195,10 @@ update(dt) {
       if (intersects.length > 0) {
         const hit = intersects[0];
         const body = interactables.getBodyByMesh(hit);
+
+        // === ПРОВЕРКА НА ИГРОКА ===
+        // Если у тела масса 20 (как у шара-игрока), запрещаем захват!
+        if (body && body.mass === 20) return; 
 
         if (body && body.pointToLocalFrame) {
           this.isDragging = true;

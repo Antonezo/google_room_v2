@@ -204,6 +204,8 @@ export class SceneManager {
     });
   }
 
+
+  
   buildEnvironment() {
     this.dayLights = new THREE.Group();
     this.scene.add(this.dayLights);
@@ -260,18 +262,6 @@ export class SceneManager {
       this.corridorLampsGroup = new THREE.Group();
       this.scene.add(this.corridorLampsGroup);
     }
-
-    // ==========================================
-    // 1. МЯГКИЙ СВЕТ В КОРИДОРЕ (Без выжигания глаз)
-    // ==========================================
-    this.createCorridorLight(-5, 22);
-    this.createCorridorLight(5, 22);
-
-    // ==========================================
-    // 2. ФИЗИЧЕСКИЕ ЛАМПЫ В ЛАБЕ (Квадратные панели)
-    // ==========================================
-    this.createOfficePanel(-7, 0);
-    this.createOfficePanel(7, 0);
 
     const createDiscoSpot = (x, z, colorHex) => {
       // 1. Меняем яркость с 40 на 500 (или 800, если покажется темновато)
@@ -384,147 +374,6 @@ export class SceneManager {
     this.magnetReticle.position.set(0, CONFIG.WORLD.FLOOR_LEVEL + 0.05, 0);
     this.magnetReticle.visible = false;
     this.scene.add(this.magnetReticle);
-  }
-
-  createOfficePanel(x, z) {
-    const group = new THREE.Group();
-    // Оставляем чуть ниже потолка
-    group.position.set(x, CONFIG.WORLD.CEILING_HEIGHT - 0.05, z);
-
-    // СТАВИМ intensity: 1, чтобы свет горел сразу при загрузке
-    group.userData = { intensity: 0, isAnimating: false };
-
-    // Корпус стал больше: 4.5 x 4.5
-    const housing = new THREE.Mesh(
-      new THREE.BoxGeometry(4.5, 0.1, 4.5),
-      new THREE.MeshStandardMaterial({ color: 0x222222, roughness: 0.7 }),
-    );
-    group.add(housing);
-
-    // Светящаяся часть тоже больше: 4.2 x 4.2
-    const diffuser = new THREE.Mesh(
-      new THREE.PlaneGeometry(4.2, 4.2),
-      new THREE.MeshStandardMaterial({
-        color: 0xffffff,
-        emissive: 0xffffff,
-        emissiveIntensity: 0, // Это значение будет обновляться в tick()
-        roughness: 0.2,
-      }),
-    );
-    diffuser.rotation.x = Math.PI / 2;
-    diffuser.position.y = -0.051;
-    group.add(diffuser);
-
-    // Площадной свет (RectAreaLight)
-    const rectLight = new THREE.RectAreaLight(0xffffff, 0, 4.2, 4.2);
-    rectLight.position.set(0, -0.06, 0);
-    rectLight.lookAt(0, -10, 0); // ИСПРАВЛЕНО: теперь светит ровно вниз
-    group.add(rectLight);
-
-    // Прожектор для теней
-    const shadowLight = new THREE.SpotLight(0xffffff, 0, 35);
-    shadowLight.position.set(0, -0.1, 0);
-    shadowLight.castShadow = true;
-    shadowLight.shadow.mapSize.set(1024, 1024);
-
-    // === НАСТРОЙКИ МЯГКОСТИ ЛУЧА ===
-    shadowLight.angle = Math.PI / 2.5; // Делаем конус света широким
-    shadowLight.penumbra = 1.0; // Максимальное размытие краев луча (никаких четких кругов)
-    shadowLight.decay = 2.0; // Реалистичное затухание света к полу
-
-    shadowLight.target.position.set(0, -10, 0); // ИСПРАВЛЕНО: теперь цель луча ровно под лампой
-    group.add(shadowLight);
-    group.add(shadowLight.target);
-
-    this.scene.add(group);
-    this.labLampsGroup.add(group);
-    this.labPanels.push({ group, diffuser, rectLight, shadowLight });
-  }
-
-  animatePanelOn(index) {
-    const panel = this.labPanels[index];
-    if (!panel || panel.group.userData.isAnimating) return;
-
-    panel.group.userData.isAnimating = true;
-
-    // Тайминги вспышек (в мс) для эффекта моргания
-    const sequence = [
-      { val: 0.1, delay: 100 },
-      { val: 0, delay: 50 },
-      { val: 0.2, delay: 150 },
-      { val: 0, delay: 50 },
-      { val: 1.0, delay: 0 },
-    ];
-
-    let currentStep = 0;
-    const flicker = () => {
-      if (currentStep < sequence.length) {
-        panel.group.userData.intensity = sequence[currentStep].val;
-        setTimeout(
-          () => {
-            currentStep++;
-            flicker();
-          },
-          sequence[currentStep - 1]?.delay || 0,
-        );
-      } else {
-        panel.group.userData.isAnimating = false;
-      }
-    };
-    flicker();
-  }
-
-  createCorridorLight(x, z) {
-    // 1. САМА ЛАМПА (Визуал)
-    // Убираем ядерный взрыв. Ставим emissiveIntensity = 4.0.
-    // Этого хватит для приятного свечения, но без жестких засветов вокруг.
-    const lampMesh = new THREE.Mesh(
-      new THREE.PlaneGeometry(1.2, 0.3),
-      new THREE.MeshStandardMaterial({
-        color: 0xffffff,
-        emissive: 0xfff0e0,
-        emissiveIntensity: 4.0,
-        side: THREE.FrontSide, // Не тратим ресурсы на рендер изнанки
-      }),
-    );
-    lampMesh.rotation.x = Math.PI / 2;
-    lampMesh.position.set(x, CONFIG.WORLD.CEILING_HEIGHT - 0.02, z);
-    this.scene.add(lampMesh);
-
-    // 2. ОСНОВНОЙ СВЕТ (Панельный)
-    // Тот самый мягкий свет, который бьет вниз.
-    const rectLight = new THREE.RectAreaLight(0xfff0e0, 15.0, 3.5, 3.5);
-    rectLight.position.set(x, CONFIG.WORLD.CEILING_HEIGHT - 0.05, z);
-    rectLight.lookAt(x, CONFIG.WORLD.FLOOR_LEVEL, z); // Светит строго в пол
-    this.scene.add(rectLight);
-
-    // 3. ФЕЙКОВОЕ ОТРАЖЕНИЕ (Bounce Light)
-    // Очень тусклый точечный свет (intensity: 0.5), который мы ставим чуть ниже потолка.
-    // Его единственная задача — мягко подсветить потолок и верхние углы,
-    // чтобы они не проваливались в черную бездну.
-    const bounceLight = new THREE.PointLight(0xfff0e0, 0.5, 20, 2.0);
-    bounceLight.position.set(x, CONFIG.WORLD.CEILING_HEIGHT - 0.6, z);
-    this.scene.add(bounceLight);
-
-    // 4. Направленный свет для теней (SpotLight) - опционально
-    // Оставляем его только для того, чтобы шарики и буквы отбрасывали тени.
-    // Делаем его тусклым и с широким углом.
-    const spotLight = new THREE.SpotLight(0xfff0e0, 30, 25);
-    spotLight.position.set(x, CONFIG.WORLD.CEILING_HEIGHT - 0.05, z);
-    spotLight.angle = Math.PI / 2.5;
-    spotLight.penumbra = 1.0;
-    spotLight.decay = 2.0;
-    spotLight.target.position.set(x, CONFIG.WORLD.FLOOR_LEVEL, z);
-
-    this.scene.add(spotLight);
-    this.scene.add(spotLight.target);
-
-    // 5. Группируем
-    this.corridorLampsGroup.add(lampMesh);
-    this.corridorLampsGroup.add(rectLight);
-    this.corridorLampsGroup.add(bounceLight);
-    this.corridorLampsGroup.add(spotLight);
-    this.corridorLampsGroup.add(spotLight.target);
   }
 
   createWallMesh(width, height, pos, rot, material) {

@@ -13,6 +13,9 @@ constructor() {
     // === НОВЫЙ МАТЕРИАЛ ДЛЯ ТЯЖЕЛОГО ШАРА ===
     this.matHeavy = new CANNON.Material("heavy");
 
+// === НОВЫЙ МАТЕРИАЛ ДЛЯ ИНТЕРАКТИВНЫХ КОРОБОК ===
+    this.matBox = new CANNON.Material("box");
+
     this.world.addContactMaterial(
       new CANNON.ContactMaterial(this.matStandard, this.matBouncy, {
         friction: 0.3,
@@ -32,10 +35,31 @@ constructor() {
       }),
     );
 
+// === ПРАВИЛА СТОЛКНОВЕНИЯ: ТЯЖЕЛЫЙ ШАР + КОРОБКА ===
+    this.world.addContactMaterial(
+      new CANNON.ContactMaterial(this.matBox, this.matHeavy, {
+        friction: 0.15, // <--- Золотая середина! 
+        restitution: 0.0,
+        contactEquationStiffness: 1e8,
+        contactEquationRelaxation: 3
+      }),
+    );
+
+ // === ПРАВИЛА СТОЛКНОВЕНИЯ: КОРОБКА + ПОЛ ===
+    this.world.addContactMaterial(
+      new CANNON.ContactMaterial(this.matBox, this.matStandard, {
+        friction: 0.01,    // <--- Почти идеальный лёд/колёса
+        restitution: 0.0,  // Никакой прыгучести
+        contactEquationStiffness: 1e7,
+        contactEquationRelaxation: 3
+      }),
+    );
+
+
    // === ПРАВИЛА СТОЛКНОВЕНИЯ: ТЯЖЕЛЫЙ ШАР + СТЕНА/ПОЛ ===
     this.world.addContactMaterial(
       new CANNON.ContactMaterial(this.matStandard, this.matHeavy, {
-        friction: 0.6,
+        friction: 1.2,
         restitution: 0.15, // <--- СНИЗИЛИ ДО МИНИМУМА (было 0.35)
         contactEquationStiffness: 5e7, 
         contactEquationRelaxation: 4

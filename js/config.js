@@ -1,29 +1,28 @@
 export const CONFIG = {
   DEBUG_MODE: false, // <-- НОВАЯ СТРОКА (Поставь true, когда снова понадобится плашка)
   WORLD: { ROOM_SIZE: 50, FLOOR_LEVEL: -5, CEILING_HEIGHT: 10, GRAVITY: -25.0 },
-  
-// === НОВЫЙ БЛОК НАСТРОЕК КАМЕРЫ ===
+
+  // === НОВЫЙ БЛОК НАСТРОЕК КАМЕРЫ ===
   CAMERA: {
     REGISTRATION: {
       fov: 60,
       pos: { x: 0, y: 6, z: 28 }, // Отодвинули дальше
       target: { x: 0, y: 3, z: 0 },
       minDist: 10,
-      maxDist: 35
+      maxDist: 35,
     },
- GAMEPLAY: {
-  fov: 50,           // Сделали угол чуть меньше, чтобы сцена была более плоской и аккуратной
-  pos: { x: 0, y: 3.5, z: 38 }, // Отодвинули камеру дальше (было 24)
-  target: { x: 0, y: 2, z: 0 },
-  minDist: 25,
-  maxDist: 50
-}
+    GAMEPLAY: {
+      fov: 50, // Сделали угол чуть меньше, чтобы сцена была более плоской и аккуратной
+      pos: { x: 0, y: 3.5, z: 38 }, // Отодвинули камеру дальше (было 24)
+      target: { x: 0, y: 2, z: 0 },
+      minDist: 25,
+      maxDist: 50,
+    },
   },
 
-
-PLAYER: {
-    RADIUS: 1.3, 
-    MASS: 20.0,
+  PLAYER: {
+    RADIUS: 1.4,
+    MASS: 150.0,
   },
 
   COLORS: {

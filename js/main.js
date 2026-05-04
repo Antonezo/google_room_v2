@@ -69,6 +69,7 @@ export class GoogleRoomApp {
     this.matStandard = this.physicsManager.matStandard;
     this.matBouncy = this.physicsManager.matBouncy;
     this.matSlippery = this.physicsManager.matSlippery;
+    this.matBox = this.physicsManager.matBox;
 
     this.miniBeadPool = new MiniBeadPool(
       this.world,
@@ -271,15 +272,23 @@ export class GoogleRoomApp {
       space: false, // <--- ДОБАВЛЯЕМ СЮДА
     };
 
-  // === НОВЫЙ БЛОК KEYDOWN (НЕЗАВИСИМЫЙ ОТ РАСКЛАДКИ) ===
+    // === НОВЫЙ БЛОК KEYDOWN (НЕЗАВИСИМЫЙ ОТ РАСКЛАДКИ) ===
     window.addEventListener("keydown", (e) => {
       if (document.activeElement.tagName === "INPUT") return;
 
       switch (e.code) {
-        case "KeyW": this.keys.w = true; break;
-        case "KeyA": this.keys.a = true; break;
-        case "KeyS": this.keys.s = true; break;
-        case "KeyD": this.keys.d = true; break;
+        case "KeyW":
+          this.keys.w = true;
+          break;
+        case "KeyA":
+          this.keys.a = true;
+          break;
+        case "KeyS":
+          this.keys.s = true;
+          break;
+        case "KeyD":
+          this.keys.d = true;
+          break;
       }
 
       if (e.code === "Space") {
@@ -301,10 +310,18 @@ export class GoogleRoomApp {
     // === НОВЫЙ БЛОК KEYUP (НЕЗАВИСИМЫЙ ОТ РАСКЛАДКИ) ===
     window.addEventListener("keyup", (e) => {
       switch (e.code) {
-        case "KeyW": this.keys.w = false; break;
-        case "KeyA": this.keys.a = false; break;
-        case "KeyS": this.keys.s = false; break;
-        case "KeyD": this.keys.d = false; break;
+        case "KeyW":
+          this.keys.w = false;
+          break;
+        case "KeyA":
+          this.keys.a = false;
+          break;
+        case "KeyS":
+          this.keys.s = false;
+          break;
+        case "KeyD":
+          this.keys.d = false;
+          break;
       }
 
       if (e.code === "Space") {
@@ -354,10 +371,13 @@ export class GoogleRoomApp {
     this.cameraPivot.rotation.x = -Math.PI / 6;
     // =========================================
 
-// Логика захвата курсора
+    // Логика захвата курсора
     document.addEventListener("click", (e) => {
       // 1. Если кликнули по кнопкам "Новая игра" или "Продолжить" — СРАЗУ захватываем мышь
-      if (e.target.closest("#btn-start-game") || e.target.closest("#btn-resume-game")) {
+      if (
+        e.target.closest("#btn-start-game") ||
+        e.target.closest("#btn-resume-game")
+      ) {
         if (!this.controls.isLocked) {
           this.controls.lock();
         }
@@ -752,7 +772,7 @@ export class GoogleRoomApp {
     // ==========================================
     // Задаем отдельные размеры: ширина(X), высота(Y), глубина(Z)
     const boxSizeX = 4.0; // Широкий
-    const boxSizeY = 2; // Плоский (как поддон)
+    const boxSizeY = 2.5; // Плоский (как поддон)
     const boxSizeZ = 4.0; // Глубокий
 
     // 1. Визуал (Three.js)
@@ -778,16 +798,16 @@ export class GoogleRoomApp {
 
     // Спавним в КОРИДОРЕ
     const boxStartX = 5;
-    // ВАЖНО: Убрали +0.1! Ставим ровно на пол, так как падать он больше не сможет
-    const boxStartY = CONFIG.WORLD.FLOOR_LEVEL + boxSizeY / 2;
+    const boxStartY = CONFIG.WORLD.FLOOR_LEVEL + boxSizeY / 2 + 0.05;
     const boxStartZ = 20;
 
-    const boxBody = new CANNON.Body({
-      mass: 5, // <-- Можно вернуть массу побольше (например 5). Шар все равно легко её сдвинет!
-      material: this.matStandard,
+const boxBody = new CANNON.Body({
+      mass: 15,            // Оставляем 15, чтобы шар (100) чувствовал её вес
+      material: this.matBox,
       position: new CANNON.Vec3(boxStartX, boxStartY, boxStartZ),
-      linearDamping: 0.8, // Сильное трение, чтобы ящик не скользил как на льду
-      angularDamping: 0.8,
+      // 0.1 — это идеальный баланс: она легко катится, но за секунду-две плавно замирает
+      linearDamping: 0.1, 
+      angularDamping: 0.99,
       collisionFilterGroup: CONFIG.PHYSICS.GROUPS.OBJECTS,
       collisionFilterMask:
         CONFIG.PHYSICS.GROUPS.SCENE |
@@ -796,12 +816,11 @@ export class GoogleRoomApp {
     });
 
     // === МАГИЯ ЖЕЛЕЗОБЕТОННОЙ ПЛАТФОРМЫ ===
-    // 1. Блокируем перемещение вверх/вниз (Y = 0). Ящик ездит только по X и Z.
-    boxBody.linearFactor.set(1, 0, 1);
+    // ВАЖНО: Мы полностью удалили boxBody.linearFactor.set(1, 0, 1) !!!
+    // Теперь движок сам кладет ее на пол без конфликтов математики.
 
-    // 2. Запрещаем кувыркаться (X = 0, Z = 0). Разрешаем только крутиться вокруг своей оси (Y = 1).
-    // Если вообще не хочешь, чтобы он вращался, поставь (0, 0, 0)
-    boxBody.angularFactor.set(0, 1, 0);
+    // Запрещаем крутиться (0, 0, 0), чтобы она всегда стояла ровно.
+    boxBody.angularFactor.set(0, 0, 0);
     // ======================================
 
     boxBody.addShape(boxShape);
@@ -1591,31 +1610,65 @@ export class GoogleRoomApp {
         this.playerMesh.position.copy(this.playerBody.interpolatedPosition);
         this.playerMesh.quaternion.copy(this.playerBody.interpolatedQuaternion);
 
-        // 2. Умная проверка пола с "Coyote Time" (Защита от углов)
+        // 2. Умная проверка пола с "Coyote Time"
         let actualGroundContact = false;
+        let isBallOnBox = false; // <--- Детектор прыжка на коробку
+
         for (let i = 0; i < this.world.contacts.length; i++) {
           let contact = this.world.contacts[i];
+
           if (
             contact.bi === this.playerBody ||
             contact.bj === this.playerBody
           ) {
-            if (contact.bi === this.playerBody && contact.ni.y < -0.5)
+            if (contact.bi === this.playerBody && contact.ni.y < -0.1)
               actualGroundContact = true;
-            if (contact.bj === this.playerBody && contact.ni.y > 0.5)
+            if (contact.bj === this.playerBody && contact.ni.y > 0.1)
               actualGroundContact = true;
+
+            // === ПРОВЕРЯЕМ, СТОИТ ЛИ ШАР НА КОРОБКЕ ===
+            if (
+              this.interactiveBox &&
+              (contact.bi === this.interactiveBox.body ||
+                contact.bj === this.interactiveBox.body)
+            ) {
+              if (contact.bi === this.playerBody && contact.ni.y < -0.5)
+                isBallOnBox = true;
+              if (contact.bj === this.playerBody && contact.ni.y > 0.5)
+                isBallOnBox = true;
+            }
           }
         }
 
-        // Даем шару 150мс "памяти" о поле (помогает прыгать на уступах и в углах)
         this.coyoteTimer = this.coyoteTimer || 0;
         if (actualGroundContact) {
-          this.coyoteTimer = 0.15;
+          this.coyoteTimer = 0.25;
         } else {
           this.coyoteTimer -= dt;
         }
 
         // Сохраняем флаг глобально, чтобы его мог прочитать Пробел
         this.isPlayerGrounded = this.coyoteTimer > 0;
+
+        // ==========================================
+        // === МАГИЯ УМНОЙ КОРОБКИ (ЗАМОРОЗКА) ===
+        // ==========================================
+        if (this.interactiveBox) {
+          const box = this.interactiveBox.body;
+          // Если шар запрыгнул, а коробка еще подвижна
+          if (isBallOnBox && box.mass !== 0) {
+            box.mass = 0;
+            box.updateMassProperties();
+            box.velocity.set(0, 0, 0);
+          }
+        // Если шар спрыгнул/упал, а коробка всё еще монолит
+            else if (!isBallOnBox && box.mass === 0) {
+                box.mass = 15; // <--- Ставь ТУ ЖЕ МАССУ, что и при создании (15)
+                box.updateMassProperties(); 
+                box.wakeUp(); 
+            }
+        }
+        // ==========================================
 
         // ==========================================
         // === 2.1 ПЛАВНЫЙ ЗУМ И УМНАЯ КАМЕРА (SPRING ARM) ===
@@ -1645,8 +1698,8 @@ export class GoogleRoomApp {
 
         let finalDist = maxDist;
         if (intersects.length > 0 && intersects[0].distance < maxDist) {
-          finalDist = intersects[0].distance - 0.6;
-          if (finalDist < 1.5) finalDist = 1.5;
+          finalDist = intersects[0].distance - 0.9;
+          if (finalDist < 0.4) finalDist = 0.4;
         }
 
         // Применяем финальную дистанцию
@@ -1656,9 +1709,8 @@ export class GoogleRoomApp {
         this.camera.rotation.set(0, 0, 0);
 
         // 3. Умная подготовка векторов (Относительно взгляда)
-        // Используем положительные значения, так как математика ниже сама найдет направление
-        const torqueForce = -400.0;
-        const airForce = 120.0;
+        const torqueForce = -6000.0;
+        const airForce = 1200.0;
         const torqueVec = new CANNON.Vec3(0, 0, 0);
         const forceVec = new CANNON.Vec3(0, 0, 0);
 
@@ -1670,7 +1722,6 @@ export class GoogleRoomApp {
         if (this.keys.d) inputX += 1;
 
         if (inputX !== 0 || inputZ !== 0) {
-          // 1. Считаем направление "Вперед" и "Вправо" на основе поворота штатива
           const forward = new THREE.Vector3(0, 0, -1).applyQuaternion(
             this.cameraPivot.quaternion,
           );
@@ -1683,16 +1734,11 @@ export class GoogleRoomApp {
           right.y = 0;
           right.normalize();
 
-          // 2. Формируем итоговый вектор движения (куда хотим катиться)
           const moveDir = new THREE.Vector3()
             .addScaledVector(right, inputX)
             .addScaledVector(forward, -inputZ)
             .normalize();
 
-          // 3. МАГИЯ: Векторное произведение (Cross Product)
-          // Мы берем направление движения и "перемножаем" его с вектором Вверх (0, 1, 0).
-          // Результат — это ВСЕГДА идеальная ось, вокруг которой должен крутиться шар,
-          // чтобы ехать в сторону moveDir.
           const torqueAxis = new THREE.Vector3().crossVectors(
             moveDir,
             new THREE.Vector3(0, 1, 0),
@@ -1720,6 +1766,15 @@ export class GoogleRoomApp {
                 this.playerBody.angularVelocity,
               );
             }
+          } else {
+            // === ПЛАВНЫЕ ТОРМОЗА (Инерция шара) ===
+            // Множители увеличены: шар сохраняет больше энергии каждый кадр,
+            // поэтому он приятно докатывается, а не встает колом.
+            this.playerBody.angularVelocity.scale(
+              0.96,
+              this.playerBody.angularVelocity,
+            );
+            this.playerBody.velocity.scale(0.98, this.playerBody.velocity);
           }
         } else {
           // МЫ В ВОЗДУХЕ: Легкое подруливание
@@ -1736,7 +1791,7 @@ export class GoogleRoomApp {
         // === 5. ПРЫЖОК (БАННИХОП) ===
         if (this.keys.space && this.isPlayerGrounded) {
           this.playerBody.wakeUp();
-          this.playerBody.velocity.y = 12.0;
+          this.playerBody.velocity.y = 10.0;
 
           // Жесткий сброс, чтобы не прыгнуть дважды за кадр
           this.isPlayerGrounded = false;

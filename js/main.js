@@ -271,12 +271,16 @@ export class GoogleRoomApp {
       space: false, // <--- ДОБАВЛЯЕМ СЮДА
     };
 
-    // === НОВЫЙ БЛОК KEYDOWN (ТОЛЬКО ЧТЕНИЕ КНОПОК) ===
+  // === НОВЫЙ БЛОК KEYDOWN (НЕЗАВИСИМЫЙ ОТ РАСКЛАДКИ) ===
     window.addEventListener("keydown", (e) => {
       if (document.activeElement.tagName === "INPUT") return;
 
-      const key = e.key.toLowerCase();
-      if (this.keys.hasOwnProperty(key)) this.keys[key] = true;
+      switch (e.code) {
+        case "KeyW": this.keys.w = true; break;
+        case "KeyA": this.keys.a = true; break;
+        case "KeyS": this.keys.s = true; break;
+        case "KeyD": this.keys.d = true; break;
+      }
 
       if (e.code === "Space") {
         e.preventDefault();
@@ -289,13 +293,20 @@ export class GoogleRoomApp {
           document.activeElement.blur();
         }
 
-        // Просто запоминаем, что пробел зажат. Вся физика теперь в tick()!
+        // Просто запоминаем, что пробел зажат. Вся физика в tick()!
         this.keys.space = true;
       }
     });
 
-    // === НОВЫЙ БЛОК KEYUP ===
+    // === НОВЫЙ БЛОК KEYUP (НЕЗАВИСИМЫЙ ОТ РАСКЛАДКИ) ===
     window.addEventListener("keyup", (e) => {
+      switch (e.code) {
+        case "KeyW": this.keys.w = false; break;
+        case "KeyA": this.keys.a = false; break;
+        case "KeyS": this.keys.s = false; break;
+        case "KeyD": this.keys.d = false; break;
+      }
+
       if (e.code === "Space") {
         e.preventDefault();
         e.stopImmediatePropagation();
@@ -303,9 +314,6 @@ export class GoogleRoomApp {
         // Запоминаем, что пробел отпущен
         this.keys.space = false;
       }
-
-      const key = e.key.toLowerCase();
-      if (this.keys.hasOwnProperty(key)) this.keys[key] = false;
     });
 
     // ==========================================
@@ -346,15 +354,26 @@ export class GoogleRoomApp {
     this.cameraPivot.rotation.x = -Math.PI / 6;
     // =========================================
 
-    // Логика захвата курсора
+// Логика захвата курсора
     document.addEventListener("click", (e) => {
+      // 1. Если кликнули по кнопкам "Новая игра" или "Продолжить" — СРАЗУ захватываем мышь
+      if (e.target.closest("#btn-start-game") || e.target.closest("#btn-resume-game")) {
+        if (!this.controls.isLocked) {
+          this.controls.lock();
+        }
+        return; // Выходим, чтобы клик не пошел дальше
+      }
+
+      // 2. Если кликаем по остальному меню, настройкам или HUD — игнорируем захват
       if (
         e.target.closest("#holo-wrapper") ||
         e.target.closest("#hud-controls") ||
+        e.target.closest("#loader-doors") ||
         e.target.tagName === "INPUT"
       )
         return;
 
+      // 3. Во всех остальных случаях (клик по самой игре) — захватываем мышь
       if (!this.controls.isLocked) {
         this.controls.lock();
       }
@@ -1639,7 +1658,7 @@ export class GoogleRoomApp {
         // 3. Умная подготовка векторов (Относительно взгляда)
         // Используем положительные значения, так как математика ниже сама найдет направление
         const torqueForce = -400.0;
-        const airForce = -120.0;
+        const airForce = 120.0;
         const torqueVec = new CANNON.Vec3(0, 0, 0);
         const forceVec = new CANNON.Vec3(0, 0, 0);
 

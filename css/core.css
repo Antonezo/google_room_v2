@@ -12,6 +12,14 @@ canvas {
   opacity: 1;
 }
 
+button, 
+a, 
+input, 
+textarea, 
+select {
+    cursor: var(--cur-ui-arrow);
+}
+
 body::after {
   content: "";
   position: absolute;

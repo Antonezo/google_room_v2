@@ -51,29 +51,40 @@ export class InputManager {
   }
 
 update(dt) {
-  if (this.isDragging && this.dragConstraint) {
-    this.raycaster.setFromCamera(this.inputCoord, this.camera);
-    const targetPoint = new THREE.Vector3();
-    const intersection = this.raycaster.ray.intersectPlane(this.movementPlane, targetPoint);
-    
-    if (intersection) {
-      const body = this.dragConstraint.bodyA;
-      const h = (body.userData && body.userData.halfHeight) ? body.userData.halfHeight : 0.7;
-
-      // Динамические лимиты высоты (пол и потолок)
-      const floorLimit = CONFIG.WORLD.FLOOR_LEVEL + h + 0.05;
-      const ceilingLimit = (CONFIG.WORLD.CEILING_HEIGHT || 18.0) - h - 0.5; 
-
- // Ограничиваем движение курсора по всем осям
-      targetPoint.y = Math.max(floorLimit, Math.min(ceilingLimit, targetPoint.y));
-      targetPoint.x = Math.max(-14.3, Math.min(14.3, targetPoint.x));
-      // ИЗМЕНЕНО: Ограничили Z до 11.5 (чтобы курсор не выходил за стекло)
-      targetPoint.z = Math.max(-14.3, Math.min(11.5, targetPoint.z));
+    if (this.isDragging && this.dragConstraint) {
+      this.raycaster.setFromCamera(this.inputCoord, this.camera);
+      const targetPoint = new THREE.Vector3();
+      const intersection = this.raycaster.ray.intersectPlane(this.movementPlane, targetPoint);
       
-      this.mouseBody.position.copy(targetPoint);
+      if (intersection) {
+        const body = this.dragConstraint.bodyA;
+        const h = (body.userData && body.userData.halfHeight) ? body.userData.halfHeight : 0.7;
+
+        // Динамические лимиты высоты (пол и потолок)
+        const floorLimit = CONFIG.WORLD.FLOOR_LEVEL + h + 0.05;
+        const ceilingLimit = (CONFIG.WORLD.CEILING_HEIGHT || 18.0) - h - 0.5; 
+
+        // Высчитываем динамические границы на основе размера комнаты
+        const halfRoom = CONFIG.WORLD.ROOM_SIZE / 2;
+        const padding = 0.7; // Безопасный отступ от стен
+        
+        const minX = -halfRoom + padding;
+        const maxX = halfRoom - padding;
+        const minZ = -halfRoom + padding;
+        // z = 14 — это примерная позиция стекла. В идеале её тоже можно вынести в CONFIG. 
+        // Пока оставляем динамичный расчет до предполагаемой перегородки.
+        const maxZ = 14.0 - 2.5; 
+
+        // Ограничиваем движение курсора
+        targetPoint.y = Math.max(floorLimit, Math.min(ceilingLimit, targetPoint.y));
+        targetPoint.x = Math.max(minX, Math.min(maxX, targetPoint.x));
+        targetPoint.z = Math.max(minZ, Math.min(maxZ, targetPoint.z));
+        
+        this.mouseBody.position.copy(targetPoint);
+      }
     }
   }
-}
+  
   updateInteractionTarget() {
     this.raycaster.setFromCamera(this.inputCoord, this.camera);
     const intersects = this.raycaster.intersectObjects(this.getRoomMeshes());

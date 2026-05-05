@@ -1,10 +1,8 @@
 import * as THREE from "three";
-import { FontLoader } from "three/addons/loaders/FontLoader.js";
-import { TextGeometry } from "three/addons/geometries/TextGeometry.js";
 import * as CANNON from "cannon-es";
 import { RectAreaLightUniformsLib } from "three/addons/lights/RectAreaLightUniformsLib.js";
 import { PointerLockControls } from "three/addons/controls/PointerLockControls.js";
-
+import { LevelBuilder } from './level.js';
 import { CONFIG } from "./config.js";
 import { audioManager } from "./audio.js";
 import { store, isNight, isSlowMo } from "./state.js";
@@ -13,6 +11,10 @@ import { SceneManager, heatTex } from "./scene.js";
 import { UIManager } from "./ui.js";
 import { InputManager } from "./input.js";
 import { ParticlePool, GameObject, MiniBeadPool } from "./utils.js";
+import { PlayerController } from './player.js';
+import { CameraController } from './camera.js';
+import { InteractiveBox } from './entities.js';
+import { WordManager } from "./word_manager.js";
 
 RectAreaLightUniformsLib.init();
 
@@ -36,9 +38,7 @@ export class GoogleRoomApp {
     this._tempDir = new THREE.Vector3();
     this._tempCannonVec = new CANNON.Vec3();
 
-    this.currentWord = "GOOGLE";
-    this.globalFont = null;
-    this.lettersEnabled = false;
+    // === ВОЗВРАЩАЕМ СЛУЧАЙНО УДАЛЕННЫЕ ПЕРЕМЕННЫЕ ===
     this.fansActive = false;
     this.fanLevel = 0.0;
     this.lettersHiddenByMagnet = false;
@@ -52,8 +52,8 @@ export class GoogleRoomApp {
         new ParticlePool(this.scene, heatTex, 1000, "paint", colorHex),
     );
     this.paintParticleTime = 0;
+    // =================================================
 
-    this.letterObjects = [];
     this.ballsPool = new Array(CONFIG.PHYSICS.MAX_BALLS).fill(null);
     this.activeBallsCount = 0;
     this.ballSpawnIndex = 0;
@@ -78,6 +78,23 @@ export class GoogleRoomApp {
       this.matBouncy,
       120,
     );
+
+    // === ИНИЦИАЛИЗАЦИЯ 3D-СЛОВ ===
+    this.wordManager = new WordManager(
+      this.world, 
+      this.scene, 
+      this.matBouncy, 
+      typeof audioManager !== 'undefined' ? audioManager : null
+    );
+    
+    // Привязываем визуальные эффекты из main к событиям внутри WordManager
+    this.wordManager.onLetterHit = (pos, color) => {
+      this.spawnMiniBeads(pos, color);
+      if (Math.abs(pos.x) < 5 && Math.abs(pos.z) < 5 && pos.y < CONFIG.WORLD.FLOOR_LEVEL + 1.0) {
+        this.platformImpact = 1.0;
+      }
+    };
+    this.wordManager.onDustExplosion = (pos, intensity) => this.createDustExplosion(pos, intensity);
 
     this.uiManager = new UIManager({
       onTogglePause: () => {
@@ -115,39 +132,31 @@ export class GoogleRoomApp {
         }
       },
 
-      onToggleLetters: () => {
-        if (this.isPaused) return this.lettersEnabled;
+   onToggleLetters: () => {
+        if (this.isPaused) return this.wordManager.lettersEnabled;
 
-        this.lettersEnabled = !this.lettersEnabled;
+        this.wordManager.lettersEnabled = !this.wordManager.lettersEnabled;
 
-        // Универсальная функция-предохранитель
-        const setObjVisible = (obj, isVis) => {
-          if (obj.setVisible) obj.setVisible(isVis);
-          else if (obj.mesh) obj.mesh.visible = isVis;
-        };
-
-        if (this.lettersEnabled) {
-          this.letterObjects.forEach((obj) => setObjVisible(obj, true));
-          this.showLettersSmoothly();
+        if (this.wordManager.lettersEnabled) {
+          this.wordManager.setLettersVisibility(true);
+          this.wordManager.showLettersSmoothly();
         } else {
-          this.hideLettersSmoothly();
-
+          this.wordManager.hideLettersSmoothly();
           clearTimeout(this.lettersToggleTimeout);
           this.lettersToggleTimeout = setTimeout(() => {
-            if (!this.lettersEnabled) {
-              this.letterObjects.forEach((obj) => setObjVisible(obj, false));
+            if (!this.wordManager.lettersEnabled) {
+              this.wordManager.setLettersVisibility(false);
             }
           }, 300);
         }
-
-        return this.lettersEnabled;
+        return this.wordManager.lettersEnabled;
       },
       onReturnLetters: () => {
-        if (!this.isPaused) this.returnLettersToStart();
+        if (!this.isPaused) this.wordManager.returnLettersToStart();
       },
       onApplyWord: (word) => {
         if (!this.isPaused) {
-          this.changeWordSmoothly(word);
+          this.wordManager.changeWordSmoothly(word);
         }
       },
       onForceLightsOff: () => {
@@ -171,9 +180,9 @@ export class GoogleRoomApp {
       () =>
         this.isPaused || !this.uiManager.dialogueSystem.isRegistrationComplete,
       () => store.get().currentTool,
-      () => {
+  () => {
         const meshes = [
-          ...(this.lettersEnabled ? this.letterObjects.map((d) => d.mesh) : []),
+          ...(this.wordManager.lettersEnabled ? this.wordManager.letterObjects.map((d) => d.mesh) : []),
           this.ballInstancedMesh,
         ];
         const getBodyByMesh = (hitObj) => {
@@ -181,9 +190,7 @@ export class GoogleRoomApp {
             const body = this.ballsPool[hitObj.instanceId];
             return body ? body : null;
           } else {
-            const letterObj = this.letterObjects.find(
-              (d) => d.mesh === hitObj.object,
-            );
+            const letterObj = this.wordManager.letterObjects.find((d) => d.mesh === hitObj.object);
             return letterObj ? letterObj.body : null;
           }
         };
@@ -206,25 +213,6 @@ export class GoogleRoomApp {
     );
 
     this.setupStateReactions();
-
-    const fontLoader = new FontLoader();
-    fontLoader.load(
-      "https://threejs.org/examples/fonts/helvetiker_bold.typeface.json",
-      (font) => {
-        this.globalFont = font;
-        this.spawnLetters(this.currentWord);
-
-        // Сразу прячем буквы и отключаем им физику при старте
-        if (!this.lettersEnabled) {
-          this.letterObjects.forEach((obj) => {
-            if (obj.setVisible) obj.setVisible(false);
-            else if (obj.mesh) obj.mesh.visible = false;
-
-            if (obj.body) obj.body.collisionFilterMask = 0; // Чтобы не было невидимых препятствий
-          });
-        }
-      },
-    );
 
     // === СОЗДАНИЕ ШАРА-ИГРОКА ===
     const playerRadius = CONFIG.PLAYER.RADIUS; // В config.js оставь 1.5
@@ -274,76 +262,6 @@ export class GoogleRoomApp {
       this.renderer.toneMapping = THREE.LinearToneMapping;
     }
 
-    // === СЛУШАТЕЛИ КЛАВИАТУРЫ ДЛЯ ИГРОКА ===
-    this.keys = {
-      w: false,
-      a: false,
-      s: false,
-      d: false,
-      space: false, // <--- ДОБАВЛЯЕМ СЮДА
-    };
-
-    // === НОВЫЙ БЛОК KEYDOWN (НЕЗАВИСИМЫЙ ОТ РАСКЛАДКИ) ===
-    window.addEventListener("keydown", (e) => {
-      if (document.activeElement.tagName === "INPUT") return;
-
-      switch (e.code) {
-        case "KeyW":
-          this.keys.w = true;
-          break;
-        case "KeyA":
-          this.keys.a = true;
-          break;
-        case "KeyS":
-          this.keys.s = true;
-          break;
-        case "KeyD":
-          this.keys.d = true;
-          break;
-      }
-
-      if (e.code === "Space") {
-        e.preventDefault();
-        e.stopImmediatePropagation();
-
-        if (
-          document.activeElement &&
-          document.activeElement.tagName !== "BODY"
-        ) {
-          document.activeElement.blur();
-        }
-
-        // Просто запоминаем, что пробел зажат. Вся физика в tick()!
-        this.keys.space = true;
-      }
-    });
-
-    // === НОВЫЙ БЛОК KEYUP (НЕЗАВИСИМЫЙ ОТ РАСКЛАДКИ) ===
-    window.addEventListener("keyup", (e) => {
-      switch (e.code) {
-        case "KeyW":
-          this.keys.w = false;
-          break;
-        case "KeyA":
-          this.keys.a = false;
-          break;
-        case "KeyS":
-          this.keys.s = false;
-          break;
-        case "KeyD":
-          this.keys.d = false;
-          break;
-      }
-
-      if (e.code === "Space") {
-        e.preventDefault();
-        e.stopImmediatePropagation();
-
-        // Запоминаем, что пробел отпущен
-        this.keys.space = false;
-      }
-    });
-
     // ==========================================
     // НАСТРОЙКА УПРАВЛЕНИЯ МЫШЬЮ И ПЛАВНОГО ЗУМА
     // ==========================================
@@ -355,10 +273,6 @@ export class GoogleRoomApp {
 
     // Привязываем камеру к штативу
     this.cameraPivot.add(this.camera);
-
-    // Переменные для плавного зума (дистанция от шара)
-    this.targetZoom = 15.0;
-    this.currentZoom = 15.0;
 
     // Устанавливаем начальную позицию (позже она будет плавно меняться в tick)
     this.camera.position.set(0, this.targetZoom * 0.35, this.targetZoom);
@@ -419,27 +333,12 @@ export class GoogleRoomApp {
       }
     });
 
-    // Колесико мыши теперь только меняет ЦЕЛЬ (targetZoom)
-    window.addEventListener("wheel", (e) => {
-      if (!this.controls.isLocked) return;
-
-      const zoomSpeed = 0.005;
-      this.targetZoom += e.deltaY * zoomSpeed;
-
-      // Ограничиваем дистанцию: от 2.0 (почти вплотную) до 40.0 (панорама)
-      this.targetZoom = THREE.MathUtils.clamp(this.targetZoom, 2.0, 40.0);
-    });
-
-    // === ЗАЩИТА ОТ ЗАЛИПАНИЯ КЛАВИШ (STUCK KEYS BUG) ===
-    window.addEventListener("blur", () => {
-      for (const key in this.keys) {
-        this.keys[key] = false;
-      }
-    });
-
     this.controls.addEventListener("unlock", () => {
-      for (const key in this.keys) {
-        this.keys[key] = false;
+      // Теперь мы правильно обращаемся к кнопкам внутри контроллера!
+      if (this.playerController) {
+        for (const key in this.playerController.keys) {
+          this.playerController.keys[key] = false;
+        }
       }
 
       // === МАГИЯ КНОПКИ "ПРОДОЛЖИТЬ" ===
@@ -449,361 +348,35 @@ export class GoogleRoomApp {
         resumeElement.classList.remove("locked-feature");
       }
     });
+
+    // ДОБАВЛЯЕШЬ СЮДА: Передаем уже созданные объекты в контроллеры
+this.playerController = new PlayerController(
+  this.world, 
+  this.scene, 
+  this.playerBody, 
+  this.playerMesh, 
+  this.playerShadowMesh, 
+  this.cameraPivot,
+  this.interactivePlatforms
+);
+
+this.cameraController = new CameraController(
+  this.camera, 
+  this.cameraPivot, 
+  this.sceneManager
+);
     requestAnimationFrame(this.tick);
   }
 
-  initSceneObjects() {
-    this.sceneManager.buildEnvironment();
+initSceneObjects() {
+    // 1. Уровень
+    this.levelBuilder = new LevelBuilder(this.sceneManager, this.physicsManager);
+    this.levelBuilder.build();
 
-    const h = CONFIG.WORLD.ROOM_SIZE;
-    const w = CONFIG.WORLD.ROOM_SIZE;
-    const floorY = CONFIG.WORLD.FLOOR_LEVEL;
-    const ceilingY = CONFIG.WORLD.CEILING_HEIGHT;
-
-    // Вспомогательная функция для создания стен.
-    const addTiledWall = (width, height, pos, rot) => {
-      const mat = new THREE.MeshStandardMaterial({
-        color: 0xffffff,
-        side: THREE.FrontSide,
-        roughness: 0.1,
-        metalness: 0.1,
-      });
-      this.sceneManager.createWallMesh(width, height, pos, rot, mat);
-    };
-
- // --- ЗОНА 1: ОСНОВНАЯ ЛАБОРАТОРИЯ (за окном) ---
-    // Стекло находится на Z = 14. Задняя стена на Z = -10. 
-    // Значит глубина комнаты: 24 метра. Центр по оси Z: 2.
-    
-    addTiledWall( 30, 24, new THREE.Vector3(0, floorY, 2), new THREE.Vector3(-Math.PI / 2, 0, 0) ); // Пол
-    addTiledWall( 30, 24, new THREE.Vector3(0, ceilingY, 2), new THREE.Vector3(Math.PI / 2, 0, 0) ); // Потолок
-    addTiledWall( 30, 20, new THREE.Vector3(0, 2.5, -10), new THREE.Vector3(0, 0, 0) ); // Задняя стена
-    addTiledWall( 24, 20, new THREE.Vector3(-15, 2.5, 2), new THREE.Vector3(0, Math.PI / 2, 0) ); // Левая
-    addTiledWall( 24, 20, new THREE.Vector3(15, 2.5, 2), new THREE.Vector3(0, -Math.PI / 2, 0) ); // Правая
-
-    // --- ЗОНА 2: КОРИДОР ПЕРЕД ОКНОМ (где стоит камера) ---
-    const corridorDepth = 30;
-    const corridorZ = 15 + corridorDepth / 2;
-
-    addTiledWall(
-      w,
-      corridorDepth,
-      new THREE.Vector3(0, floorY, corridorZ),
-      new THREE.Vector3(-Math.PI / 2, 0, 0),
-    ); // Пол коридора
-    addTiledWall(
-      w,
-      corridorDepth,
-      new THREE.Vector3(0, ceilingY, corridorZ),
-      new THREE.Vector3(Math.PI / 2, 0, 0),
-    ); // Потолок коридора
-    addTiledWall(
-      corridorDepth,
-      20,
-      new THREE.Vector3(-15, 2.5, corridorZ),
-      new THREE.Vector3(0, Math.PI / 2, 0),
-    ); // Левая стена
-    addTiledWall(
-      w,
-      20,
-      new THREE.Vector3(0, 2.5, 45),
-      new THREE.Vector3(0, Math.PI, 0),
-    ); // Задняя стена коридора (за камерой)
-
- // ==========================================
-    // ПРАВАЯ СТЕНА С НИШЕЙ (ПРОЕМ 2x2 ПЛИТКИ)
-    // ==========================================
-    // Сдвинули на 15 метров (6 плиток) ближе к старту. Новый центр Z = 37.5
-    
-    // 1. Часть стены ДО проема (от окна до ниши, длина 20)
-    addTiledWall(20, 20, new THREE.Vector3(15, 2.5, 25), new THREE.Vector3(0, -Math.PI / 2, 0)); 
-    // 2. Часть стены ПОСЛЕ проема (от ниши до задней стены, длина 5)
-    addTiledWall(5, 20, new THREE.Vector3(15, 2.5, 42.5), new THREE.Vector3(0, -Math.PI / 2, 0)); 
-    // 3. Часть стены ПОД проемом 
-    addTiledWall(5, 7.5, new THREE.Vector3(15, -1.25, 37.5), new THREE.Vector3(0, -Math.PI / 2, 0)); 
-    // 4. Часть стены НАД проемом 
-    addTiledWall(5, 2.5, new THREE.Vector3(15, 8.75, 37.5), new THREE.Vector3(0, -Math.PI / 2, 0)); 
-
-    // === ВНУТРЕННОСТИ НИШИ ===
-    addTiledWall(5, 5, new THREE.Vector3(17.5, 2.5, 37.5), new THREE.Vector3(-Math.PI / 2, 0, 0)); // Пол
-    addTiledWall(5, 5, new THREE.Vector3(17.5, 7.5, 37.5), new THREE.Vector3(Math.PI / 2, 0, 0));  // Потолок
-    addTiledWall(5, 5, new THREE.Vector3(20, 5, 37.5), new THREE.Vector3(0, -Math.PI / 2, 0));     // Задняя стенка
-    addTiledWall(5, 5, new THREE.Vector3(17.5, 5, 35), new THREE.Vector3(0, 0, 0));                // Левая боковушка
-    addTiledWall(5, 5, new THREE.Vector3(17.5, 5, 40), new THREE.Vector3(0, Math.PI, 0));          // Правая боковушка
-    
-    // Код кнопки и света отсюда полностью удален!
-
-    // ==========================================
-    // --- ПАНЕЛИ ОСВЕЩЕНИЯ (КОРИДОР И ЛАБА) ---
-    // ==========================================
-    this.sceneManager.corridorPanels = [];
-    this.sceneManager.labPanels = [];
-
-    const createLightPanel = (x, y, z, isCorridor = false) => {
-      const group = new THREE.Group();
-      group.position.set(x, y, z);
-
-      group.userData = {
-        intensity: isCorridor ? 1.0 : 0.0,
-        isCorridor: isCorridor,
-        isAnimating: false,
-      };
-
-      // 1. КОРПУС ЛАМПЫ (Светло-серый)
-      const housingGeo = new THREE.BoxGeometry(4.2, 0.2, 4.2);
-      const housingMat = new THREE.MeshStandardMaterial({
-        color: 0xd0d0d0,
-        roughness: 0.6,
-        metalness: 0.3,
-      });
-      const housing = new THREE.Mesh(housingGeo, housingMat);
-      housing.position.y = -0.1;
-      group.add(housing);
-
-      // 2. ДИФФУЗОР (Пластик лампы, без фейкового свечения)
-      const diffuserGeo = new THREE.PlaneGeometry(3.8, 3.8);
-      const diffuserMat = new THREE.MeshStandardMaterial({
-        color: 0xdddddd,
-        emissive: 0xffffff,
-        emissiveIntensity: isCorridor ? 2.0 : 0.0, // <-- строго 0.0 для выключенных
-        roughness: 0.6,
-        metalness: 0.1,
-      });
-      const diffuser = new THREE.Mesh(diffuserGeo, diffuserMat);
-      diffuser.rotation.x = Math.PI / 2;
-      diffuser.position.y = -0.201;
-      group.add(diffuser);
-
-      this.scene.add(group);
-
-      // 3. ОСНОВНОЙ СВЕТ (Добавляем напрямую в мир, чтобы избежать бага кривых осей!)
-      const rectLight = new THREE.RectAreaLight(
-        0xffffff,
-        isCorridor ? 15.0 : 0.0,
-        3.8,
-        3.8,
-      );
-      rectLight.position.set(x, y - 0.21, z);
-      rectLight.lookAt(x, -10, z); // Теперь он на 100% бьет ровно в пол!
-      rectLight.visible = isCorridor;
-      this.scene.add(rectLight);
-
-      // 4. ПРОЖЕКТОР (Только ради генерации резких теней объектов, тоже живет в мире)
-      const shadowLight = new THREE.SpotLight(0xffffff, isCorridor ? 3.0 : 0.0);
-      shadowLight.position.set(x, y - 0.25, z);
-      shadowLight.angle = Math.PI / 3.5;
-      shadowLight.penumbra = 1.0;
-      shadowLight.decay = 1.5;
-      shadowLight.distance = 40;
-      shadowLight.castShadow = true;
-      shadowLight.shadow.mapSize.set(1024, 1024);
-      shadowLight.shadow.bias = -0.0001;
-      shadowLight.visible = isCorridor;
-
-      const targetObj = new THREE.Object3D();
-      targetObj.position.set(x, -10, z);
-      this.scene.add(targetObj);
-      shadowLight.target = targetObj;
-      this.scene.add(shadowLight);
-
-      return { group, diffuser, rectLight, shadowLight };
-    };
-
-    // 1. Создаем 2 панели в КОРИДОРЕ (Располагаем слева и справа по оси X)
-    const corridorPanelPositions = [
-      { x: -6, z: 30 },
-      { x: 6, z: 30 },
-    ];
-    corridorPanelPositions.forEach((pos) => {
-      const panel = createLightPanel(pos.x, ceilingY, pos.z, true);
-      this.sceneManager.corridorPanels.push(panel);
-    });
-
-    // 2. Создаем 2 панели в ЛАБОРАТОРИИ (Эти остаются по оси X: -7 и 7)
-    const labPanelPositions = [
-      { x: -7, z: 0 },
-      { x: 7, z: 0 },
-    ];
-    labPanelPositions.forEach((pos) => {
-      const panel = createLightPanel(pos.x, ceilingY, pos.z, false);
-      this.sceneManager.labPanels.push(panel);
-    });
-    // ==========================================
-
-    // 1. Создаем красивые материалы для стены и стекла
-    const wallMat = new THREE.MeshStandardMaterial({
-      color: 0xffffff,
-      roughness: 0.95,
-      metalness: 0.0,
-    });
-
-    const glassMat = new THREE.MeshPhysicalMaterial({
-      color: 0xffffff,
-      metalness: 0.0,
-      roughness: 0.0,
-      transmission: 1.0,
-      transparent: true,
-      opacity: 1,
-      thickness: 0.1,
-      // === АНТИБЛИКОВОЕ ПОКРЫТИЕ ===
-      ior: 1.0, // 1.0 делает стекло оптически невидимым (без зеркального эффекта)
-      specularIntensity: 0.0, // Полностью запрещаем свету (RectAreaLight) отражаться на поверхности
-    });
-
-    // 2. Настраиваем размеры
-    const wallThickness = 2.0; // СДЕЛАЛИ ТОЛЩЕ (было 1.0, попробуй 3.0 или больше)
-    const holeWidth = 24;
-    const holeHeight = 11;
-    const cornerRadius = 1.5;
-
-    // ПОДВИНУЛИ БЛИЖЕ К КАМЕРЕ (Увеличили Z: было 12, стало 18)
-    const wallPos = new THREE.Vector3(0, 2.5, 14);
-
-    // 3. Создаем визуал (вызываем функцию из scene.js)
-    const glassWallGroup = this.sceneManager.createWallWithWindow(
-      w,
-      20,
-      wallThickness,
-      holeWidth,
-      holeHeight,
-      cornerRadius,
-      wallPos,
-      null,
-      wallMat,
-      glassMat,
-    );
-
-    // 4. Добавляем пометку, чтобы мышка "проходила" сквозь стекло
-    // (Я вижу, что в InputManager у вас уже есть фильтр: !w.mesh.userData.isGlass)
-    glassWallGroup.children.forEach((child) => {
-      if (child.material === glassMat) {
-        child.userData.isGlass = true;
-      }
-    });
-
-    // 5. Создаем физику (вызываем функцию из physics.js)
-    this.physicsManager.createWallWithHole(
-      w,
-      20,
-      wallThickness,
-      holeWidth,
-      holeHeight,
-      wallPos,
-      null,
-      CONFIG.PHYSICS.GROUPS,
-    );
-
-    // ==========================================
-    // 6. ДОБАВЛЯЕМ ТВЕРДОЕ ФИЗИЧЕСКОЕ СТЕКЛО
-    // ==========================================
-    const glassPhysicsShape = new CANNON.Box(
-      new CANNON.Vec3(holeWidth / 2, holeHeight / 2, 0.1),
-    );
-
-    const glassBody = new CANNON.Body({
-      mass: 0,
-      material: this.matSlippery, // <--- ИЗМЕНИЛИ ЗДЕСЬ
-      collisionFilterGroup: CONFIG.PHYSICS.GROUPS.SCENE,
-      collisionFilterMask:
-        CONFIG.PHYSICS.GROUPS.OBJECTS | CONFIG.PHYSICS.GROUPS.TINY,
-    });
-
-    glassBody.addShape(glassPhysicsShape);
-    // Ставим физическое стекло ровно в те же координаты, что и саму стену
-    glassBody.position.set(wallPos.x, wallPos.y, wallPos.z);
-
-    // Добавляем в физический мир
-    this.world.addBody(glassBody);
-    // ==========================================
-
-    // Физический пол для всей сцены
-    const floorBody = new CANNON.Body({
-      mass: 0,
-      material: this.matStandard,
-      collisionFilterGroup: CONFIG.PHYSICS.GROUPS.SCENE,
-      collisionFilterMask:
-        CONFIG.PHYSICS.GROUPS.OBJECTS | CONFIG.PHYSICS.GROUPS.TINY,
-    });
-    // Делаем толщину пола 10 метров вместо 1, чтобы шар не мог его проскочить на скорости
-    floorBody.addShape(new CANNON.Box(new CANNON.Vec3(50, 10, 50)));
-    floorBody.position.set(0, floorY - 10, 0);
-    this.world.addBody(floorBody);
-
-    // ==========================================
-    // 7. НЕВИДИМЫЕ ФИЗИЧЕСКИЕ СТЕНЫ ПО ПЕРИМЕТРУ
-    // ==========================================
-    const createPhysicsWall = (x, y, z, halfX, halfY, halfZ) => {
-      const wallBody = new CANNON.Body({
-        mass: 0,
-        material: this.matSlippery, // <--- ИЗМЕНИЛИ ЗДЕСЬ
-        collisionFilterGroup: CONFIG.PHYSICS.GROUPS.SCENE,
-        collisionFilterMask:
-          CONFIG.PHYSICS.GROUPS.OBJECTS | CONFIG.PHYSICS.GROUPS.TINY,
-      });
-      wallBody.addShape(new CANNON.Box(new CANNON.Vec3(halfX, halfY, halfZ)));
-      wallBody.position.set(x, y, z);
-      this.world.addBody(wallBody);
-    };
-
-    // Параметры: (X, Y, Z, половина_ширины, половина_высоты, половина_длины)
-
-    // 1. Левая стена (чуть левее визуала на x: -15)
-    createPhysicsWall(-16, 2.5, 10, 1, 10, 35);
-
-// === 2. ПРАВАЯ СТЕНА И НИША (БЕЗ ШВОВ) ===
-    
-    // Стена ДО ниши (ближе к окну)
-    createPhysicsWall(16, 2.5, 25, 1, 10, 10);
-    // Стена ПОСЛЕ ниши (ближе к спавну)
-    createPhysicsWall(16, 2.5, 42.5, 1, 10, 2.5);
-
-    // === МОНОЛИТНЫЕ БЛОКИ НИШИ ===
-
-    // 1. Единый блок: Стена ПОД нишей + Пол ниши (Никаких зацепов для шара!)
-    createPhysicsWall(17.5, -1.25, 37.5, 2.5, 3.75, 2.5);
-    // 2. Единый блок: Стена НАД нишей + Потолок ниши
-    createPhysicsWall(17.5, 8.75, 37.5, 2.5, 1.25, 2.5);
-    // 3. Задняя стенка ниши
-    createPhysicsWall(20.5, 5, 37.5, 0.5, 2.5, 2.5);
-    // 4. Левая боковая стенка ниши (ближе к окну)
-    createPhysicsWall(17.5, 5, 34.5, 2.5, 2.5, 0.5);
-   // 5. Правая боковая стенка ниши (ближе к спавну)
-    createPhysicsWall(17.5, 5, 40.5, 2.5, 2.5, 0.5);
-
- // === ФИЗИКА ВНУТРИ НИШИ ===
-    // Задняя стенка ниши (на X = 20)
-    createPhysicsWall(20.5, 5, 37.5, 0.5, 2.5, 2.5);
-    // Потолок ниши (на Y = 7.5)
-    createPhysicsWall(17.5, 8.0, 37.5, 2.5, 0.5, 2.5);
-    // Пол ниши (на Y = 2.5)
-    createPhysicsWall(17.5, 2.0, 37.5, 2.5, 0.5, 2.5);
-    // Левая боковая стенка (на Z = 35)
-    createPhysicsWall(17.5, 5, 34.5, 2.5, 2.5, 0.5);
-    // Правая боковая стенка (на Z = 40)
-    createPhysicsWall(17.5, 5, 40.5, 2.5, 2.5, 0.5);
-    
-
-    // 3. Задняя стена лаборатории (за окном, визуально на z: -10)
-    // Делаем ее широкой, чтобы перекрывала углы с запасом
-    createPhysicsWall(0, 2.5, -11, 25, 10, 1);
-
-    // 4. Невидимая "четвертая стена" сзади камеры в коридоре (z: 46)
-    // Чтобы шар не мог уехать назад за пределы экрана
-    createPhysicsWall(0, 2.5, 46, 25, 10, 1);
-    // ==========================================
-
-    // Инициализация шариков и инстансов
-    const ballGeo = new THREE.SphereGeometry(
-      CONFIG.PHYSICS.BALL_RADIUS,
-      16,
-      16,
-    );
+    // 2. Мелкие шарики (инстансы оставляем как есть, это эффективно)
+    const ballGeo = new THREE.SphereGeometry(CONFIG.PHYSICS.BALL_RADIUS, 16, 16);
     this.ballShape = new CANNON.Sphere(CONFIG.PHYSICS.BALL_RADIUS);
-    this.ballInstancedMesh = new THREE.InstancedMesh(
-      ballGeo,
-      this.ballMat,
-      CONFIG.PHYSICS.MAX_BALLS,
-    );
+    this.ballInstancedMesh = new THREE.InstancedMesh(ballGeo, this.ballMat, CONFIG.PHYSICS.MAX_BALLS);
     this.ballInstancedMesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
     this.ballInstancedMesh.castShadow = true;
     this.ballInstancedMesh.receiveShadow = true;
@@ -817,187 +390,30 @@ export class GoogleRoomApp {
       this.ballInstancedMesh.setColorAt(i, new THREE.Color(0xffffff));
     }
 
-    // ==========================================
-    // ИНТЕРАКТИВНЫЙ ЖЕЛТЫЙ ЯЩИК (ДЛЯ ПРЫЖКОВ)
-    // ==========================================
-    const boxSizeX = 4.0; // Широкий
-    const boxSizeY = 2.5; // Плоский (как поддон)
-    const boxSizeZ = 4.0; // Глубокий
-
-    // 1. Загрузка текстур для желтого ящика
-    // (Если textureLoader уже создан выше для зеленого ящика,
-    // можно использовать его же, но для надежности оставим так)
-    const textureLoaderYellow = new THREE.TextureLoader();
-
-    const yellowColorTex = textureLoaderYellow.load(
-      "Image/Plastic016B_1K-PNG_Color.png",
-    );
-    const yellowNormalTex = textureLoaderYellow.load(
-      "Image/Plastic016B_1K-PNG_NormalGL.png",
-    );
-    const yellowRoughTex = textureLoaderYellow.load(
-      "Image/Plastic016B_1K-PNG_Roughness.png",
-    );
-
-    // Настройка тайлинга (повторения текстуры)
-    const setupYellowTiling = (texture, repeatX, repeatY) => {
-      texture.wrapS = THREE.RepeatWrapping;
-      texture.wrapT = THREE.RepeatWrapping;
-      texture.repeat.set(repeatX, repeatY);
-    };
-
-    // Так как ящик 4х4 метра, 2 повторения будут смотреться отлично
-    setupYellowTiling(yellowColorTex, 2, 2);
-    setupYellowTiling(yellowNormalTex, 2, 2);
-    setupYellowTiling(yellowRoughTex, 2, 2);
-
-    // 2. Визуал (Three.js) с новыми текстурами
-    const boxGeo = new THREE.BoxGeometry(boxSizeX, boxSizeY, boxSizeZ);
-    const boxMat = new THREE.MeshStandardMaterial({
-      map: yellowColorTex,
-      normalMap: yellowNormalTex,
-      roughnessMap: yellowRoughTex,
-      color: 0xffffff, // Обязательно белый, чтобы текстура отдала свой родной желтый цвет!
-      normalScale: new THREE.Vector2(1.2, 1.2), // Чуть усиливаем рельеф
-      roughness: 1.0, // Шероховатость берется из текстуры
-      metalness: 0.1,
+    // === 3. СОЗДАЕМ ЯЩИКИ ЧЕРЕЗ НОВЫЙ КЛАСС ===
+    this.interactiveBox = new InteractiveBox(this.world, this.scene, this.matBox, {
+      size: { x: 4.0, y: 2.5, z: 4.0 },
+      mass: 15,
+      position: { x: 5, y: CONFIG.WORLD.FLOOR_LEVEL + 1.25, z: 20 },
+      textures: {
+        color: "Image/Plastic016B_1K-PNG_Color.png",
+        normal: "Image/Plastic016B_1K-PNG_NormalGL.png",
+        rough: "Image/Plastic016B_1K-PNG_Roughness.png"
+      }
     });
 
-    const boxMesh = new THREE.Mesh(boxGeo, boxMat);
-    boxMesh.castShadow = true;
-    boxMesh.receiveShadow = true;
-    this.scene.add(boxMesh);
-
-    // 2. Физика (Cannon.js)
-    // В Cannon.js размеры Box задаются ПОЛОВИНАМИ от реальных!
-    const boxHalfExtents = new CANNON.Vec3(
-      boxSizeX / 2,
-      boxSizeY / 2,
-      boxSizeZ / 2,
-    );
-    const boxShape = new CANNON.Box(boxHalfExtents);
-
-    // Спавним в КОРИДОРЕ
-    const boxStartX = 5;
-    const boxStartY = CONFIG.WORLD.FLOOR_LEVEL + boxSizeY / 2;
-    const boxStartZ = 20;
-
-    const boxBody = new CANNON.Body({
-      mass: 15, // Оставляем 15, чтобы шар (100) чувствовал её вес
-      material: this.matBox,
-      position: new CANNON.Vec3(boxStartX, boxStartY, boxStartZ),
-      // 0.1 — это идеальный баланс: она легко катится, но за секунду-две плавно замирает
-      linearDamping: 0.1,
-      angularDamping: 0.99,
-      collisionFilterGroup: CONFIG.PHYSICS.GROUPS.OBJECTS,
-      collisionFilterMask:
-        CONFIG.PHYSICS.GROUPS.SCENE |
-        CONFIG.PHYSICS.GROUPS.OBJECTS |
-        CONFIG.PHYSICS.GROUPS.TINY,
+    this.greenBox = new InteractiveBox(this.world, this.scene, this.matBox, {
+      size: { x: 4.0, y: 5.0, z: 4.0 },
+      mass: 20,
+      position: { x: -5, y: CONFIG.WORLD.FLOOR_LEVEL + 2.5, z: 20 },
+      textures: {
+        color: "Image/Plastic017B_1K-PNG_Color.png",
+        normal: "Image/Plastic017B_1K-PNG_NormalGL.png",
+        rough: "Image/Plastic017B_1K-PNG_Roughness.png"
+      }
     });
 
-    // === МАГИЯ ЖЕЛЕЗОБЕТОННОЙ ПЛАТФОРМЫ ===
-    boxBody.angularFactor.set(1, 1, 1); //
-
-    boxBody.addShape(boxShape);
-    this.world.addBody(boxBody);
-    boxBody.sleep();
-
-    // Сохраняем для синхронизации
-    this.interactiveBox = { mesh: boxMesh, body: boxBody, originalMass: 15 };
-
-    // ==========================================
-    // ИНТЕРАКТИВНЫЙ ЗЕЛЕНЫЙ ЯЩИК (Текстурирование)
-    // ==========================================
-
-    // 1. Инициализируем загрузчик текстур
-    const textureLoader = new THREE.TextureLoader();
-
-    // 2. Укажи правильные пути к файлам в твоей папке Image/
-    // (Я использую NormalGL)
-    const plasticColorTex = textureLoader.load(
-      "Image/Plastic017B_1K-PNG_Color.png",
-    );
-    const plasticNormalTex = textureLoader.load(
-      "Image/Plastic017B_1K-PNG_NormalGL.png",
-    );
-    const plasticRoughTex = textureLoader.load(
-      "Image/Plastic017B_1K-PNG_Roughness.png",
-    );
-
-    // 3. Функция настройки тайлинга (чтобы текстура не тянулась на коробке 5 метров)
-    // Твои текстуры бесшовные, поэтому можно повторить их.
-    const setupBoxTiling = (texture, repeatX, repeatY) => {
-      texture.wrapS = THREE.RepeatWrapping;
-      texture.wrapT = THREE.RepeatWrapping;
-      // Т.к. коробка 5м в высоту, а текстура 1K, повторим ее 2 раза по обеим осям.
-      texture.repeat.set(repeatX, repeatY);
-    };
-
-    // Применяем тайлинг (напр., 2 повторения по X, 2 по Y)
-    setupBoxTiling(plasticColorTex, 2, 2);
-    setupBoxTiling(plasticNormalTex, 2, 2);
-    setupBoxTiling(plasticRoughTex, 2, 2);
-
-    const greenSizeX = 4.0;
-    const greenSizeY = 5.0; // Высота
-    const greenSizeZ = 4.0;
-
-    const greenGeo = new THREE.BoxGeometry(greenSizeX, greenSizeY, greenSizeZ);
-
-    // 4. ОБНОВЛЕННЫЙ МАТЕРИАЛ: Применяем текстуры
-    const greenMat = new THREE.MeshStandardMaterial({
-      map: plasticColorTex, // Применяем Диффузную карту (Цвет)
-      normalMap: plasticNormalTex, // Применяем Карту Нормалей
-      roughnessMap: plasticRoughTex, // Применяем Карту Шероховатости
-
-      // ВАЖНО: Ставь цвет в БЕЛЫЙ! Если оставить 0x34a853,
-      // то зеленый цвет текстуры умножится на зеленый hex, и коробка станет черно-зеленой.
-      color: 0xffffff,
-
-      // Опциональные настройки:
-      normalScale: new THREE.Vector2(1.2, 1.2), // Немного увеличим силу рельефа
-      roughness: 1.0, // Оставляем 1.0, т.к. это матовый пластик (сама карта скажет, где матовость)
-      metalness: 0.1, // Пластик не металл, но небольшое отражение нужно
-    });
-
-    const greenMesh = new THREE.Mesh(greenGeo, greenMat);
-    greenMesh.castShadow = true;
-    greenMesh.receiveShadow = true;
-    this.scene.add(greenMesh);
-
-    const greenShape = new CANNON.Box(
-      new CANNON.Vec3(greenSizeX / 2, greenSizeY / 2, greenSizeZ / 2),
-    );
-
-    // Ставим его левее (x: -5), чтобы не пересекался с желтым
-    const greenStartX = -5;
-    const greenStartY = CONFIG.WORLD.FLOOR_LEVEL + greenSizeY / 2;
-    const greenStartZ = 20;
-
-    const greenBody = new CANNON.Body({
-      mass: 20, // Сделаем его чуть тяжелее, раз он больше
-      material: this.matBox,
-      position: new CANNON.Vec3(greenStartX, greenStartY, greenStartZ),
-      linearDamping: 0.1,
-      angularDamping: 0.99,
-      collisionFilterGroup: CONFIG.PHYSICS.GROUPS.OBJECTS,
-      collisionFilterMask:
-        CONFIG.PHYSICS.GROUPS.SCENE |
-        CONFIG.PHYSICS.GROUPS.OBJECTS |
-        CONFIG.PHYSICS.GROUPS.TINY,
-    });
-
-    greenBody.angularFactor.set(1, 1, 1); // Разрешаем крутиться вокруг всех осей, чтобы он мог валяться и кататься, а не застывать вертикально, как платформа. Это добавит разнообразия в прыжки и взаимодействия с ним. Если хочешь, чтобы он тоже был "платформой", можно оставить только Y=1, но я бы рекомендовал разрешить вращение для более динамичного поведения.
-    greenBody.addShape(greenShape);
-    this.world.addBody(greenBody);
-    greenBody.sleep(); // Усыпляем на старте
-
-    this.greenBox = { mesh: greenMesh, body: greenBody, originalMass: 20 };
-
-    // Объединяем их в массив, чтобы было удобнее проверять прыжки
     this.interactivePlatforms = [this.interactiveBox, this.greenBox];
-    // ==========================================
   }
 
   clearBalls() {
@@ -1051,7 +467,7 @@ export class GoogleRoomApp {
     nextFlicker();
   }
 
-  resetScene() {
+resetScene() {
     // === СБРОС ШАРИКА-ИГРОКА ===
     if (this.playerBody) {
       this.playerBody.velocity.set(0, 0, 0);
@@ -1065,28 +481,13 @@ export class GoogleRoomApp {
       this.playerBody.wakeUp();
     }
 
-    // =========================================
-    // === ВСТАВЬ СБРОС ЖЕЛТОГО ЯЩИКА СЮДА ===
-    // =========================================
-    if (this.interactiveBox && this.interactiveBox.body) {
-      const box = this.interactiveBox.body;
-      box.velocity.set(0, 0, 0);
-      box.angularVelocity.set(0, 0, 0);
-
-      // Возвращаем на стартовые координаты.
-      // Исправили 0.25 на правильную половину высоты (2.5 / 2 = 1.25)
-      box.position.set(5, CONFIG.WORLD.FLOOR_LEVEL + 1.25, 20);
-      box.quaternion.set(0, 0, 0, 1);
-
-      box.previousPosition.copy(box.position);
-      box.interpolatedPosition.copy(box.position);
-      box.previousQuaternion.copy(box.quaternion);
-      box.interpolatedQuaternion.copy(box.quaternion);
-
-      // Заменим box.wakeUp() на box.sleep(), чтобы после рестарта она тоже не падала
-      box.sleep();
+    // === СБРОС ИНТЕРАКТИВНЫХ ПЛАТФОРМ (ЯЩИКОВ) ===
+    // Смотри, как чисто! Вся логика спрятана внутри класса InteractiveBox
+    if (this.interactivePlatforms) {
+      this.interactivePlatforms.forEach(platform => platform.reset());
     }
 
+    // Сброс UI и стейта
     if (store && typeof store.get === "function") {
       const currentState = store.get();
       if (typeof store.set === "function") {
@@ -1122,25 +523,24 @@ export class GoogleRoomApp {
       }
     }
     this.fanLevel = 0.0;
-    if (
-      this.uiManager &&
-      typeof this.uiManager.updateFanProgress === "function"
-    ) {
+    
+    if (this.uiManager && typeof this.uiManager.updateFanProgress === "function") {
       this.uiManager.updateFanProgress(0);
     }
 
     this.startShrinkingBalls();
 
-    this.letterObjects.forEach((obj, i) => {
-      const body = obj.body;
-      const palette = CONFIG.COLORS.GOOGLE_PALETTE;
-      body.userData.googleColor = palette[i % palette.length];
-    });
+// Сбрасываем цвета букв через новый WordManager
+    if (this.wordManager && this.wordManager.letterObjects) {
+      this.wordManager.letterObjects.forEach((obj, i) => {
+        const palette = CONFIG.COLORS.GOOGLE_PALETTE;
+        obj.body.userData.googleColor = palette[i % palette.length];
+      });
 
-    // Если буквы уже открыты (по сюжету) — возвращаем их на старт.
-    // Если еще закрыты — не трогаем, пусть сидят в невидимости.
-    if (this.lettersEnabled) {
-      this.returnLettersToStart();
+      // Если буквы уже открыты (по сюжету) — возвращаем их на старт.
+      if (this.wordManager.lettersEnabled) {
+        this.wordManager.returnLettersToStart();
+      }
     }
   }
 
@@ -1161,14 +561,14 @@ export class GoogleRoomApp {
       //   this.world.addBody(this.platformBody);
 
       if (state.mode === "disco") {
-        for (const l of this.letterObjects) {
+       for (const l of this.wordManager.letterObjects){
           l.mesh.material.emissiveIntensity = 0.02;
           l.mesh.material.roughness = 0.25;
           l.mesh.material.color.setHex(l.body.userData.googleColor);
         }
         this.setBallGlow(true);
       } else {
-        for (const l of this.letterObjects) {
+        for (const l of this.wordManager.letterObjects) {
           l.mesh.material.emissiveIntensity = 0.0;
           l.mesh.material.roughness = 0.5;
           l.mesh.material.color.setHex(l.body.userData.googleColor);
@@ -1184,14 +584,14 @@ export class GoogleRoomApp {
           this.uiManager.lockLetters(isMagnet);
 
           if (isMagnet) {
-            if (this.lettersEnabled) {
-              this.hideLettersSmoothly();
+            if (this.wordManager.lettersEnabled) {
+              this.wordManager.hideLettersSmoothly();
               this.lettersHiddenByMagnet = true;
             }
           } else {
             if (this.lettersHiddenByMagnet) {
               this.uiManager.setLettersActive(true);
-              this.showLettersSmoothly();
+              this.wordManager.showLettersSmoothly()
               this.lettersHiddenByMagnet = false;
             }
           }
@@ -1354,25 +754,27 @@ export class GoogleRoomApp {
       .subVectors(this.inputManager.interactionTarget, camPos)
       .normalize();
 
-    // 1. ОБРАБОТКА БУКВ (Высокая чувствительность, без физической отдачи)
-    this.letterObjects.forEach((obj) => {
-      if (!this.lettersEnabled || obj.body.collisionFilterMask === 0) return;
+   // 1. ОБРАБОТКА БУКВ (Высокая чувствительность, без физической отдачи)
+    if (this.wordManager && this.wordManager.letterObjects) {
+      this.wordManager.letterObjects.forEach((obj) => {
+        if (!this.wordManager.lettersEnabled || obj.body.collisionFilterMask === 0) return;
 
-      const v = new THREE.Vector3().subVectors(obj.body.position, camPos);
-      const distAlongRay = v.dot(sprayDir);
+        const v = new THREE.Vector3().subVectors(obj.body.position, camPos);
+        const distAlongRay = v.dot(sprayDir);
 
-      if (distAlongRay > 0 && distAlongRay < 40) {
-        const perpDist = v.clone().cross(sprayDir).length();
+        if (distAlongRay > 0 && distAlongRay < 40) {
+          const perpDist = v.clone().cross(sprayDir).length();
 
-        // Увеличенный радиус захвата специально для букв (было ~0.5, стало 1.8)
-        const letterSensitivity = 1.8 + distAlongRay * 0.12;
+          // Увеличенный радиус захвата специально для букв (было ~0.5, стало 1.8)
+          const letterSensitivity = 1.8 + distAlongRay * 0.12;
 
-        if (perpDist < letterSensitivity) {
-          obj.body.userData.googleColor = targetColor;
-          // Физический импульс (applyImpulse) удален, чтобы буквы оставались на месте
+          if (perpDist < letterSensitivity) {
+            obj.body.userData.googleColor = targetColor;
+            // Физический импульс (applyImpulse) удален, чтобы буквы оставались на месте
+          }
         }
-      }
-    });
+      });
+    }
 
     // 2. ОБРАБОТКА ШАРИКОВ (Старая логика: малый радиус и физический отброс)
     for (let i = 0; i < CONFIG.PHYSICS.MAX_BALLS; i++) {
@@ -1425,184 +827,6 @@ export class GoogleRoomApp {
     }
   }
 
-  changeWordSmoothly(newWord) {
-    if (this.isChangingWord) return;
-
-    if (this.currentWord === newWord) {
-      this.returnLettersToStart();
-      return;
-    }
-
-    this.isChangingWord = true;
-
-    // Очищаем старые застрявшие таймеры
-    if (this.wordTimer1) clearTimeout(this.wordTimer1);
-    if (this.wordTimer2) clearTimeout(this.wordTimer2);
-
-    if (!this.lettersEnabled) {
-      this.currentWord = newWord;
-      this.spawnLetters(this.currentWord);
-      this.letterObjects.forEach((obj) => {
-        if (obj.setVisible) obj.setVisible(false);
-        else if (obj.mesh) obj.mesh.visible = false;
-      });
-      this.isChangingWord = false;
-      return;
-    }
-
-    const now = performance.now();
-    const duration = 300;
-
-    this.letterObjects.forEach((obj) => {
-      const body = obj.body;
-      if (!body) return; // Защита от краша, если тело уже удалено
-
-      body.userData.isShrinkingWord = true;
-      body.userData.shrinkStartTime = now;
-
-      body.collisionFilterMask = 0;
-      body.type = CANNON.Body.KINEMATIC;
-      body.velocity.set(0, 0, 0);
-      body.angularVelocity.set(0, 0, 0);
-    });
-
-    this.wordTimer1 = setTimeout(() => {
-      this.letterObjects.forEach((obj) => {
-        if (obj.body) this.createDustExplosion(obj.body.position, 0.35);
-      });
-
-      this.currentWord = newWord;
-      this.spawnLetters(this.currentWord);
-
-      const growStartTime = performance.now();
-
-      this.letterObjects.forEach((obj) => {
-        const body = obj.body;
-        if (!body) return;
-
-        obj.mesh.scale.set(0, 0, 0);
-
-        body.userData.isGrowingWord = true;
-        body.userData.growStartTime = growStartTime;
-
-        body.collisionFilterMask = 0;
-        body.type = CANNON.Body.KINEMATIC;
-      });
-
-      this.wordTimer2 = setTimeout(() => {
-        this.letterObjects.forEach((obj) => {
-          const body = obj.body;
-          if (!body) return;
-
-          body.userData.isGrowingWord = false;
-          obj.mesh.scale.set(1, 1, 1);
-
-          body.type = CANNON.Body.DYNAMIC;
-          body.collisionFilterMask =
-            CONFIG.PHYSICS.GROUPS.SCENE | CONFIG.PHYSICS.GROUPS.OBJECTS;
-
-          body.velocity.set(0, 0, 0);
-          body.angularVelocity.set(0, 0, 0);
-          body.previousPosition.copy(body.position);
-
-          body.sleep();
-        });
-
-        this.isChangingWord = false;
-      }, duration);
-    }, duration);
-  }
-
-  spawnLetters(wordStr) {
-    this.letterObjects.forEach((obj) => obj.destroy());
-    this.letterObjects.length = 0;
-
-    if (!this.globalFont || !wordStr) return;
-
-    const charSpacing = 2.8;
-    const totalWidth = wordStr.length * charSpacing;
-    const startXOffset = -totalWidth / 2 + charSpacing / 2;
-
-    for (let i = 0; i < wordStr.length; i++) {
-      const color =
-        CONFIG.COLORS.GOOGLE_PALETTE[i % CONFIG.COLORS.GOOGLE_PALETTE.length];
-      const geo = new TextGeometry(wordStr[i], {
-        font: this.globalFont,
-        size: 2.5,
-        height: 0.8,
-        curveSegments: 8,
-        bevelEnabled: true,
-        bevelThickness: 0.15,
-        bevelSize: 0.08,
-        bevelSegments: 5,
-      });
-      geo.center();
-      const mesh = new THREE.Mesh(
-        geo,
-        new THREE.MeshStandardMaterial({
-          color,
-          roughness: 0.5,
-          metalness: 0.1,
-          emissive: color,
-          emissiveIntensity: 0.0,
-        }),
-      );
-      mesh.castShadow = true;
-      mesh.receiveShadow = true;
-
-      geo.computeBoundingBox();
-      const size = geo.boundingBox.getSize(new THREE.Vector3());
-      const body = new CANNON.Body({
-        mass: CONFIG.PHYSICS.LETTER_MASS,
-        material: this.matBouncy,
-        angularDamping: 0.1,
-        linearDamping: 0.01,
-        collisionFilterGroup: CONFIG.PHYSICS.GROUPS.OBJECTS,
-        collisionFilterMask:
-          CONFIG.PHYSICS.GROUPS.SCENE | CONFIG.PHYSICS.GROUPS.OBJECTS,
-      });
-      body.addShape(
-        new CANNON.Box(new CANNON.Vec3(size.x / 2, size.y / 2, size.z / 2)),
-      );
-      const startX = startXOffset + i * charSpacing;
-      body.position.set(startX, 2, 0);
-      body.userData = {
-        startPos: new CANNON.Vec3(startX, 2, 0),
-        googleColor: color,
-        halfHeight: size.y / 2,
-      };
-      body.sleep();
-
-      const letterObj = new GameObject(this.world, this.scene, mesh, body);
-
-      body.addEventListener("collide", (e) => {
-        if (!this.lettersEnabled) return;
-        const v = Math.abs(e.contact.getImpactVelocityAlongNormal());
-        if (v <= 1.35) return;
-        const contactPos = new THREE.Vector3(
-          e.contact.bi.position.x + e.contact.ri.x,
-          e.contact.bi.position.y + e.contact.ri.y,
-          e.contact.bi.position.z + e.contact.ri.z,
-        );
-        if (e.body && e.body.mass === 0) {
-          this.spawnMiniBeads(contactPos, body.userData.googleColor);
-          if (
-            Math.abs(contactPos.x) < 5 &&
-            Math.abs(contactPos.z) < 5 &&
-            contactPos.y < CONFIG.WORLD.FLOOR_LEVEL + 1.0
-          ) {
-            this.platformImpact = 1.0;
-          }
-        }
-        if (typeof audioManager !== "undefined" && audioManager.playHitSound) {
-          audioManager.playHitSound(v, isSlowMo());
-        }
-      });
-
-      this.letterObjects.push(letterObj);
-    }
-    if (isNight()) this.setBallGlow(true);
-  }
 
   updateBeadsBlinking() {
     const isMagnet = store.get().currentTool !== -1;
@@ -1617,62 +841,6 @@ export class GoogleRoomApp {
     } else {
       btn.classList.remove("needs-attention");
     }
-  }
-
-  hideLettersSmoothly() {
-    if (this.letterObjects.length === 0) return;
-    const now = performance.now();
-
-    this.letterObjects.forEach((obj) => {
-      const body = obj.body;
-      body.userData.isShrinkingWord = true;
-      body.userData.isGrowingWord = false;
-      body.userData.shrinkStartTime = now;
-
-      body.collisionFilterMask = 0;
-
-      this.createDustExplosion(body.position, 0.25);
-    });
-  }
-
-  showLettersSmoothly() {
-    if (this.letterObjects.length === 0) return;
-    const now = performance.now();
-
-    this.letterObjects.forEach((obj) => {
-      const body = obj.body;
-      body.userData.isGrowingWord = true;
-      body.userData.isShrinkingWord = false;
-      body.userData.growStartTime = now;
-    });
-
-    this.returnLettersToStart();
-  }
-
-  returnLettersToStart() {
-    if (this.letterObjects.length === 0 || this.isPaused) return;
-
-    const now = performance.now();
-
-    this.letterObjects.forEach((obj) => {
-      const body = obj.body;
-
-      body.type = CANNON.Body.KINEMATIC;
-      body.collisionFilterMask = 0;
-      body.velocity.set(0, 0, 0);
-      body.angularVelocity.set(0, 0, 0);
-
-      body.userData.returnStartPos = body.position.clone();
-      body.userData.returnStartQuat = {
-        x: body.quaternion.x,
-        y: body.quaternion.y,
-        z: body.quaternion.z,
-        w: body.quaternion.w,
-      };
-      body.userData.returnStartTime = now;
-
-      body.userData.isReturning = true;
-    });
   }
 
   spawnMiniBeads(pos, colorHex) {
@@ -1725,10 +893,6 @@ export class GoogleRoomApp {
   }
 
   tick(currentTime) {
-    // Жестко фиксируем горизонт, чтобы камеру не кренило
-    if (this.cameraPivot) this.cameraPivot.rotation.z = 0;
-    this.camera.rotation.z = 0;
-
     requestAnimationFrame(this.tick);
 
     if (!this.isPaused) {
@@ -1736,11 +900,21 @@ export class GoogleRoomApp {
       this.lastTime = currentTime;
       if (dt > 0.1) dt = 0.1;
 
-      this.physicsManager.step(dt, isSlowMo());
       const timeSec = currentTime / 1000;
 
+      // 1. Считаем физику
+      this.physicsManager.step(dt, isSlowMo());
+      
+      // 2. Считаем глобальный инпут мыши (магнит, краска)
       this.inputManager.update(dt);
+      
+      // 3. Обновляем игрока (он сам прочитает WASD и применит физику)
+      this.playerController.update(dt);
+      
+      // 4. Обновляем камеру (она сама поедет за игроком)
+      this.cameraController.update(dt, this.playerMesh.position);
 
+      // 5. Обновляем партиклы, магниты и окружение
       const state = this.updateEnvironment(dt, timeSec);
       this.updatePhysics(
         dt,
@@ -1755,308 +929,16 @@ export class GoogleRoomApp {
       this.paintPools.forEach((pool) => pool.update(isSlowMo()));
       this.miniBeadPool.update(dt);
 
-// === 7. ПЛАВНОЕ СЛЕДОВАНИЕ КАМЕРЫ (CHASE CAMERA) ===
-      if (this.cameraPivot) {
-        // Берем позицию шара
-        const targetPos = this.playerMesh.position.clone();
-
-        // Поднимаем точку фокусировки
-        targetPos.y += 2.5;
-
-        // === НОВАЯ ЗАЩИТА: ОГРАНИЧИТЕЛЬ ВЫСОТЫ КАМЕРЫ ===
-        // Если шар находится внутри или прямо перед нишей (X > 14, Z: 34 - 41)
-        if (targetPos.x > 14 && targetPos.z > 34 && targetPos.z < 41) {
-           // Не даем фокусу камеры подняться выше 7.0 метров (потолок ниши на 7.5)
-           targetPos.y = Math.min(targetPos.y, 7.0); 
-        } else {
-           // В остальной комнате не даем фокусу пробить основной потолок (10.0)
-           targetPos.y = Math.min(targetPos.y, 9.5); 
-        }
-
-        // Плавная "резинка" следования...
-        this.cameraPivot.position.lerp(targetPos, 15 * dt);
-        this.cameraPivot.updateMatrixWorld();
+     // 6. Синхронизация интерактивных объектов
+      if (this.interactivePlatforms) {
+        this.interactivePlatforms.forEach(platform => platform.update());
       }
-
-      // СИНХРОНИЗАЦИЯ И УПРАВЛЕНИЕ ШАРОМ-ИГРОКОМ
-
-      if (this.playerMesh && this.playerBody) {
-        // === НОВАЯ ЗАЩИТА: ЕСЛИ ШАР УПАЛ В БЕЗДНУ ===
-        if (this.playerBody.position.y < CONFIG.WORLD.FLOOR_LEVEL - 5) {
-          this.resetScene(); // Мгновенно возвращаем все на старт
-          return; // Прерываем этот кадр, чтобы не сломать камеру
-        }
-
-        this.playerMesh.position.copy(this.playerBody.interpolatedPosition);
-        this.playerMesh.quaternion.copy(this.playerBody.interpolatedQuaternion);
-
-        this.playerMesh.position.copy(this.playerBody.interpolatedPosition);
-        this.playerMesh.quaternion.copy(this.playerBody.interpolatedQuaternion);
-
-        // 2. Умная проверка пола с "Coyote Time"
-        let actualGroundContact = false;
-
-        // Сбрасываем статус "игрок на мне" для всех платформ
-        if (this.interactivePlatforms) {
-          this.interactivePlatforms.forEach((p) => (p.isPlayerOn = false));
-        }
-
-        for (let i = 0; i < this.world.contacts.length; i++) {
-          let contact = this.world.contacts[i];
-
-          if (
-            contact.bi === this.playerBody ||
-            contact.bj === this.playerBody
-          ) {
-            if (contact.bi === this.playerBody && contact.ni.y < -0.1)
-              actualGroundContact = true;
-            if (contact.bj === this.playerBody && contact.ni.y > 0.1)
-              actualGroundContact = true;
-
-            // === ПРОВЕРЯЕМ, СТОИТ ЛИ ШАР НА КАКОЙ-ТО ИЗ КОРОБОК ===
-            if (this.interactivePlatforms) {
-              this.interactivePlatforms.forEach((platform) => {
-                if (
-                  contact.bi === platform.body ||
-                  contact.bj === platform.body
-                ) {
-                  if (contact.bi === this.playerBody && contact.ni.y < -0.5)
-                    platform.isPlayerOn = true;
-                  if (contact.bj === this.playerBody && contact.ni.y > 0.5)
-                    platform.isPlayerOn = true;
-                }
-              });
-            }
-          }
-        }
-
-        this.coyoteTimer = this.coyoteTimer || 0;
-        if (actualGroundContact) {
-          this.coyoteTimer = 0.25;
-        } else {
-          this.coyoteTimer -= dt;
-        }
-        this.isPlayerGrounded = this.coyoteTimer > 0;
-
-        // ==========================================
-        // === МАГИЯ УМНЫХ КОРОБОК (ЗАМОРОЗКА) ===
-        // ==========================================
-        if (this.interactivePlatforms) {
-          this.interactivePlatforms.forEach((platform) => {
-            const box = platform.body;
-
-            // ЖЕЛЕЗОБЕТОННАЯ ЗАЩИТА: Если originalMass забыли указать, берем 15 по умолчанию
-            const safeMass = platform.originalMass || 15;
-
-            // Если шар запрыгнул, а коробка еще подвижна
-            if (platform.isPlayerOn && box.mass !== 0) {
-              box.mass = 0;
-              box.updateMassProperties();
-              box.velocity.set(0, 0, 0);
-              box.angularVelocity.set(0, 0, 0); // На всякий случай гасим и вращение тоже
-            }
-            // Если шар спрыгнул/упал, а коробка всё еще монолит
-            else if (!platform.isPlayerOn && box.mass === 0) {
-              box.mass = safeMass; // Возвращаем безопасную массу!
-              box.updateMassProperties();
-              box.wakeUp();
-            }
-          });
-        }
-        // ==========================================
-
-        // ==========================================
-        // === 2.1 ПЛАВНЫЙ ЗУМ И УМНАЯ КАМЕРА (SPRING ARM) ===
-        // ==========================================
-        this.currentZoom = THREE.MathUtils.lerp(
-          this.currentZoom,
-          this.targetZoom,
-          10 * dt,
-        );
-
-        // Камера просто находится сзади на оси Z. Всю высоту задает наклон штатива!
-        const idealLocalPos = new THREE.Vector3(0, 0, this.currentZoom);
-        const idealWorldPos = idealLocalPos
-          .clone()
-          .applyMatrix4(this.cameraPivot.matrixWorld);
-
-        const pivotPos = this.cameraPivot.position;
-        const rayDir = new THREE.Vector3().subVectors(idealWorldPos, pivotPos);
-        const maxDist = rayDir.length();
-        rayDir.normalize();
-
-        if (!this.cameraRaycaster) this.cameraRaycaster = new THREE.Raycaster();
-        this.cameraRaycaster.set(pivotPos, rayDir);
-
-        const wallsMeshes = this.sceneManager.walls.map((w) => w.mesh);
-        const intersects = this.cameraRaycaster.intersectObjects(wallsMeshes);
-
-        let finalDist = maxDist;
-        if (intersects.length > 0 && intersects[0].distance < maxDist) {
-          finalDist = intersects[0].distance - 0.9;
-          if (finalDist < 0.4) finalDist = 0.4;
-        }
-
-        // Применяем финальную дистанцию
-        this.camera.position.set(0, 0, finalDist);
-
-        // ВАЖНО: обнуляем вращение самой камеры, чтобы навсегда убрать "крен" пола
-        this.camera.rotation.set(0, 0, 0);
-
-        // 3. Умная подготовка векторов (Относительно взгляда)
-        const torqueForce = -6000.0;
-        const airForce = 1200.0;
-        const torqueVec = new CANNON.Vec3(0, 0, 0);
-        const forceVec = new CANNON.Vec3(0, 0, 0);
-
-        let inputX = 0;
-        let inputZ = 0;
-        if (this.keys.w) inputZ -= 1;
-        if (this.keys.s) inputZ += 1;
-        if (this.keys.a) inputX -= 1;
-        if (this.keys.d) inputX += 1;
-
-        if (inputX !== 0 || inputZ !== 0) {
-          const forward = new THREE.Vector3(0, 0, -1).applyQuaternion(
-            this.cameraPivot.quaternion,
-          );
-          forward.y = 0;
-          forward.normalize();
-
-          const right = new THREE.Vector3(1, 0, 0).applyQuaternion(
-            this.cameraPivot.quaternion,
-          );
-          right.y = 0;
-          right.normalize();
-
-          const moveDir = new THREE.Vector3()
-            .addScaledVector(right, inputX)
-            .addScaledVector(forward, -inputZ)
-            .normalize();
-
-          const torqueAxis = new THREE.Vector3().crossVectors(
-            moveDir,
-            new THREE.Vector3(0, 1, 0),
-          );
-
-          torqueVec.x = torqueAxis.x * torqueForce;
-          torqueVec.y = torqueAxis.y * torqueForce;
-          torqueVec.z = torqueAxis.z * torqueForce;
-
-          // Сила для управления в прыжке
-          forceVec.x = moveDir.x * airForce;
-          forceVec.z = moveDir.z * airForce;
-        }
-
-        // 4. ПРИМЕНЯЕМ РАЗНУЮ ФИЗИКУ
-        if (this.isPlayerGrounded) {
-          if (inputX !== 0 || inputZ !== 0) {
-            this.playerBody.wakeUp();
-            this.playerBody.applyTorque(torqueVec);
-
-            const maxSpin = 35.0;
-            if (this.playerBody.angularVelocity.length() > maxSpin) {
-              this.playerBody.angularVelocity.scale(
-                maxSpin / this.playerBody.angularVelocity.length(),
-                this.playerBody.angularVelocity,
-              );
-            }
-          } else {
-            // === ПЛАВНЫЕ ТОРМОЗА (Инерция шара) ===
-            // Множители увеличены: шар сохраняет больше энергии каждый кадр,
-            // поэтому он приятно докатывается, а не встает колом.
-            this.playerBody.angularVelocity.scale(
-              0.96,
-              this.playerBody.angularVelocity,
-            );
-            this.playerBody.velocity.scale(0.98, this.playerBody.velocity);
-          }
-        } else {
-          // МЫ В ВОЗДУХЕ: Легкое подруливание
-          if (inputX !== 0 || inputZ !== 0) {
-            this.playerBody.wakeUp();
-            this.playerBody.applyForce(forceVec, new CANNON.Vec3(0, 0, 0));
-          }
-          this.playerBody.angularVelocity.scale(
-            0.92,
-            this.playerBody.angularVelocity,
-          );
-        }
-
-        // === 5. ПРЫЖОК (БАННИХОП) ===
-        if (this.keys.space && this.isPlayerGrounded) {
-          this.playerBody.wakeUp();
-          this.playerBody.velocity.y = 10.0;
-
-          // Жесткий сброс, чтобы не прыгнуть дважды за кадр
-          this.isPlayerGrounded = false;
-          this.coyoteTimer = 0;
-
-          if (
-            typeof audioManager !== "undefined" &&
-            audioManager.playPuffSound
-          ) {
-            audioManager.playPuffSound(0.5);
-          }
-        }
-      }
-
-      // ==========================================
-      // === 6. ЛОГИКА ФЕЙКОВОЙ ТЕНИ ===
-      // ==========================================
-      if (this.playerShadowMesh) {
-        const floorY = CONFIG.WORLD.FLOOR_LEVEL;
-
-        this.playerShadowMesh.position.set(
-          this.playerBody.interpolatedPosition.x,
-          floorY + 0.05,
-          this.playerBody.interpolatedPosition.z,
-        );
-
-        const heightOffset =
-          this.playerBody.interpolatedPosition.y -
-          CONFIG.PLAYER.RADIUS -
-          floorY;
-
-        // Динамический размер: чем выше шар, тем меньше и бледнее тень
-        let shadowScale = 1.0 - heightOffset / 12.0; // 12.0 - сила уменьшения
-        if (shadowScale < 0.2) shadowScale = 0.2; // Тень никогда не исчезает полностью
-
-        this.playerShadowMesh.scale.set(shadowScale, shadowScale, shadowScale);
-        this.playerShadowMesh.material.opacity = 0.5 * shadowScale; // Бледнеет в полете
-      }
-
-      // ==========================================
-      // ОГРАНИЧЕНИЕ НАКЛОНА КАМЕРЫ И УБИРАНИЕ КРЕНА
-      // ==========================================
-      if (this.cameraPivot) {
-        this.cameraPivot.rotation.z = 0; // Блокируем крен "бочкой"
-        this.camera.rotation.z = 0;
-      }
-
-      // ВСТАВЛЯЕМ СИНХРОНИЗАЦИЮ КОРОБОК ПРЯМО СЮДА:
-      if (this.interactiveBox) {
-        this.interactiveBox.mesh.position.copy(
-          this.interactiveBox.body.interpolatedPosition,
-        );
-        this.interactiveBox.mesh.quaternion.copy(
-          this.interactiveBox.body.interpolatedQuaternion,
-        );
-      }
-      if (this.greenBox) {
-        this.greenBox.mesh.position.copy(
-          this.greenBox.body.interpolatedPosition,
-        );
-        this.greenBox.mesh.quaternion.copy(
-          this.greenBox.body.interpolatedQuaternion,
-        );
-      }
+      
     } else {
-      // Обрати внимание, чтобы это было ДО закрывающей скобки блока if (!this.isPaused)
       this.lastTime = currentTime;
     }
 
-    this.updateLetterAnimations(currentTime);
+    this.wordManager.updateAnimations(currentTime);
     this.updateBallInstances(currentTime);
 
     // ==========================================
@@ -2094,8 +976,10 @@ export class GoogleRoomApp {
     this.sceneManager.holoLight.intensity = 20;
     this.sceneManager.floorLight.intensity = 10;
     this.sceneManager.ringMesh.material.emissiveIntensity = 1.2;
+
     // ==========================================
     // === ЖЕСТКАЯ ЗАЩИТА КАМЕРЫ ОТ ПРОХОЖДЕНИЯ СКВОЗЬ ПОЛ ===
+    // ==========================================
     const camWorldPos = new THREE.Vector3();
     this.camera.getWorldPosition(camWorldPos);
 
@@ -2175,43 +1059,45 @@ export class GoogleRoomApp {
   updatePhysics(dt, timeSec, isMagnetEquipped, isMagnetPulling, activeColor) {
     const limit = 30;
 
-    for (const obj of this.letterObjects) {
-      // --- ПРЕДОХРАНИТЕЛЬ ЗДЕСЬ ---
-      if (!obj || !obj.body) continue;
+    if (this.wordManager && this.wordManager.letterObjects) {
+      for (const obj of this.wordManager.letterObjects) {
+        // --- ПРЕДОХРАНИТЕЛЬ ЗДЕСЬ ---
+        if (!obj || !obj.body) continue;
 
-      const pos = obj.body.position;
-      if (!pos) continue;
-
-      if (
-        pos.y < -5 ||
-        pos.y > 40 ||
-        pos.x < -limit ||
-        pos.x > limit ||
-        pos.z < -limit ||
-        pos.z > limit
-      ) {
-        obj.body.velocity.set(0, 0, 0);
-        obj.body.angularVelocity.set(0, 0, 0);
-
-        obj.body.position.set(
-          (Math.random() - 0.5) * 5,
-          10,
-          (Math.random() - 0.5) * 5,
-        );
+        const pos = obj.body.position;
+        if (!pos) continue;
 
         if (
-          this.inputManager &&
-          this.inputManager.isDragging &&
-          this.inputManager.dragConstraint &&
-          this.inputManager.dragConstraint.bodyA === obj.body
+          pos.y < -5 ||
+          pos.y > 40 ||
+          pos.x < -limit ||
+          pos.x > limit ||
+          pos.z < -limit ||
+          pos.z > limit
         ) {
-          this.inputManager.cancelDrag();
+          obj.body.velocity.set(0, 0, 0);
+          obj.body.angularVelocity.set(0, 0, 0);
+
+          obj.body.position.set(
+            (Math.random() - 0.5) * 5,
+            10,
+            (Math.random() - 0.5) * 5,
+          );
+
+          if (
+            this.inputManager &&
+            this.inputManager.isDragging &&
+            this.inputManager.dragConstraint &&
+            this.inputManager.dragConstraint.bodyA === obj.body
+          ) {
+            this.inputManager.cancelDrag();
+          }
         }
       }
     }
 
     this.physicsManager.applyEnvironmentForces(
-      this.lettersEnabled ? this.letterObjects.map((obj) => obj.body) : [],
+      (this.wordManager && this.wordManager.lettersEnabled) ? this.wordManager.letterObjects.map((obj) => obj.body) : [],
       this.ballsPool,
       this.fanLevel,
       timeSec,
@@ -2348,88 +1234,6 @@ export class GoogleRoomApp {
         if (b) applyMagnetForce(b, b.userData.originalColorHex);
       });
     }
-  }
-
-  updateLetterAnimations(currentTime) {
-    const targetColor = new THREE.Color();
-
-    this.letterObjects.forEach((obj) => {
-      const body = obj.body;
-
-      if (body.userData.isShrinkingWord) {
-        const progress = Math.min(
-          (currentTime - body.userData.shrinkStartTime) / 300,
-          1.0,
-        );
-        const scale = 1.0 - THREE.MathUtils.smoothstep(progress, 0, 1);
-        obj.mesh.scale.set(scale, scale, scale);
-
-        if (progress >= 1.0) {
-          body.userData.isShrinkingWord = false;
-          body.type = CANNON.Body.KINEMATIC;
-          body.velocity.set(0, 0, 0);
-          body.angularVelocity.set(0, 0, 0);
-          body.sleep();
-        }
-      } else if (body.userData.isGrowingWord) {
-        const progress = Math.min(
-          (currentTime - body.userData.growStartTime) / 300,
-          1.0,
-        );
-        const scale = THREE.MathUtils.smoothstep(progress, 0, 1);
-        obj.mesh.scale.set(scale, scale, scale);
-      }
-
-      if (body.userData.googleColor !== undefined) {
-        targetColor.setHex(body.userData.googleColor);
-        obj.mesh.material.color.lerp(targetColor, 0.05);
-        if (obj.mesh.material.emissive)
-          obj.mesh.material.emissive.lerp(targetColor, 0.05);
-      }
-
-      if (body.userData.isReturning) {
-        const elapsed = currentTime - body.userData.returnStartTime;
-        let progress = Math.min(elapsed / 800, 1.0);
-        const ease = 1 - Math.pow(1 - progress, 3);
-
-        body.position.x = THREE.MathUtils.lerp(
-          body.userData.returnStartPos.x,
-          body.userData.startPos.x,
-          ease,
-        );
-        body.position.y = THREE.MathUtils.lerp(
-          body.userData.returnStartPos.y,
-          body.userData.startPos.y,
-          ease,
-        );
-        body.position.z = THREE.MathUtils.lerp(
-          body.userData.returnStartPos.z,
-          body.userData.startPos.z,
-          ease,
-        );
-
-        const qStart = new THREE.Quaternion(
-          body.userData.returnStartQuat.x,
-          body.userData.returnStartQuat.y,
-          body.userData.returnStartQuat.z,
-          body.userData.returnStartQuat.w,
-        );
-        qStart.slerp(new THREE.Quaternion(0, 0, 0, 1), ease);
-        body.quaternion.set(qStart.x, qStart.y, qStart.z, qStart.w);
-
-        if (progress >= 1.0) {
-          body.userData.isReturning = false;
-          body.type = CANNON.Body.DYNAMIC;
-          body.collisionFilterMask =
-            CONFIG.PHYSICS.GROUPS.SCENE | CONFIG.PHYSICS.GROUPS.OBJECTS;
-          body.velocity.set(0, 0, 0);
-          body.angularVelocity.set(0, 0, 0);
-          body.previousPosition.copy(body.position);
-          body.sleep();
-        }
-      }
-      obj.update();
-    });
   }
 
   updateBallInstances(currentTime) {

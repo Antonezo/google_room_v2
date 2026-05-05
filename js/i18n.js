@@ -1,7 +1,7 @@
 export const translations = {
   EN: {
     start: "NEW GAME",
-    resume: "CONTINUE",
+    resume: "RESUME",
     settings: "SETTINGS",
     exit: "EXIT",
     exitJoke: "close the browser tab :)",

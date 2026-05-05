@@ -18,6 +18,7 @@ RectAreaLightUniformsLib.init();
 
 export class GoogleRoomApp {
   constructor() {
+    this.hasStartedGame = false; // <--- ДОБАВЛЯЕМ ФЛАГ
     this.isPaused = false;
     this.isResetting = false;
     this.lastTime = performance.now();
@@ -81,6 +82,16 @@ export class GoogleRoomApp {
     this.uiManager = new UIManager({
       onTogglePause: () => {
         this.isPaused = !this.isPaused;
+
+        // === ЖЕЛЕЗОБЕТОННОЕ ПОЯВЛЕНИЕ КНОПКИ ===
+        // Если меню открылось (пауза) и игра уже была начата
+        if (this.isPaused && this.hasStartedGame) {
+          const resumeBtn = document.getElementById("btn-resume-game");
+          if (resumeBtn) {
+            resumeBtn.classList.remove("locked-feature");
+          }
+        }
+
         return this.isPaused;
       },
       onReset: () => this.resetScene(),
@@ -373,15 +384,24 @@ export class GoogleRoomApp {
 
     // Логика захвата курсора
     document.addEventListener("click", (e) => {
-      // 1. Если кликнули по кнопкам "Новая игра" или "Продолжить" — СРАЗУ захватываем мышь
-      if (
-        e.target.closest("#btn-start-game") ||
-        e.target.closest("#btn-resume-game")
-      ) {
+      const btnStart = e.target.closest("#btn-start-game");
+      const btnResume = e.target.closest("#btn-resume-game");
+
+      // 1. Если кликнули по кнопкам "Новая игра" или "Продолжить"
+      if (btnStart || btnResume) {
+        // Если это Новая игра - сбрасываем сцену и запоминаем, что сессия начата
+        if (btnStart) {
+          this.resetScene();
+          this.hasStartedGame = true; // Запоминаем, что игра идет!
+          // Обрати внимание: мы БОЛЬШЕ НЕ убираем класс 'locked-feature' здесь,
+          // чтобы кнопка не появлялась резко перед глазами.
+        }
+
+        // Захватываем мышь (возвращаемся в игру)
         if (!this.controls.isLocked) {
           this.controls.lock();
         }
-        return; // Выходим, чтобы клик не пошел дальше
+        return;
       }
 
       // 2. Если кликаем по остальному меню, настройкам или HUD — игнорируем захват
@@ -421,9 +441,14 @@ export class GoogleRoomApp {
       for (const key in this.keys) {
         this.keys[key] = false;
       }
-    });
-    // ====================================================
 
+      // === МАГИЯ КНОПКИ "ПРОДОЛЖИТЬ" ===
+      // Обновляем кнопку ровно в тот момент, когда игрок выходит в меню
+      const resumeElement = document.getElementById("btn-resume-game");
+      if (this.hasStartedGame && resumeElement) {
+        resumeElement.classList.remove("locked-feature");
+      }
+    });
     requestAnimationFrame(this.tick);
   }
 
@@ -446,37 +471,15 @@ export class GoogleRoomApp {
       this.sceneManager.createWallMesh(width, height, pos, rot, mat);
     };
 
-    // --- ЗОНА 1: ОСНОВНАЯ ЛАБОРАТОРИЯ (за окном) ---
-    addTiledWall(
-      w,
-      h,
-      new THREE.Vector3(0, floorY, 0),
-      new THREE.Vector3(-Math.PI / 2, 0, 0),
-    ); // Пол
-    addTiledWall(
-      w,
-      h,
-      new THREE.Vector3(0, ceilingY, 0),
-      new THREE.Vector3(Math.PI / 2, 0, 0),
-    ); // Потолок
-    addTiledWall(
-      w,
-      20,
-      new THREE.Vector3(0, 2.5, -10),
-      new THREE.Vector3(0, 0, 0),
-    ); // Задняя стена
-    addTiledWall(
-      w,
-      20,
-      new THREE.Vector3(-15, 2.5, 0),
-      new THREE.Vector3(0, Math.PI / 2, 0),
-    ); // Левая
-    addTiledWall(
-      w,
-      20,
-      new THREE.Vector3(15, 2.5, 0),
-      new THREE.Vector3(0, -Math.PI / 2, 0),
-    ); // Правая
+ // --- ЗОНА 1: ОСНОВНАЯ ЛАБОРАТОРИЯ (за окном) ---
+    // Стекло находится на Z = 14. Задняя стена на Z = -10. 
+    // Значит глубина комнаты: 24 метра. Центр по оси Z: 2.
+    
+    addTiledWall( 30, 24, new THREE.Vector3(0, floorY, 2), new THREE.Vector3(-Math.PI / 2, 0, 0) ); // Пол
+    addTiledWall( 30, 24, new THREE.Vector3(0, ceilingY, 2), new THREE.Vector3(Math.PI / 2, 0, 0) ); // Потолок
+    addTiledWall( 30, 20, new THREE.Vector3(0, 2.5, -10), new THREE.Vector3(0, 0, 0) ); // Задняя стена
+    addTiledWall( 24, 20, new THREE.Vector3(-15, 2.5, 2), new THREE.Vector3(0, Math.PI / 2, 0) ); // Левая
+    addTiledWall( 24, 20, new THREE.Vector3(15, 2.5, 2), new THREE.Vector3(0, -Math.PI / 2, 0) ); // Правая
 
     // --- ЗОНА 2: КОРИДОР ПЕРЕД ОКНОМ (где стоит камера) ---
     const corridorDepth = 30;
@@ -501,17 +504,34 @@ export class GoogleRoomApp {
       new THREE.Vector3(0, Math.PI / 2, 0),
     ); // Левая стена
     addTiledWall(
-      corridorDepth,
-      20,
-      new THREE.Vector3(15, 2.5, corridorZ),
-      new THREE.Vector3(0, -Math.PI / 2, 0),
-    ); // Правая стена
-    addTiledWall(
       w,
       20,
       new THREE.Vector3(0, 2.5, 45),
       new THREE.Vector3(0, Math.PI, 0),
     ); // Задняя стена коридора (за камерой)
+
+ // ==========================================
+    // ПРАВАЯ СТЕНА С НИШЕЙ (ПРОЕМ 2x2 ПЛИТКИ)
+    // ==========================================
+    // Сдвинули на 15 метров (6 плиток) ближе к старту. Новый центр Z = 37.5
+    
+    // 1. Часть стены ДО проема (от окна до ниши, длина 20)
+    addTiledWall(20, 20, new THREE.Vector3(15, 2.5, 25), new THREE.Vector3(0, -Math.PI / 2, 0)); 
+    // 2. Часть стены ПОСЛЕ проема (от ниши до задней стены, длина 5)
+    addTiledWall(5, 20, new THREE.Vector3(15, 2.5, 42.5), new THREE.Vector3(0, -Math.PI / 2, 0)); 
+    // 3. Часть стены ПОД проемом 
+    addTiledWall(5, 7.5, new THREE.Vector3(15, -1.25, 37.5), new THREE.Vector3(0, -Math.PI / 2, 0)); 
+    // 4. Часть стены НАД проемом 
+    addTiledWall(5, 2.5, new THREE.Vector3(15, 8.75, 37.5), new THREE.Vector3(0, -Math.PI / 2, 0)); 
+
+    // === ВНУТРЕННОСТИ НИШИ ===
+    addTiledWall(5, 5, new THREE.Vector3(17.5, 2.5, 37.5), new THREE.Vector3(-Math.PI / 2, 0, 0)); // Пол
+    addTiledWall(5, 5, new THREE.Vector3(17.5, 7.5, 37.5), new THREE.Vector3(Math.PI / 2, 0, 0));  // Потолок
+    addTiledWall(5, 5, new THREE.Vector3(20, 5, 37.5), new THREE.Vector3(0, -Math.PI / 2, 0));     // Задняя стенка
+    addTiledWall(5, 5, new THREE.Vector3(17.5, 5, 35), new THREE.Vector3(0, 0, 0));                // Левая боковушка
+    addTiledWall(5, 5, new THREE.Vector3(17.5, 5, 40), new THREE.Vector3(0, Math.PI, 0));          // Правая боковушка
+    
+    // Код кнопки и света отсюда полностью удален!
 
     // ==========================================
     // --- ПАНЕЛИ ОСВЕЩЕНИЯ (КОРИДОР И ЛАБА) ---
@@ -730,8 +750,38 @@ export class GoogleRoomApp {
     // 1. Левая стена (чуть левее визуала на x: -15)
     createPhysicsWall(-16, 2.5, 10, 1, 10, 35);
 
-    // 2. Правая стена (чуть правее визуала на x: 15)
-    createPhysicsWall(16, 2.5, 10, 1, 10, 35);
+// === 2. ПРАВАЯ СТЕНА И НИША (БЕЗ ШВОВ) ===
+    
+    // Стена ДО ниши (ближе к окну)
+    createPhysicsWall(16, 2.5, 25, 1, 10, 10);
+    // Стена ПОСЛЕ ниши (ближе к спавну)
+    createPhysicsWall(16, 2.5, 42.5, 1, 10, 2.5);
+
+    // === МОНОЛИТНЫЕ БЛОКИ НИШИ ===
+
+    // 1. Единый блок: Стена ПОД нишей + Пол ниши (Никаких зацепов для шара!)
+    createPhysicsWall(17.5, -1.25, 37.5, 2.5, 3.75, 2.5);
+    // 2. Единый блок: Стена НАД нишей + Потолок ниши
+    createPhysicsWall(17.5, 8.75, 37.5, 2.5, 1.25, 2.5);
+    // 3. Задняя стенка ниши
+    createPhysicsWall(20.5, 5, 37.5, 0.5, 2.5, 2.5);
+    // 4. Левая боковая стенка ниши (ближе к окну)
+    createPhysicsWall(17.5, 5, 34.5, 2.5, 2.5, 0.5);
+   // 5. Правая боковая стенка ниши (ближе к спавну)
+    createPhysicsWall(17.5, 5, 40.5, 2.5, 2.5, 0.5);
+
+ // === ФИЗИКА ВНУТРИ НИШИ ===
+    // Задняя стенка ниши (на X = 20)
+    createPhysicsWall(20.5, 5, 37.5, 0.5, 2.5, 2.5);
+    // Потолок ниши (на Y = 7.5)
+    createPhysicsWall(17.5, 8.0, 37.5, 2.5, 0.5, 2.5);
+    // Пол ниши (на Y = 2.5)
+    createPhysicsWall(17.5, 2.0, 37.5, 2.5, 0.5, 2.5);
+    // Левая боковая стенка (на Z = 35)
+    createPhysicsWall(17.5, 5, 34.5, 2.5, 2.5, 0.5);
+    // Правая боковая стенка (на Z = 40)
+    createPhysicsWall(17.5, 5, 40.5, 2.5, 2.5, 0.5);
+    
 
     // 3. Задняя стена лаборатории (за окном, визуально на z: -10)
     // Делаем ее широкой, чтобы перекрывала углы с запасом
@@ -770,18 +820,49 @@ export class GoogleRoomApp {
     // ==========================================
     // ИНТЕРАКТИВНЫЙ ЖЕЛТЫЙ ЯЩИК (ДЛЯ ПРЫЖКОВ)
     // ==========================================
-    // Задаем отдельные размеры: ширина(X), высота(Y), глубина(Z)
     const boxSizeX = 4.0; // Широкий
     const boxSizeY = 2.5; // Плоский (как поддон)
     const boxSizeZ = 4.0; // Глубокий
 
-    // 1. Визуал (Three.js)
+    // 1. Загрузка текстур для желтого ящика
+    // (Если textureLoader уже создан выше для зеленого ящика,
+    // можно использовать его же, но для надежности оставим так)
+    const textureLoaderYellow = new THREE.TextureLoader();
+
+    const yellowColorTex = textureLoaderYellow.load(
+      "Image/Plastic016B_1K-PNG_Color.png",
+    );
+    const yellowNormalTex = textureLoaderYellow.load(
+      "Image/Plastic016B_1K-PNG_NormalGL.png",
+    );
+    const yellowRoughTex = textureLoaderYellow.load(
+      "Image/Plastic016B_1K-PNG_Roughness.png",
+    );
+
+    // Настройка тайлинга (повторения текстуры)
+    const setupYellowTiling = (texture, repeatX, repeatY) => {
+      texture.wrapS = THREE.RepeatWrapping;
+      texture.wrapT = THREE.RepeatWrapping;
+      texture.repeat.set(repeatX, repeatY);
+    };
+
+    // Так как ящик 4х4 метра, 2 повторения будут смотреться отлично
+    setupYellowTiling(yellowColorTex, 2, 2);
+    setupYellowTiling(yellowNormalTex, 2, 2);
+    setupYellowTiling(yellowRoughTex, 2, 2);
+
+    // 2. Визуал (Three.js) с новыми текстурами
     const boxGeo = new THREE.BoxGeometry(boxSizeX, boxSizeY, boxSizeZ);
     const boxMat = new THREE.MeshStandardMaterial({
-      color: 0xffaa00,
-      roughness: 0.5,
+      map: yellowColorTex,
+      normalMap: yellowNormalTex,
+      roughnessMap: yellowRoughTex,
+      color: 0xffffff, // Обязательно белый, чтобы текстура отдала свой родной желтый цвет!
+      normalScale: new THREE.Vector2(1.2, 1.2), // Чуть усиливаем рельеф
+      roughness: 1.0, // Шероховатость берется из текстуры
       metalness: 0.1,
     });
+
     const boxMesh = new THREE.Mesh(boxGeo, boxMat);
     boxMesh.castShadow = true;
     boxMesh.receiveShadow = true;
@@ -798,15 +879,15 @@ export class GoogleRoomApp {
 
     // Спавним в КОРИДОРЕ
     const boxStartX = 5;
-    const boxStartY = CONFIG.WORLD.FLOOR_LEVEL + boxSizeY / 2 + 0.05;
+    const boxStartY = CONFIG.WORLD.FLOOR_LEVEL + boxSizeY / 2;
     const boxStartZ = 20;
 
-const boxBody = new CANNON.Body({
-      mass: 15,            // Оставляем 15, чтобы шар (100) чувствовал её вес
+    const boxBody = new CANNON.Body({
+      mass: 15, // Оставляем 15, чтобы шар (100) чувствовал её вес
       material: this.matBox,
       position: new CANNON.Vec3(boxStartX, boxStartY, boxStartZ),
       // 0.1 — это идеальный баланс: она легко катится, но за секунду-две плавно замирает
-      linearDamping: 0.1, 
+      linearDamping: 0.1,
       angularDamping: 0.99,
       collisionFilterGroup: CONFIG.PHYSICS.GROUPS.OBJECTS,
       collisionFilterMask:
@@ -816,18 +897,106 @@ const boxBody = new CANNON.Body({
     });
 
     // === МАГИЯ ЖЕЛЕЗОБЕТОННОЙ ПЛАТФОРМЫ ===
-    // ВАЖНО: Мы полностью удалили boxBody.linearFactor.set(1, 0, 1) !!!
-    // Теперь движок сам кладет ее на пол без конфликтов математики.
-
-    // Запрещаем крутиться (0, 0, 0), чтобы она всегда стояла ровно.
-    boxBody.angularFactor.set(0, 0, 0);
-    // ======================================
+    boxBody.angularFactor.set(1, 1, 1); //
 
     boxBody.addShape(boxShape);
     this.world.addBody(boxBody);
+    boxBody.sleep();
 
     // Сохраняем для синхронизации
-    this.interactiveBox = { mesh: boxMesh, body: boxBody };
+    this.interactiveBox = { mesh: boxMesh, body: boxBody, originalMass: 15 };
+
+    // ==========================================
+    // ИНТЕРАКТИВНЫЙ ЗЕЛЕНЫЙ ЯЩИК (Текстурирование)
+    // ==========================================
+
+    // 1. Инициализируем загрузчик текстур
+    const textureLoader = new THREE.TextureLoader();
+
+    // 2. Укажи правильные пути к файлам в твоей папке Image/
+    // (Я использую NormalGL)
+    const plasticColorTex = textureLoader.load(
+      "Image/Plastic017B_1K-PNG_Color.png",
+    );
+    const plasticNormalTex = textureLoader.load(
+      "Image/Plastic017B_1K-PNG_NormalGL.png",
+    );
+    const plasticRoughTex = textureLoader.load(
+      "Image/Plastic017B_1K-PNG_Roughness.png",
+    );
+
+    // 3. Функция настройки тайлинга (чтобы текстура не тянулась на коробке 5 метров)
+    // Твои текстуры бесшовные, поэтому можно повторить их.
+    const setupBoxTiling = (texture, repeatX, repeatY) => {
+      texture.wrapS = THREE.RepeatWrapping;
+      texture.wrapT = THREE.RepeatWrapping;
+      // Т.к. коробка 5м в высоту, а текстура 1K, повторим ее 2 раза по обеим осям.
+      texture.repeat.set(repeatX, repeatY);
+    };
+
+    // Применяем тайлинг (напр., 2 повторения по X, 2 по Y)
+    setupBoxTiling(plasticColorTex, 2, 2);
+    setupBoxTiling(plasticNormalTex, 2, 2);
+    setupBoxTiling(plasticRoughTex, 2, 2);
+
+    const greenSizeX = 4.0;
+    const greenSizeY = 5.0; // Высота
+    const greenSizeZ = 4.0;
+
+    const greenGeo = new THREE.BoxGeometry(greenSizeX, greenSizeY, greenSizeZ);
+
+    // 4. ОБНОВЛЕННЫЙ МАТЕРИАЛ: Применяем текстуры
+    const greenMat = new THREE.MeshStandardMaterial({
+      map: plasticColorTex, // Применяем Диффузную карту (Цвет)
+      normalMap: plasticNormalTex, // Применяем Карту Нормалей
+      roughnessMap: plasticRoughTex, // Применяем Карту Шероховатости
+
+      // ВАЖНО: Ставь цвет в БЕЛЫЙ! Если оставить 0x34a853,
+      // то зеленый цвет текстуры умножится на зеленый hex, и коробка станет черно-зеленой.
+      color: 0xffffff,
+
+      // Опциональные настройки:
+      normalScale: new THREE.Vector2(1.2, 1.2), // Немного увеличим силу рельефа
+      roughness: 1.0, // Оставляем 1.0, т.к. это матовый пластик (сама карта скажет, где матовость)
+      metalness: 0.1, // Пластик не металл, но небольшое отражение нужно
+    });
+
+    const greenMesh = new THREE.Mesh(greenGeo, greenMat);
+    greenMesh.castShadow = true;
+    greenMesh.receiveShadow = true;
+    this.scene.add(greenMesh);
+
+    const greenShape = new CANNON.Box(
+      new CANNON.Vec3(greenSizeX / 2, greenSizeY / 2, greenSizeZ / 2),
+    );
+
+    // Ставим его левее (x: -5), чтобы не пересекался с желтым
+    const greenStartX = -5;
+    const greenStartY = CONFIG.WORLD.FLOOR_LEVEL + greenSizeY / 2;
+    const greenStartZ = 20;
+
+    const greenBody = new CANNON.Body({
+      mass: 20, // Сделаем его чуть тяжелее, раз он больше
+      material: this.matBox,
+      position: new CANNON.Vec3(greenStartX, greenStartY, greenStartZ),
+      linearDamping: 0.1,
+      angularDamping: 0.99,
+      collisionFilterGroup: CONFIG.PHYSICS.GROUPS.OBJECTS,
+      collisionFilterMask:
+        CONFIG.PHYSICS.GROUPS.SCENE |
+        CONFIG.PHYSICS.GROUPS.OBJECTS |
+        CONFIG.PHYSICS.GROUPS.TINY,
+    });
+
+    greenBody.angularFactor.set(1, 1, 1); // Разрешаем крутиться вокруг всех осей, чтобы он мог валяться и кататься, а не застывать вертикально, как платформа. Это добавит разнообразия в прыжки и взаимодействия с ним. Если хочешь, чтобы он тоже был "платформой", можно оставить только Y=1, но я бы рекомендовал разрешить вращение для более динамичного поведения.
+    greenBody.addShape(greenShape);
+    this.world.addBody(greenBody);
+    greenBody.sleep(); // Усыпляем на старте
+
+    this.greenBox = { mesh: greenMesh, body: greenBody, originalMass: 20 };
+
+    // Объединяем их в массив, чтобы было удобнее проверять прыжки
+    this.interactivePlatforms = [this.interactiveBox, this.greenBox];
     // ==========================================
   }
 
@@ -905,8 +1074,8 @@ const boxBody = new CANNON.Body({
       box.angularVelocity.set(0, 0, 0);
 
       // Возвращаем на стартовые координаты.
-      // Y = пол + половина толщины(0.25) = ровно на полу
-      box.position.set(5, CONFIG.WORLD.FLOOR_LEVEL + 0.25, 20);
+      // Исправили 0.25 на правильную половину высоты (2.5 / 2 = 1.25)
+      box.position.set(5, CONFIG.WORLD.FLOOR_LEVEL + 1.25, 20);
       box.quaternion.set(0, 0, 0, 1);
 
       box.previousPosition.copy(box.position);
@@ -914,7 +1083,8 @@ const boxBody = new CANNON.Body({
       box.previousQuaternion.copy(box.quaternion);
       box.interpolatedQuaternion.copy(box.quaternion);
 
-      box.wakeUp();
+      // Заменим box.wakeUp() на box.sleep(), чтобы после рестарта она тоже не падала
+      box.sleep();
     }
 
     if (store && typeof store.get === "function") {
@@ -1585,15 +1755,25 @@ const boxBody = new CANNON.Body({
       this.paintPools.forEach((pool) => pool.update(isSlowMo()));
       this.miniBeadPool.update(dt);
 
-      // === 7. ПЛАВНОЕ СЛЕДОВАНИЕ КАМЕРЫ (CHASE CAMERA) ===
+// === 7. ПЛАВНОЕ СЛЕДОВАНИЕ КАМЕРЫ (CHASE CAMERA) ===
       if (this.cameraPivot) {
         // Берем позицию шара
         const targetPos = this.playerMesh.position.clone();
 
-        // Поднимаем точку фокусировки на полметра вверх (улучшает ракурс)
+        // Поднимаем точку фокусировки
         targetPos.y += 2.5;
 
-        // Плавная "резинка" следования. 15 - это жесткость (чем больше, тем резче)
+        // === НОВАЯ ЗАЩИТА: ОГРАНИЧИТЕЛЬ ВЫСОТЫ КАМЕРЫ ===
+        // Если шар находится внутри или прямо перед нишей (X > 14, Z: 34 - 41)
+        if (targetPos.x > 14 && targetPos.z > 34 && targetPos.z < 41) {
+           // Не даем фокусу камеры подняться выше 7.0 метров (потолок ниши на 7.5)
+           targetPos.y = Math.min(targetPos.y, 7.0); 
+        } else {
+           // В остальной комнате не даем фокусу пробить основной потолок (10.0)
+           targetPos.y = Math.min(targetPos.y, 9.5); 
+        }
+
+        // Плавная "резинка" следования...
         this.cameraPivot.position.lerp(targetPos, 15 * dt);
         this.cameraPivot.updateMatrixWorld();
       }
@@ -1610,9 +1790,16 @@ const boxBody = new CANNON.Body({
         this.playerMesh.position.copy(this.playerBody.interpolatedPosition);
         this.playerMesh.quaternion.copy(this.playerBody.interpolatedQuaternion);
 
+        this.playerMesh.position.copy(this.playerBody.interpolatedPosition);
+        this.playerMesh.quaternion.copy(this.playerBody.interpolatedQuaternion);
+
         // 2. Умная проверка пола с "Coyote Time"
         let actualGroundContact = false;
-        let isBallOnBox = false; // <--- Детектор прыжка на коробку
+
+        // Сбрасываем статус "игрок на мне" для всех платформ
+        if (this.interactivePlatforms) {
+          this.interactivePlatforms.forEach((p) => (p.isPlayerOn = false));
+        }
 
         for (let i = 0; i < this.world.contacts.length; i++) {
           let contact = this.world.contacts[i];
@@ -1626,16 +1813,19 @@ const boxBody = new CANNON.Body({
             if (contact.bj === this.playerBody && contact.ni.y > 0.1)
               actualGroundContact = true;
 
-            // === ПРОВЕРЯЕМ, СТОИТ ЛИ ШАР НА КОРОБКЕ ===
-            if (
-              this.interactiveBox &&
-              (contact.bi === this.interactiveBox.body ||
-                contact.bj === this.interactiveBox.body)
-            ) {
-              if (contact.bi === this.playerBody && contact.ni.y < -0.5)
-                isBallOnBox = true;
-              if (contact.bj === this.playerBody && contact.ni.y > 0.5)
-                isBallOnBox = true;
+            // === ПРОВЕРЯЕМ, СТОИТ ЛИ ШАР НА КАКОЙ-ТО ИЗ КОРОБОК ===
+            if (this.interactivePlatforms) {
+              this.interactivePlatforms.forEach((platform) => {
+                if (
+                  contact.bi === platform.body ||
+                  contact.bj === platform.body
+                ) {
+                  if (contact.bi === this.playerBody && contact.ni.y < -0.5)
+                    platform.isPlayerOn = true;
+                  if (contact.bj === this.playerBody && contact.ni.y > 0.5)
+                    platform.isPlayerOn = true;
+                }
+              });
             }
           }
         }
@@ -1646,27 +1836,32 @@ const boxBody = new CANNON.Body({
         } else {
           this.coyoteTimer -= dt;
         }
-
-        // Сохраняем флаг глобально, чтобы его мог прочитать Пробел
         this.isPlayerGrounded = this.coyoteTimer > 0;
 
         // ==========================================
-        // === МАГИЯ УМНОЙ КОРОБКИ (ЗАМОРОЗКА) ===
+        // === МАГИЯ УМНЫХ КОРОБОК (ЗАМОРОЗКА) ===
         // ==========================================
-        if (this.interactiveBox) {
-          const box = this.interactiveBox.body;
-          // Если шар запрыгнул, а коробка еще подвижна
-          if (isBallOnBox && box.mass !== 0) {
-            box.mass = 0;
-            box.updateMassProperties();
-            box.velocity.set(0, 0, 0);
-          }
-        // Если шар спрыгнул/упал, а коробка всё еще монолит
-            else if (!isBallOnBox && box.mass === 0) {
-                box.mass = 15; // <--- Ставь ТУ ЖЕ МАССУ, что и при создании (15)
-                box.updateMassProperties(); 
-                box.wakeUp(); 
+        if (this.interactivePlatforms) {
+          this.interactivePlatforms.forEach((platform) => {
+            const box = platform.body;
+
+            // ЖЕЛЕЗОБЕТОННАЯ ЗАЩИТА: Если originalMass забыли указать, берем 15 по умолчанию
+            const safeMass = platform.originalMass || 15;
+
+            // Если шар запрыгнул, а коробка еще подвижна
+            if (platform.isPlayerOn && box.mass !== 0) {
+              box.mass = 0;
+              box.updateMassProperties();
+              box.velocity.set(0, 0, 0);
+              box.angularVelocity.set(0, 0, 0); // На всякий случай гасим и вращение тоже
             }
+            // Если шар спрыгнул/упал, а коробка всё еще монолит
+            else if (!platform.isPlayerOn && box.mass === 0) {
+              box.mass = safeMass; // Возвращаем безопасную массу!
+              box.updateMassProperties();
+              box.wakeUp();
+            }
+          });
         }
         // ==========================================
 
@@ -1839,13 +2034,21 @@ const boxBody = new CANNON.Body({
         this.camera.rotation.z = 0;
       }
 
-      // ВСТАВЛЯЕМ СИНХРОНИЗАЦИЮ КОРОБКИ ПРЯМО СЮДА:
+      // ВСТАВЛЯЕМ СИНХРОНИЗАЦИЮ КОРОБОК ПРЯМО СЮДА:
       if (this.interactiveBox) {
         this.interactiveBox.mesh.position.copy(
           this.interactiveBox.body.interpolatedPosition,
         );
         this.interactiveBox.mesh.quaternion.copy(
           this.interactiveBox.body.interpolatedQuaternion,
+        );
+      }
+      if (this.greenBox) {
+        this.greenBox.mesh.position.copy(
+          this.greenBox.body.interpolatedPosition,
+        );
+        this.greenBox.mesh.quaternion.copy(
+          this.greenBox.body.interpolatedQuaternion,
         );
       }
     } else {

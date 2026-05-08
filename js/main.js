@@ -7,7 +7,7 @@ import { CONFIG } from "./config.js";
 import { audioManager } from "./audio.js";
 import { store, isNight, isSlowMo } from "./state.js";
 import { PhysicsManager } from "./physics.js";
-import { SceneManager, heatTex } from "./scene.js";
+import { SceneManager, heatTex, lampGlowTex } from "./scene.js";
 import { UIManager } from "./ui.js";
 import { InputManager } from "./input.js";
 import { ParticlePool, GameObject, MiniBeadPool } from "./utils.js";
@@ -21,6 +21,7 @@ RectAreaLightUniformsLib.init();
 export class GoogleRoomApp {
   constructor() {
     this.hasStartedGame = false; // <--- ДОБАВЛЯЕМ ФЛАГ
+    this.isIntroPlaying = false; // Блокирует управление во время катсцены
     this.isPaused = false;
     this.isResetting = false;
     this.lastTime = performance.now();
@@ -44,9 +45,9 @@ export class GoogleRoomApp {
     this.lettersHiddenByMagnet = false;
     this.currentRingIntensity = 1.2;
 
-    this.dustPool = new ParticlePool(this.scene, heatTex, 60, "dust", 0xaaaaaa);
-    this.heatPool = new ParticlePool(this.scene, heatTex, 40, "heat", 0xffb074);
-
+ // Используем мягкую текстуру lampGlowTex и делаем цвет настоящим серым (0x888888)
+    this.dustPool = new ParticlePool(this.scene, lampGlowTex, 250, "dust", 0x888888); 
+    this.heatPool = new ParticlePool(this.scene, heatTex, 40, "heat", 0xffb074); // Эту не трогаем!
     this.paintPools = CONFIG.COLORS.GOOGLE_UNIQUE.map(
       (colorHex) =>
         new ParticlePool(this.scene, heatTex, 1000, "paint", colorHex),
@@ -307,6 +308,7 @@ export class GoogleRoomApp {
         if (btnStart) {
           this.resetScene();
           this.hasStartedGame = true; // Запоминаем, что игра идет!
+          this.start3DIntro();
           // Обрати внимание: мы БОЛЬШЕ НЕ убираем класс 'locked-feature' здесь,
           // чтобы кнопка не появлялась резко перед глазами.
         }
@@ -366,6 +368,63 @@ this.cameraController = new CameraController(
   this.sceneManager
 );
     requestAnimationFrame(this.tick);
+  }
+
+start3DIntro() {
+    this.isIntroPlaying = true;
+    if (this.controls) this.controls.enabled = false;
+
+    if (this.introTimeout) clearTimeout(this.introTimeout);
+    if (this.introImpactCheck) clearInterval(this.introImpactCheck);
+    this.shakeIntensity = 0; // Сбрасываем тряску при новом запуске
+
+    const dropX = -4;
+    const dropZ = 30;
+    const impactY = CONFIG.WORLD.FLOOR_LEVEL + CONFIG.PLAYER.RADIUS;
+
+    this.playerShadowMesh.visible = false;
+    this.playerBody.mass = 0; 
+    this.playerBody.type = CANNON.Body.STATIC;
+    this.playerBody.position.set(dropX, 25, dropZ); 
+    this.playerBody.velocity.set(0, 0, 0);
+    this.playerBody.angularVelocity.set(0, 0, 0);
+    this.playerBody.updateMassProperties();
+
+    this.cameraPivot.position.set(dropX, impactY + 4.0, dropZ); 
+
+    this.introTimeout = setTimeout(() => {
+      this.playerBody.mass = CONFIG.PLAYER.MASS; 
+      this.playerBody.type = CANNON.Body.DYNAMIC;
+      this.playerBody.updateMassProperties();
+      this.playerBody.wakeUp();
+
+      this.introImpactCheck = setInterval(() => {
+        // Ждем самого момента касания (+ 0.2)
+        if (this.playerBody.position.y <= impactY + 0.2) {
+          clearInterval(this.introImpactCheck);
+          
+          // ФИКС РЫВКА: Гасим инерцию, чтобы тяжелый шар не отскакивал как мячик.
+          // Он тяжело шлепнется и останется ровно в координатах приземления!
+          this.playerBody.velocity.set(0, 0, 0);
+          
+          this.playSeamlessIntroTransition();
+        }
+      }, 16);
+    }, 1500);
+  }
+
+playSeamlessIntroTransition() {
+    this.playerShadowMesh.visible = true;
+    this.createDustExplosion(this.playerBody.position, 1.5); 
+
+    // ЗАДАЕМ СИЛУ ТРЯСКИ (0.8 - это довольно сильный удар, можешь менять)
+    this.shakeIntensity = 0.8; 
+
+    setTimeout(() => {
+      // Отключаем режим интро и отдаем управление мыши
+      this.isIntroPlaying = false; 
+      if (this.controls) this.controls.enabled = true;
+    }, 200);
   }
 
 initSceneObjects() {
@@ -468,6 +527,14 @@ initSceneObjects() {
   }
 
 resetScene() {
+  // ПОЛНЫЙ СБРОС КАМЕРЫ: Очищаем углы поворота, чтобы интро всегда начиналось с чистого листа
+    if (this.cameraPivot) {
+      this.cameraPivot.rotation.set(0, 0, 0);
+    }
+    // Отключаем контроллер на время сброса и интро, чтобы он не мешал математике
+    if (this.controls) {
+      this.controls.enabled = false;
+    }
     // === СБРОС ШАРИКА-ИГРОКА ===
     if (this.playerBody) {
       this.playerBody.velocity.set(0, 0, 0);
@@ -849,27 +916,34 @@ resetScene() {
     }
   }
 
-  createDustExplosion(pos, intensity01) {
-    const basePos = new THREE.Vector3(pos.x, pos.y, pos.z);
+createDustExplosion(pos, intensity01) {
+    // Уменьшили количество частиц в 2.5 раза (было 60 + 40, стало 25 + 15)
+    const cloudCount = 25 + Math.floor(15 * intensity01); 
 
-    const cloudCount = 4 + Math.floor(4 * intensity01);
     for (let i = 0; i < cloudCount; i++) {
-      const spawnPos = basePos
-        .clone()
-        .add(
-          new THREE.Vector3(
-            (Math.random() - 0.5) * 0.5,
-            (Math.random() - 0.5) * 0.5,
-            (Math.random() - 0.5) * 0.5,
-          ),
-        );
-      const vel = new THREE.Vector3(
-        (Math.random() - 0.5) * 0.2,
-        0.1 + Math.random() * 0.3,
-        (Math.random() - 0.5) * 0.2,
+      const angle = Math.random() * Math.PI * 2;
+      
+      // Скорость разлета стала еще меньше
+      const speed = 0.15 + Math.random() * 0.2; 
+
+      const spawnRadius = 0.3 + Math.random() * 0.6;
+      const spawnPos = new THREE.Vector3(
+        pos.x + Math.cos(angle) * spawnRadius,
+        pos.y - 0.8 + (Math.random() * 0.2), 
+        pos.z + Math.sin(angle) * spawnRadius
       );
-      const scale = 1.0 + Math.random() * 1.5;
-      const decay = 0.02 + Math.random() * 0.02;
+
+      const vel = new THREE.Vector3(
+        Math.cos(angle) * speed,
+        0.01 + Math.random() * 0.03, // Практически не поднимается вверх
+        Math.sin(angle) * speed
+      );
+
+      // Масштаб немного убавили, чтобы они не перекрывали весь экран
+      const scale = 1.5 + Math.random() * 1.5;
+      
+      // Время жизни (скорость затухания)
+      const decay = 0.006 + Math.random() * 0.006;
 
       this.dustPool.spawn(spawnPos, vel, scale, 1.0, decay);
     }
@@ -908,11 +982,36 @@ resetScene() {
       // 2. Считаем глобальный инпут мыши (магнит, краска)
       this.inputManager.update(dt);
       
-      // 3. Обновляем игрока (он сам прочитает WASD и применит физику)
-      this.playerController.update(dt);
-      
-      // 4. Обновляем камеру (она сама поедет за игроком)
-      this.cameraController.update(dt, this.playerMesh.position);
+    // 3 и 4. Обновляем игрока и камеру
+      if (!this.isIntroPlaying) {
+        this.playerController.update(dt);
+        this.cameraController.update(dt, this.playerMesh.position);
+      } else {
+        // Синхронизируем графику падающего шара
+        this.playerMesh.position.copy(this.playerBody.position);
+        this.playerMesh.quaternion.copy(this.playerBody.quaternion);
+
+        // ИДЕАЛЬНЫЙ ТРЮК: скармливаем камере точку приземления
+        const impactY = CONFIG.WORLD.FLOOR_LEVEL + CONFIG.PLAYER.RADIUS;
+        const landingPos = new THREE.Vector3(-4, impactY, 30);
+
+        this.cameraController.currentZoom = 15.0;
+        this.cameraController.update(dt, landingPos);
+
+        // Жестко фиксируем угол
+        this.cameraPivot.rotation.set(0.15, Math.PI / 2, 0);
+      }
+
+      // === ПРАВИЛЬНАЯ ТРЯСКА ЭКРАНА ===
+      // Срабатывает каждый кадр, сдвигая камеру, а затем плавно затухает
+      if (this.shakeIntensity > 0) {
+        this.camera.position.x += (Math.random() - 0.5) * this.shakeIntensity;
+        this.camera.position.y += (Math.random() - 0.5) * this.shakeIntensity;
+        
+        // Уменьшаем силу тряски (затухание)
+        this.shakeIntensity -= dt * 3.5; 
+        if (this.shakeIntensity < 0) this.shakeIntensity = 0;
+      }
 
       // 5. Обновляем партиклы, магниты и окружение
       const state = this.updateEnvironment(dt, timeSec);

@@ -39,7 +39,7 @@ export class CameraController {
 
   update(dt, playerPosition) {
     const targetPos = playerPosition.clone();
-    targetPos.y += 2.5; 
+    targetPos.y += 4.0; // Камера смотрит чуть выше головы игрока 
 
     // Берем готовый массив из кеша (0 нагрузки на систему)
     const wallsMeshes = this.getWallsMeshes(); 

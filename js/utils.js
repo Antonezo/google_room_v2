@@ -87,14 +87,26 @@ update(isSlowMoVal) {
         p.mesh.scale.set(s, s, 1);
         p.velocity.multiplyScalar(0.92); 
       }
+      // === ВОТ НАШ НОВЫЙ БЛОК ДЛЯ ПЫЛИ ===
+      else if (p.type === 'dust') {
+        // Плавное растворение (коэффициент 0.4 делает её полупрозрачной)
+        p.mesh.material.opacity = Math.max(0, p.life) * 0.4;
+        
+        // Эффект рассеивания (облачко пыли медленно расширяется)
+        const s = p.mesh.scale.x * (1.0 + 0.008 * sf);
+        p.mesh.scale.set(s, s, 1);
+        
+        // Торможение: пыль вязнет в воздухе и теряет скорость разлета
+        p.velocity.multiplyScalar(0.96); 
+      }
 
       p.mesh.position.add(p.velocity.clone().multiplyScalar(sf));
 
       if (p.life <= 0) {
         p.mesh.visible = false;
-       const lastParticle = this.activeParticles[this.activeParticles.length - 1];
-this.activeParticles[i] = lastParticle;
-this.activeParticles.pop();
+        const lastParticle = this.activeParticles[this.activeParticles.length - 1];
+        this.activeParticles[i] = lastParticle;
+        this.activeParticles.pop();
         this.pool.push(p);                  
       }
     }

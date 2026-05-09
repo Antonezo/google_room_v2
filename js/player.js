@@ -17,6 +17,7 @@ export class PlayerController {
 
     this.keys = { w: false, a: false, s: false, d: false, space: false };
     this.initInput();
+    this.isLocked = false; // Блокировка управления (например, во время кат-сцены)
 
     this.isGrounded = false;
     this.coyoteTimer = 0;
@@ -105,13 +106,20 @@ export class PlayerController {
   }
 
   update(dt) {
-    this.mesh.position.copy(this.body.interpolatedPosition);
+   this.mesh.position.copy(this.body.interpolatedPosition);
     this.mesh.quaternion.copy(this.body.interpolatedQuaternion);
 
     this.checkGround(dt);
 
     let inputX = (this.keys.d ? 1 : 0) - (this.keys.a ? 1 : 0);
     let inputZ = (this.keys.s ? 1 : 0) - (this.keys.w ? 1 : 0);
+
+    // === НОВОЕ: БЛОКИРОВКА УПРАВЛЕНИЯ ДЛЯ КАТ-СЦЕН ===
+    if (this.isLocked) {
+      inputX = 0;
+      inputZ = 0;
+      this.keys.space = false;
+    }
 
     if (inputX !== 0 || inputZ !== 0) {
       this._forward.set(0, 0, -1).applyQuaternion(this.cameraPivot.quaternion);

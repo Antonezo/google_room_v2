@@ -20,12 +20,30 @@ RectAreaLightUniformsLib.init();
 
 export class GoogleRoomApp {
   constructor() {
-    this.hasStartedGame = false; // <--- ДОБАВЛЯЕМ ФЛАГ
-    this.isIntroPlaying = false; // Блокирует управление во время катсцены
+    // === UI ДЛЯ ЗАТЕМНЕНИЯ ЭКРАНА (Fade) ===
+    this.fadeScreen = document.createElement('div');
+    this.fadeScreen.style.position = 'absolute';
+    this.fadeScreen.style.top = '0';
+    this.fadeScreen.style.left = '0';
+    this.fadeScreen.style.width = '100%';
+    this.fadeScreen.style.height = '100%';
+    this.fadeScreen.style.backgroundColor = 'black';
+    this.fadeScreen.style.opacity = '0'; // Сначала прозрачный
+    this.fadeScreen.style.pointerEvents = 'none'; // Чтобы клики проходили сквозь него
+    this.fadeScreen.style.transition = 'opacity 2s ease-in-out'; // Плавность 2 секунды
+    this.fadeScreen.style.zIndex = '9999';
+    document.body.appendChild(this.fadeScreen);
+
+    // === ФЛАГИ СОСТОЯНИЙ ===
+    this.isElevatorSequenceActive = false; // <--- НОВЫЙ ФЛАГ ДЛЯ КАТ-СЦЕНЫ ЛИФТА
+    this.hasStartedGame = false; 
+    this.isIntroPlaying = false; 
     this.isPaused = false;
     this.isResetting = false;
     this.lastTime = performance.now();
     this.platformImpact = 0;
+    
+    // === ИНИЦИАЛИЗАЦИЯ МЕНЕДЖЕРОВ ===
     this.sceneManager = new SceneManager();
 
     this.scene = this.sceneManager.scene;
@@ -39,11 +57,12 @@ export class GoogleRoomApp {
     this._tempDir = new THREE.Vector3();
     this._tempCannonVec = new CANNON.Vec3();
 
-    // === ВОЗВРАЩАЕМ СЛУЧАЙНО УДАЛЕННЫЕ ПЕРЕМЕННЫЕ ===
     this.fansActive = false;
     this.fanLevel = 0.0;
     this.lettersHiddenByMagnet = false;
     this.currentRingIntensity = 1.2;
+    
+    // ... остальной твой код конструктора (инициализация физики, игрока и т.д.) ...
 
  // Используем мягкую текстуру lampGlowTex и делаем цвет настоящим серым (0x888888)
     this.dustPool = new ParticlePool(this.scene, lampGlowTex, 250, "dust", 0x888888); 
@@ -221,7 +240,7 @@ export class GoogleRoomApp {
     const startPos = {
       x: 0,
       y: 0,
-      z: 30, // <-- Было 18 (коридор), стало 0 (самый центр лаборатории)
+      z: 30, // <-- Было 2 (лаборатория), стало 30 ( центр коридора)
     };
 
     this.playerMesh = this.sceneManager.createPlayerMesh(playerRadius);
@@ -367,7 +386,22 @@ this.cameraController = new CameraController(
   this.cameraPivot, 
   this.sceneManager
 );
-    requestAnimationFrame(this.tick);
+
+// === ТЕСТОВОЕ УПРАВЛЕНИЕ ЛИФТОМ ===
+    window.addEventListener('keydown', (e) => {
+      if (document.activeElement.tagName === "INPUT") return;
+      
+      // Кнопку 'O' мы удалили, теперь всё автоматически!
+      
+      if (e.code === 'KeyC') { 
+        if (this.levelBuilder) {
+          this.levelBuilder.closeEntrance();
+          this.levelBuilder.closeExit();
+        }
+      }
+    });
+
+    requestAnimationFrame(this.tick); // <--- ВОТ ЭТО МЫ ПОТЕРЯЛИ
   }
 
 start3DIntro() {
@@ -378,7 +412,7 @@ start3DIntro() {
     if (this.introImpactCheck) clearInterval(this.introImpactCheck);
     this.shakeIntensity = 0; // Сбрасываем тряску при новом запуске
 
-    const dropX = -4;
+   const dropX = 0; // Бросаем ровно по центру
     const dropZ = 30;
     const impactY = CONFIG.WORLD.FLOOR_LEVEL + CONFIG.PLAYER.RADIUS;
 
@@ -449,30 +483,8 @@ initSceneObjects() {
       this.ballInstancedMesh.setColorAt(i, new THREE.Color(0xffffff));
     }
 
-    // === 3. СОЗДАЕМ ЯЩИКИ ЧЕРЕЗ НОВЫЙ КЛАСС ===
-    this.interactiveBox = new InteractiveBox(this.world, this.scene, this.matBox, {
-      size: { x: 4.0, y: 2.5, z: 4.0 },
-      mass: 15,
-      position: { x: 5, y: CONFIG.WORLD.FLOOR_LEVEL + 1.25, z: 20 },
-      textures: {
-        color: "Image/Plastic016B_1K-PNG_Color.png",
-        normal: "Image/Plastic016B_1K-PNG_NormalGL.png",
-        rough: "Image/Plastic016B_1K-PNG_Roughness.png"
-      }
-    });
-
-    this.greenBox = new InteractiveBox(this.world, this.scene, this.matBox, {
-      size: { x: 4.0, y: 5.0, z: 4.0 },
-      mass: 20,
-      position: { x: -5, y: CONFIG.WORLD.FLOOR_LEVEL + 2.5, z: 20 },
-      textures: {
-        color: "Image/Plastic017B_1K-PNG_Color.png",
-        normal: "Image/Plastic017B_1K-PNG_NormalGL.png",
-        rough: "Image/Plastic017B_1K-PNG_Roughness.png"
-      }
-    });
-
-    this.interactivePlatforms = [this.interactiveBox, this.greenBox];
+  
+  this.interactivePlatforms = [];
   }
 
   clearBalls() {
@@ -527,6 +539,20 @@ initSceneObjects() {
   }
 
 resetScene() {
+    // === 1. СБРОС ЛИФТА И КАТ-СЦЕНЫ ===
+    if (this.levelBuilder) {
+      this.levelBuilder.closeEntrance();
+      this.levelBuilder.closeExit();
+      this.levelBuilder.entranceOpenState = 0; 
+      this.levelBuilder.exitOpenState = 0; 
+      this.levelBuilder.setElevatorMode('entering'); 
+    }
+    this.isElevatorSequenceActive = false;
+    this.elevatorPhase = ''; 
+    this.isExitDoorClosingPending = false; // <--- ДОБАВИТЬ ЭТОТ ФЛАГ
+    if (this.fadeScreen) this.fadeScreen.style.opacity = '0';
+    if (this.playerController) this.playerController.isLocked = false;
+
   // ПОЛНЫЙ СБРОС КАМЕРЫ: Очищаем углы поворота, чтобы интро всегда начиналось с чистого листа
     if (this.cameraPivot) {
       this.cameraPivot.rotation.set(0, 0, 0);
@@ -982,12 +1008,28 @@ createDustExplosion(pos, intensity01) {
       // 2. Считаем глобальный инпут мыши (магнит, краска)
       this.inputManager.update(dt);
       
-    // 3 и 4. Обновляем игрока и камеру
+// 3 и 4. Обновляем игрока и камеру
       if (!this.isIntroPlaying) {
         this.playerController.update(dt);
-        this.cameraController.update(dt, this.playerMesh.position);
+        
+        // Если кат-сцена не идет ИЛИ мы находимся в фазе открытия новых дверей
+        if (!this.isElevatorSequenceActive || this.elevatorPhase === 'opening_doors') {
+          
+          // ИГРОВОЙ РЕЖИМ (Работает умная камера с защитой от прохождения сквозь стены)
+          this.cameraController.update(dt, this.playerMesh.position);
+          
+        } else if (this.elevatorPhase === 'rolling' || this.elevatorPhase === 'doors_closing') {
+          
+          // КИНЕМАТОГРАФИЧЕСКИЙ РЕЖИМ: Камера плавно отъезжает и смотрит на лифт
+          const targetCamPos = new THREE.Vector3(0, 6, 24); 
+          this.cameraPivot.position.lerp(targetCamPos, dt * 2.0);
+          
+          this.cameraPivot.rotation.x = THREE.MathUtils.lerp(this.cameraPivot.rotation.x, -0.1, dt * 2.0);
+          this.cameraPivot.rotation.y = THREE.MathUtils.lerp(this.cameraPivot.rotation.y, 0, dt * 2.0);
+          this.cameraPivot.rotation.z = 0;
+        }
       } else {
-        // Синхронизируем графику падающего шара
+        // Синхронизируем графику падающего шара (Интро)
         this.playerMesh.position.copy(this.playerBody.position);
         this.playerMesh.quaternion.copy(this.playerBody.quaternion);
 
@@ -1028,6 +1070,132 @@ createDustExplosion(pos, intensity01) {
       this.paintPools.forEach((pool) => pool.update(isSlowMo()));
       this.miniBeadPool.update(dt);
 
+      // Обновляем двери лифта
+      if (this.levelBuilder) {
+        this.levelBuilder.updateDoors(dt);
+      }
+
+// Обновляем двери лифта
+      if (this.levelBuilder) {
+        this.levelBuilder.updateDoors(dt);
+      }
+
+      // === 1. АВТОМАТИЧЕСКИЙ НЕВИДИМЫЙ ТРИГГЕР ===
+      // На будущее: когда сделаем квесты, эта переменная будет становиться true 
+      // только после того, как игрок выполнит задание (например, раскрасит все буквы).
+      const isElevatorUnlocked = true; 
+
+      if (!this.isElevatorSequenceActive && this.levelBuilder && this.playerController && isElevatorUnlocked) {
+        const pPos = this.playerController.body.position;
+        
+        // Зона перед лифтом: X от -4 до 4, Z от 15.0 до 19.0 (за 4 метра до дверей)
+        if (pPos.z < 19.0 && pPos.z > 15.0 && pPos.x > -4.0 && pPos.x < 4.0) {
+          
+          this.isElevatorSequenceActive = true;
+          this.elevatorPhase = 'rolling'; 
+          this.playerController.isLocked = true; // Отбираем управление
+          this.levelBuilder.openEntrance();      // Командуем дверям открыться
+        }
+      }
+
+      // === 2. КАТ-СЦЕНА И АВТОПИЛОТ ===
+      if (this.isElevatorSequenceActive && this.levelBuilder) {
+        const playerRef = this.playerController; 
+        
+        if (this.elevatorPhase === 'rolling' && playerRef && playerRef.body) {
+          const pPos = playerRef.body.position;
+          const targetZ = 11.25; // Центр лифта
+          const targetX = 0;
+          
+          const dir = new THREE.Vector3(targetX - pPos.x, 0, targetZ - pPos.z);
+          const dist = dir.length();
+
+          if (dist > 0.1) {
+            dir.normalize();
+            
+            // ВАЖНО: Замедлили скорость (было 12.0, стало 5.0)
+            const speed = Math.min(5.0, dist * 2.5); 
+            const radius = 1.5; 
+            
+            const vx = dir.x * speed;
+            const vz = dir.z * speed;
+            
+            playerRef.body.velocity.x = vx;
+            playerRef.body.velocity.z = vz;
+            
+            playerRef.body.angularVelocity.x = vz / radius;
+            playerRef.body.angularVelocity.z = -vx / radius;
+            
+        } else {
+            // ФАЗА 2: ДОЕХАЛИ. Точная парковка.
+            playerRef.body.velocity.set(0, 0, 0);
+            playerRef.body.angularVelocity.set(0, 0, 0);
+            playerRef.body.position.set(0, pPos.y, 11.25);
+            
+            this.elevatorPhase = 'doors_closing';
+            
+            // === ОДНОВРЕМЕННО: ЗАКРЫВАЕМ ДВЕРИ И ГАСИМ ЭКРАН ===
+            this.levelBuilder.closeEntrance();    
+            this.fadeScreen.style.opacity = '1'; 
+  
+            setTimeout(() => {
+              // === ФАЗА 3: МАГИЯ РАЗВОРОТА НА 180 (В ТЕМНОТЕ) ===
+              this.levelBuilder.setElevatorMode('exiting');
+              
+              // МОМЕНТАЛЬНО ПРЫГАЕМ КАМЕРОЙ ЗА СПИНУ ШАРУ:
+              const camTargetY = pPos.y + 4.0;
+              this.cameraPivot.position.set(0, camTargetY, 11.25);
+              this.cameraPivot.rotation.set(-Math.PI / 6, 0, 0);
+              
+              if (this.cameraController) {
+                this.cameraController.currentZoom = 15.0;
+                this.cameraController.targetZoom = 15.0;
+              }
+
+              this.elevatorPhase = 'opening_doors'; 
+              
+              // === ФАЗА 4: СВЕТЛЕЕТ... ===
+              this.fadeScreen.style.opacity = '0'; 
+              
+              // Ждем 600 миллисекунд (чтобы свет немного зажегся)
+              setTimeout(() => {
+                  
+                  // ...И ТОЛЬКО ТЕПЕРЬ ОТКРЫВАЕМ ДВЕРИ
+                  this.levelBuilder.openExit(); 
+                  
+                  // Ждем еще 1.2 секунды, пока створки разъедутся
+                  setTimeout(() => {
+                      playerRef.isLocked = false; 
+                      this.isElevatorSequenceActive = false; 
+                      this.elevatorPhase = '';
+                  }, 1200); 
+                  
+              }, 600); 
+
+            }, 2200); 
+          }
+        }
+      }
+
+// === 3. СЕНСОР ЗАКРЫТИЯ ДВЕРЕЙ ЗА ИГРОКОМ ===
+      if (!this.isElevatorSequenceActive && this.levelBuilder && this.playerController) {
+        const pPos = this.playerController.body.position;
+        
+        // Если шар выехал (Z < 5.0), двери открыты, и таймер ЕЩЕ НЕ запущен
+        if (pPos.z < 5.0 && this.levelBuilder.targetExitOpenState > 0 && !this.isExitDoorClosingPending) {
+          
+          this.isExitDoorClosingPending = true; // Ставим "замок", чтобы не плодить таймеры
+          
+          // Ждем 2 секунды (2000 мс) перед тем, как захлопнуть двери
+          setTimeout(() => {
+            this.levelBuilder.closeExit(); 
+            this.shakeIntensity = 0.15; // Тряска камеры при закрытии
+            
+            // Снимаем "замок", чтобы при рестарте всё работало четко
+            this.isExitDoorClosingPending = false; 
+          }, 1500); 
+        }
+      }
      // 6. Синхронизация интерактивных объектов
       if (this.interactivePlatforms) {
         this.interactivePlatforms.forEach(platform => platform.update());

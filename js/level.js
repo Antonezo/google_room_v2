@@ -259,36 +259,39 @@ buildPhysicsBoundaries() {
     this.world.addBody(floorElevBody);
 
 
-    // === 2. ВНЕШНИЕ ГРАНИЦЫ (СТЕНЫ) ===
+  // === 2. ВНЕШНИЕ ГРАНИЦЫ (СТЕНЫ) ===
 
-    // Стены комнаты №1
-    this.createPhysicsWall(-15, wallCenterY, 30, 1, wallH/2, 15); // Левая
-    this.createPhysicsWall(15, wallCenterY, 30, 1, wallH/2, 15);  // Правая
-    this.createPhysicsWall(0, wallCenterY, 45, 15, wallH/2, 1);   // Дальняя
+    // Стены комнаты №1 (Сдвигаем центры на 1 метр наружу)
+    this.createPhysicsWall(-16, wallCenterY, 30, 1, wallH/2, 15); // Левая (было -15)
+    this.createPhysicsWall(16, wallCenterY, 30, 1, wallH/2, 15);  // Правая (было 15)
+    this.createPhysicsWall(0, wallCenterY, 46, 15, wallH/2, 1);   // Дальняя (было 45)
 
     // Стены комнаты №2
-    this.createPhysicsWall(-15, wallCenterY, -7.5, 1, wallH/2, 15); // Левая
-    this.createPhysicsWall(15, wallCenterY, -7.5, 1, wallH/2, 15);  // Правая
-    this.createPhysicsWall(0, wallCenterY, -22.5, 15, wallH/2, 1); // Дальняя (финал)
+    this.createPhysicsWall(-16, wallCenterY, -7.5, 1, wallH/2, 15); // Левая (было -15)
+    this.createPhysicsWall(16, wallCenterY, -7.5, 1, wallH/2, 15);  // Правая (было 15)
+    this.createPhysicsWall(0, wallCenterY, -23.5, 15, wallH/2, 1);  // Дальняя (было -22.5)
     
 
     // === 3. ПЕРЕГОРОДКИ С ПРОЕМАМИ ===
+    // Делаем их тонкими (0.1 вместо 1), чтобы не мешать дверям лифта
 
     // Фасад 1-й комнаты (Z = 15)
-    this.createPhysicsWall(-9.375, wallCenterY, 15, 5.625, wallH/2, 1);
-    this.createPhysicsWall(9.375, wallCenterY, 15, 5.625, wallH/2, 1);
-    this.createPhysicsWall(0, 7.5, 15, 3.75, 5, 1); // Козырек
+    this.createPhysicsWall(-9.375, wallCenterY, 15, 5.625, wallH/2, 0.1);
+    this.createPhysicsWall(9.375, wallCenterY, 15, 5.625, wallH/2, 0.1);
+    this.createPhysicsWall(0, 7.5, 15, 3.75, 5, 0.1); // Козырек
 
     // Фасад 2-й комнаты (Z = 7.5)
-    this.createPhysicsWall(-9.375, wallCenterY, 7.5, 5.625, wallH/2, 1);
-    this.createPhysicsWall(9.375, wallCenterY, 7.5, 5.625, wallH/2, 1);
+    this.createPhysicsWall(-9.375, wallCenterY, 7.5, 5.625, wallH/2, 0.1);
+    this.createPhysicsWall(9.375, wallCenterY, 7.5, 5.625, wallH/2, 0.1);
 
 
     // === 4. ВНУТРЕННИЕ СТЕНКИ ШАХТЫ ЛИФТА ===
     const elCenterY = this.floorY + 5; 
-    this.createPhysicsWall(-4.75, elCenterY, 11.25, 1, 5, 3.75); // Левая
-    this.createPhysicsWall(4.75, elCenterY, 11.25, 1, 5, 3.75);  // Правая
-    this.createPhysicsWall(0, this.floorY + 11, 11.25, 3.75, 1, 3.75); // Потолок шахты
+    
+    // Стенки лифта тоже делаем тонкими
+    this.createPhysicsWall(-4.75, elCenterY, 11.25, 0.1, 5, 3.75); // Левая
+    this.createPhysicsWall(4.75, elCenterY, 11.25, 0.1, 5, 3.75);  // Правая
+    this.createPhysicsWall(0, this.floorY + 11, 11.25, 3.75, 1, 3.75); // Потолок шахты (оставляем толстым)
 }
 
 

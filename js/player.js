@@ -3,13 +3,28 @@ import * as CANNON from 'cannon-es';
 import { CONFIG } from './config.js';
 
 export class PlayerController {
-  constructor(world, scene, body, mesh, shadowMesh, cameraPivot, interactivePlatforms = []) {
+ constructor(world, scene, sceneManager, physicsManager, cameraPivot, startPos, interactivePlatforms = []) {
     this.world = world;
     this.scene = scene;
-    this.body = body;
-    this.mesh = mesh;
-    this.shadowMesh = shadowMesh;
     this.cameraPivot = cameraPivot;
+
+    const playerRadius = CONFIG.PLAYER.RADIUS || 1.5;
+
+    // Инкапсулированное создание игрока
+    this.mesh = sceneManager.createPlayerMesh(playerRadius);
+    this.body = physicsManager.createPlayerBody(playerRadius, CONFIG.PLAYER.MASS, startPos);
+
+    // Инкапсулированная тень
+    const shadowGeo = new THREE.CircleGeometry(playerRadius, 32);
+    shadowGeo.rotateX(-Math.PI / 2);
+    const shadowMat = new THREE.MeshBasicMaterial({
+      color: 0x000000,
+      transparent: true,
+      opacity: 0.5,
+      depthWrite: false, 
+    });
+    this.shadowMesh = new THREE.Mesh(shadowGeo, shadowMat);
+    this.scene.add(this.shadowMesh);
     
     this.interactivePlatforms = interactivePlatforms; 
     // ДОБАВИЛИ КЕШ ТАЙМЕРОВ ДЛЯ ПЛАТФОРМ

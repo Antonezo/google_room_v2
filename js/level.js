@@ -41,12 +41,14 @@ build() {
     this.buildElevatorDoors();
   }
 
-  // Полная очистка текущих объектов уровня
+// Полная и безопасная очистка текущих объектов уровня
   clearCurrentLevel() {
     // 1. Очистка физики Cannon.js
-    if (this.levelObjects) {
+    if (this.levelObjects && this.levelObjects.length > 0) {
       this.levelObjects.forEach(obj => {
-        if (obj.body) this.world.removeBody(obj.body);
+        if (obj && obj.body) {
+          this.world.removeBody(obj.body);
+        }
       });
     }
 
@@ -54,20 +56,27 @@ build() {
     if (this.levelGroup) {
       this.levelGroup.traverse((child) => {
         if (child.isMesh) {
-          child.geometry.dispose(); // Удаляем геометрию из памяти
+          // Безопасно удаляем геометрию
+          if (child.geometry) {
+            child.geometry.dispose();
+          }
           
-          if (Array.isArray(child.material)) {
-            child.material.forEach(m => m.dispose()); // Удаляем массив материалов
-          } else {
-            child.material.dispose(); // Удаляем одиночный материал
+          // Безопасно удаляем материалы (текстуры не трогаем, они глобальные!)
+          if (child.material) {
+            const mats = Array.isArray(child.material) ? child.material : [child.material];
+            mats.forEach(m => {
+              if (m) m.dispose();
+            });
           }
         }
       });
-      this.scene.remove(this.levelGroup); // Убираем группу со сцены
+      this.scene.remove(this.levelGroup);
     }
 
-    // 3. Сброс массивов
+    // 3. Сброс ссылок (важно для Garbage Collector)
     this.levelObjects = [];
+    
+    // Пересоздаем группу чистой
     this.levelGroup = new THREE.Group();
     this.scene.add(this.levelGroup);
   }

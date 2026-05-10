@@ -5,49 +5,49 @@ import { UnrealBloomPass } from "three/addons/postprocessing/UnrealBloomPass.js"
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
 import { CONFIG } from "./config.js";
 
-// --- ЗАГРУЗКА ТЕКСТУР ---
-const textureLoader = new THREE.TextureLoader();
+// --- ЗАГРУЗКА ТЕКСТУР (УПРАВЛЯЕМАЯ) ---
+export let tileTex, tileNormalTex, tileRoughTex;
+export let marbleBaseTex, marbleNormalTex, marbleRoughTex;
+export let heatTex, ventGridTex;
 
-// Функция для удобной настройки тайлинга сразу для всех карт
-const setupTiling = (texture, repeatX, repeatY) => {
-  texture.wrapS = THREE.RepeatWrapping;
-  texture.wrapT = THREE.RepeatWrapping;
-  texture.repeat.set(repeatX, repeatY);
-};
+export function loadGameAssets(onProgress, onComplete) {
+  const manager = new THREE.LoadingManager();
 
-// Значение 0.3 означает, что одна картинка с плиткой будет занимать примерно 3.3 метра.
-// Можешь менять эту цифру, чтобы сделать плитку крупнее или мельче (например, 0.5)
-const repeatX = 0.05;
-const repeatY = 0.05;
+  manager.onProgress = (url, itemsLoaded, itemsTotal) => {
+    onProgress(itemsLoaded / itemsTotal);
+  };
+  
+  manager.onLoad = () => {
+    onComplete();
+  };
 
-// Я оставил старое название 'tileTex' для цвета, чтобы не сломать импорты в других файлах (например, в main.js)
-export const tileTex = textureLoader.load("Image/diff_1k.png", (t) =>
-  setupTiling(t, repeatX, repeatY),
-);
-export const tileNormalTex = textureLoader.load("Image/nor_gl_1k.png", (t) =>
-  setupTiling(t, repeatX, repeatY),
-);
-export const tileRoughTex = textureLoader.load("Image/rough_1k.png", (t) =>
-  setupTiling(t, repeatX, repeatY),
-);
+  const textureLoader = new THREE.TextureLoader(manager);
 
-export const marbleBaseTex = textureLoader.load(
-  "Image/marble_69_basecolor-1K.png",
-);
-export const marbleNormalTex = textureLoader.load(
-  "Image/marble_69_normal-1K.png",
-);
-export const marbleRoughTex = textureLoader.load(
-  "Image/marble_69_roughness-1K.png",
-);
+  const setupTiling = (texture, repeatX, repeatY) => {
+    texture.wrapS = THREE.RepeatWrapping;
+    texture.wrapT = THREE.RepeatWrapping;
+    texture.repeat.set(repeatX, repeatY);
+  };
 
-export const heatTex = textureLoader.load("Image/heat.png");
+  const repeatX = 0.05;
+  const repeatY = 0.05;
 
-export const ventGridTex = textureLoader.load("Image/ventGrid.png", (tex) => {
-  tex.wrapS = THREE.RepeatWrapping;
-  tex.wrapT = THREE.RepeatWrapping;
-  tex.repeat.set(1, 1);
-});
+  tileTex = textureLoader.load("Image/diff_1k.png", (t) => setupTiling(t, repeatX, repeatY));
+  tileNormalTex = textureLoader.load("Image/nor_gl_1k.png", (t) => setupTiling(t, repeatX, repeatY));
+  tileRoughTex = textureLoader.load("Image/rough_1k.png", (t) => setupTiling(t, repeatX, repeatY));
+
+  marbleBaseTex = textureLoader.load("Image/marble_69_basecolor-1K.png");
+  marbleNormalTex = textureLoader.load("Image/marble_69_normal-1K.png");
+  marbleRoughTex = textureLoader.load("Image/marble_69_roughness-1K.png");
+
+  heatTex = textureLoader.load("Image/heat.png");
+
+  ventGridTex = textureLoader.load("Image/ventGrid.png", (tex) => {
+    tex.wrapS = THREE.RepeatWrapping;
+    tex.wrapT = THREE.RepeatWrapping;
+    tex.repeat.set(1, 1);
+  });
+}
 
 export const lampGlowTex = (() => {
   const c = document.createElement("canvas");

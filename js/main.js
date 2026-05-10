@@ -7,7 +7,7 @@ import { CONFIG } from "./config.js";
 import { audioManager } from "./audio.js";
 import { store, isNight, isSlowMo } from "./state.js";
 import { PhysicsManager } from "./physics.js";
-import { SceneManager, heatTex, lampGlowTex } from "./scene.js";
+import { SceneManager, heatTex, lampGlowTex, loadGameAssets } from "./scene.js";
 import { UIManager } from "./ui.js";
 import { InputManager } from "./input.js";
 import { ParticlePool, GameObject, MiniBeadPool } from "./utils.js";
@@ -234,39 +234,6 @@ export class GoogleRoomApp {
 
     this.setupStateReactions();
 
-    // === СОЗДАНИЕ ШАРА-ИГРОКА ===
-    const playerRadius = CONFIG.PLAYER.RADIUS; // В config.js оставь 1.5
-
-    const startPos = {
-      x: 0,
-      y: 0,
-      z: 30, // <-- Было 2 (лаборатория), стало 30 ( центр коридора)
-    };
-
-    this.playerMesh = this.sceneManager.createPlayerMesh(playerRadius);
-    this.playerBody = this.physicsManager.createPlayerBody(
-      playerRadius,
-      CONFIG.PLAYER.MASS,
-      startPos,
-    );
-
-    // ==========================================
-    // ВСТАВЛЯЕМ СЮДА: ФЕЙКОВАЯ ТЕНЬ ДЛЯ ПЛАТФОРМИНГА
-    // ==========================================
-    const shadowGeo = new THREE.CircleGeometry(playerRadius, 32);
-    shadowGeo.rotateX(-Math.PI / 2); // Кладем круг плашмя на пол
-
-    const shadowMat = new THREE.MeshBasicMaterial({
-      color: 0x000000,
-      transparent: true,
-      opacity: 0.5,
-      depthWrite: false, // ВАЖНО: Запрещаем тени конфликтовать с текстурой пола (убирает мерцание)
-    });
-
-    this.playerShadowMesh = new THREE.Mesh(shadowGeo, shadowMat);
-    this.scene.add(this.playerShadowMesh);
-    // ==========================================
-
     // ==========================================
     // ФИЗИКА СВЕТА: Настройка экспозиции камеры
     // ==========================================
@@ -370,16 +337,16 @@ export class GoogleRoomApp {
       }
     });
 
-    // ДОБАВЛЯЕШЬ СЮДА: Передаем уже созданные объекты в контроллеры
-this.playerController = new PlayerController(
-  this.world, 
-  this.scene, 
-  this.playerBody, 
-  this.playerMesh, 
-  this.playerShadowMesh, 
-  this.cameraPivot,
-  this.interactivePlatforms
-);
+  const startPos = { x: 0, y: 0, z: 30 }; // Стартовая позиция переехала сюда
+    this.playerController = new PlayerController(
+      this.world, 
+      this.scene, 
+      this.sceneManager,
+      this.physicsManager,
+      this.cameraPivot,
+      startPos,
+      this.interactivePlatforms
+    );
 
 this.cameraController = new CameraController(
   this.camera, 
@@ -416,30 +383,30 @@ start3DIntro() {
     const dropZ = 30;
     const impactY = CONFIG.WORLD.FLOOR_LEVEL + CONFIG.PLAYER.RADIUS;
 
-    this.playerShadowMesh.visible = false;
-    this.playerBody.mass = 0; 
-    this.playerBody.type = CANNON.Body.STATIC;
-    this.playerBody.position.set(dropX, 25, dropZ); 
-    this.playerBody.velocity.set(0, 0, 0);
-    this.playerBody.angularVelocity.set(0, 0, 0);
-    this.playerBody.updateMassProperties();
+    this.playerController.shadowMesh.visible = false;
+    this.playerController.body.mass = 0; 
+    this.playerController.body.type = CANNON.Body.STATIC;
+    this.playerController.body.position.set(dropX, 25, dropZ); 
+    this.playerController.body.velocity.set(0, 0, 0);
+    this.playerController.body.angularVelocity.set(0, 0, 0);
+    this.playerController.body.updateMassProperties();
 
     this.cameraPivot.position.set(dropX, impactY + 4.0, dropZ); 
 
     this.introTimeout = setTimeout(() => {
-      this.playerBody.mass = CONFIG.PLAYER.MASS; 
-      this.playerBody.type = CANNON.Body.DYNAMIC;
-      this.playerBody.updateMassProperties();
-      this.playerBody.wakeUp();
+      this.playerController.body.mass = CONFIG.PLAYER.MASS; 
+      this.playerController.body.type = CANNON.Body.DYNAMIC;
+      this.playerController.body.updateMassProperties();
+      this.playerController.body.wakeUp();
 
       this.introImpactCheck = setInterval(() => {
         // Ждем самого момента касания (+ 0.2)
-        if (this.playerBody.position.y <= impactY + 0.2) {
+        if (this.playerController.body.position.y <= impactY + 0.2) {
           clearInterval(this.introImpactCheck);
           
           // ФИКС РЫВКА: Гасим инерцию, чтобы тяжелый шар не отскакивал как мячик.
           // Он тяжело шлепнется и останется ровно в координатах приземления!
-          this.playerBody.velocity.set(0, 0, 0);
+          this.playerController.body.velocity.set(0, 0, 0);
           
           this.playSeamlessIntroTransition();
         }
@@ -448,8 +415,8 @@ start3DIntro() {
   }
 
 playSeamlessIntroTransition() {
-    this.playerShadowMesh.visible = true;
-    this.createDustExplosion(this.playerBody.position, 1.5); 
+    this.playerController.shadowMesh.visible = true;
+    this.createDustExplosion(this.playerController.body.position, 1.5); 
 
     // ЗАДАЕМ СИЛУ ТРЯСКИ (0.8 - это довольно сильный удар, можешь менять)
     this.shakeIntensity = 0.8; 
@@ -562,16 +529,16 @@ resetScene() {
       this.controls.enabled = false;
     }
     // === СБРОС ШАРИКА-ИГРОКА ===
-    if (this.playerBody) {
-      this.playerBody.velocity.set(0, 0, 0);
-      this.playerBody.angularVelocity.set(0, 0, 0);
-      this.playerBody.position.set(0, 0, 30);
-      this.playerBody.quaternion.set(0, 0, 0, 1);
-      this.playerBody.previousPosition.copy(this.playerBody.position);
-      this.playerBody.interpolatedPosition.copy(this.playerBody.position);
-      this.playerBody.previousQuaternion.copy(this.playerBody.quaternion);
-      this.playerBody.interpolatedQuaternion.copy(this.playerBody.quaternion);
-      this.playerBody.wakeUp();
+    if (this.playerController.body) {
+      this.playerController.body.velocity.set(0, 0, 0);
+      this.playerController.body.angularVelocity.set(0, 0, 0);
+      this.playerController.body.position.set(0, 0, 30);
+      this.playerController.body.quaternion.set(0, 0, 0, 1);
+      this.playerController.body.previousPosition.copy(this.playerController.body.position);
+      this.playerController.body.interpolatedPosition.copy(this.playerController.body.position);
+      this.playerController.body.previousQuaternion.copy(this.playerController.body.quaternion);
+      this.playerController.body.interpolatedQuaternion.copy(this.playerController.body.quaternion);
+      this.playerController.body.wakeUp();
     }
 
     // === СБРОС ИНТЕРАКТИВНЫХ ПЛАТФОРМ (ЯЩИКОВ) ===
@@ -1016,7 +983,7 @@ createDustExplosion(pos, intensity01) {
         if (!this.isElevatorSequenceActive || this.elevatorPhase === 'opening_doors') {
           
           // ИГРОВОЙ РЕЖИМ (Работает умная камера с защитой от прохождения сквозь стены)
-          this.cameraController.update(dt, this.playerMesh.position);
+          this.cameraController.update(dt, this.playerController.mesh.position);
           
         } else if (this.elevatorPhase === 'rolling' || this.elevatorPhase === 'doors_closing') {
           
@@ -1030,8 +997,8 @@ createDustExplosion(pos, intensity01) {
         }
       } else {
         // Синхронизируем графику падающего шара (Интро)
-        this.playerMesh.position.copy(this.playerBody.position);
-        this.playerMesh.quaternion.copy(this.playerBody.quaternion);
+        this.playerController.mesh.position.copy(this.playerController.body.position);
+        this.playerController.mesh.quaternion.copy(this.playerController.body.quaternion);
 
         // ИДЕАЛЬНЫЙ ТРЮК: скармливаем камере точку приземления
         const impactY = CONFIG.WORLD.FLOOR_LEVEL + CONFIG.PLAYER.RADIUS;
@@ -1543,4 +1510,26 @@ window.addEventListener("mousedown", (e) => {
   // Фейковый кулак удален!
 });
 
-const app = new GoogleRoomApp();
+// Элемент для отображения процентов на двери A.I.C.E.
+const progressText = document.querySelector('.core-subtext');
+
+loadGameAssets(
+  // Коллбек прогресса
+  (progress) => {
+    if (progressText) {
+      progressText.innerText = `ЗАГРУЗКА: ${Math.floor(progress * 100)}%`;
+    }
+  },
+  // Коллбек завершения
+  () => {
+    if (progressText) {
+      progressText.innerText = "SYSTEMS"; // Возвращаем оригинальный текст
+    }
+    
+    // Снимаем класс loading, чтобы двери могли реагировать
+    document.body.classList.remove("loading");
+    
+    // Инстанцируем тяжелый класс ИГРЫ только когда все картинки готовы!
+    window.app = new GoogleRoomApp(); 
+  }
+);

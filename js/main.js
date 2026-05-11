@@ -2,7 +2,7 @@ import * as THREE from "three";
 import * as CANNON from "cannon-es";
 import { RectAreaLightUniformsLib } from "three/addons/lights/RectAreaLightUniformsLib.js";
 import { PointerLockControls } from "three/addons/controls/PointerLockControls.js";
-import { LevelBuilder } from './level.js';
+import { LevelBuilder } from "./level.js";
 import { CONFIG } from "./config.js";
 import { audioManager } from "./audio.js";
 import { store, isNight, isSlowMo } from "./state.js";
@@ -11,9 +11,9 @@ import { SceneManager, heatTex, lampGlowTex, loadGameAssets } from "./scene.js";
 import { UIManager } from "./ui.js";
 import { InputManager } from "./input.js";
 import { ParticlePool, GameObject, MiniBeadPool } from "./utils.js";
-import { PlayerController } from './player.js';
-import { CameraController } from './camera.js';
-import { InteractiveBox } from './entities.js';
+import { PlayerController } from "./player.js";
+import { CameraController } from "./camera.js";
+import { InteractiveBox } from "./entities.js";
 import { WordManager } from "./word_manager.js";
 
 RectAreaLightUniformsLib.init();
@@ -21,28 +21,28 @@ RectAreaLightUniformsLib.init();
 export class GoogleRoomApp {
   constructor() {
     // === UI ДЛЯ ЗАТЕМНЕНИЯ ЭКРАНА (Fade) ===
-    this.fadeScreen = document.createElement('div');
-    this.fadeScreen.style.position = 'absolute';
-    this.fadeScreen.style.top = '0';
-    this.fadeScreen.style.left = '0';
-    this.fadeScreen.style.width = '100%';
-    this.fadeScreen.style.height = '100%';
-    this.fadeScreen.style.backgroundColor = 'black';
-    this.fadeScreen.style.opacity = '0'; // Сначала прозрачный
-    this.fadeScreen.style.pointerEvents = 'none'; // Чтобы клики проходили сквозь него
-    this.fadeScreen.style.transition = 'opacity 2s ease-in-out'; // Плавность 2 секунды
-    this.fadeScreen.style.zIndex = '9999';
+    this.fadeScreen = document.createElement("div");
+    this.fadeScreen.style.position = "absolute";
+    this.fadeScreen.style.top = "0";
+    this.fadeScreen.style.left = "0";
+    this.fadeScreen.style.width = "100%";
+    this.fadeScreen.style.height = "100%";
+    this.fadeScreen.style.backgroundColor = "black";
+    this.fadeScreen.style.opacity = "0"; // Сначала прозрачный
+    this.fadeScreen.style.pointerEvents = "none"; // Чтобы клики проходили сквозь него
+    this.fadeScreen.style.transition = "opacity 2s ease-in-out"; // Плавность 2 секунды
+    this.fadeScreen.style.zIndex = "9999";
     document.body.appendChild(this.fadeScreen);
 
     // === ФЛАГИ СОСТОЯНИЙ ===
     this.isElevatorSequenceActive = false; // <--- НОВЫЙ ФЛАГ ДЛЯ КАТ-СЦЕНЫ ЛИФТА
-    this.hasStartedGame = false; 
-    this.isIntroPlaying = false; 
+    this.hasStartedGame = false;
+    this.isIntroPlaying = false;
     this.isPaused = false;
     this.isResetting = false;
     this.lastTime = performance.now();
     this.platformImpact = 0;
-    
+
     // === ИНИЦИАЛИЗАЦИЯ МЕНЕДЖЕРОВ ===
     this.sceneManager = new SceneManager();
 
@@ -61,11 +61,17 @@ export class GoogleRoomApp {
     this.fanLevel = 0.0;
     this.lettersHiddenByMagnet = false;
     this.currentRingIntensity = 1.2;
-    
+
     // ... остальной твой код конструктора (инициализация физики, игрока и т.д.) ...
 
- // Используем мягкую текстуру lampGlowTex и делаем цвет настоящим серым (0x888888)
-    this.dustPool = new ParticlePool(this.scene, lampGlowTex, 250, "dust", 0x888888); 
+    // Используем мягкую текстуру lampGlowTex и делаем цвет настоящим серым (0x888888)
+    this.dustPool = new ParticlePool(
+      this.scene,
+      lampGlowTex,
+      250,
+      "dust",
+      0x888888,
+    );
     this.heatPool = new ParticlePool(this.scene, heatTex, 40, "heat", 0xffb074); // Эту не трогаем!
     this.paintPools = CONFIG.COLORS.GOOGLE_UNIQUE.map(
       (colorHex) =>
@@ -101,20 +107,25 @@ export class GoogleRoomApp {
 
     // === ИНИЦИАЛИЗАЦИЯ 3D-СЛОВ ===
     this.wordManager = new WordManager(
-      this.world, 
-      this.scene, 
-      this.matBouncy, 
-      typeof audioManager !== 'undefined' ? audioManager : null
+      this.world,
+      this.scene,
+      this.matBouncy,
+      typeof audioManager !== "undefined" ? audioManager : null,
     );
-    
+
     // Привязываем визуальные эффекты из main к событиям внутри WordManager
     this.wordManager.onLetterHit = (pos, color) => {
       this.spawnMiniBeads(pos, color);
-      if (Math.abs(pos.x) < 5 && Math.abs(pos.z) < 5 && pos.y < CONFIG.WORLD.FLOOR_LEVEL + 1.0) {
+      if (
+        Math.abs(pos.x) < 5 &&
+        Math.abs(pos.z) < 5 &&
+        pos.y < CONFIG.WORLD.FLOOR_LEVEL + 1.0
+      ) {
         this.platformImpact = 1.0;
       }
     };
-    this.wordManager.onDustExplosion = (pos, intensity) => this.createDustExplosion(pos, intensity);
+    this.wordManager.onDustExplosion = (pos, intensity) =>
+      this.createDustExplosion(pos, intensity);
 
     this.uiManager = new UIManager({
       onTogglePause: () => {
@@ -152,7 +163,7 @@ export class GoogleRoomApp {
         }
       },
 
-   onToggleLetters: () => {
+      onToggleLetters: () => {
         if (this.isPaused) return this.wordManager.lettersEnabled;
 
         this.wordManager.lettersEnabled = !this.wordManager.lettersEnabled;
@@ -200,9 +211,11 @@ export class GoogleRoomApp {
       () =>
         this.isPaused || !this.uiManager.dialogueSystem.isRegistrationComplete,
       () => store.get().currentTool,
-  () => {
+      () => {
         const meshes = [
-          ...(this.wordManager.lettersEnabled ? this.wordManager.letterObjects.map((d) => d.mesh) : []),
+          ...(this.wordManager.lettersEnabled
+            ? this.wordManager.letterObjects.map((d) => d.mesh)
+            : []),
           this.ballInstancedMesh,
         ];
         const getBodyByMesh = (hitObj) => {
@@ -210,7 +223,9 @@ export class GoogleRoomApp {
             const body = this.ballsPool[hitObj.instanceId];
             return body ? body : null;
           } else {
-            const letterObj = this.wordManager.letterObjects.find((d) => d.mesh === hitObj.object);
+            const letterObj = this.wordManager.letterObjects.find(
+              (d) => d.mesh === hitObj.object,
+            );
             return letterObj ? letterObj.body : null;
           }
         };
@@ -299,8 +314,9 @@ export class GoogleRoomApp {
           // чтобы кнопка не появлялась резко перед глазами.
         }
 
-        // Захватываем мышь (возвращаемся в игру)
-        if (!this.controls.isLocked) {
+        // Захватываем мышь (возвращаемся в игру),
+        // но не во время лифтовой кат-сцены.
+        if (!this.isElevatorSequenceActive && !this.controls.isLocked) {
           this.controls.lock();
         }
         return;
@@ -315,7 +331,12 @@ export class GoogleRoomApp {
       )
         return;
 
-      // 3. Во всех остальных случаях (клик по самой игре) — захватываем мышь
+      // 3. Во всех остальных случаях (клик по самой игре) — захватываем мышь,
+      // но не во время кат-сцен.
+      if (this.isElevatorSequenceActive || this.isIntroPlaying) {
+        return;
+      }
+
       if (!this.controls.isLocked) {
         this.controls.lock();
       }
@@ -337,30 +358,30 @@ export class GoogleRoomApp {
       }
     });
 
-  const startPos = { x: 0, y: 0, z: 30 }; // Стартовая позиция переехала сюда
+    const startPos = { x: 0, y: 0, z: 30 }; // Стартовая позиция переехала сюда
     this.playerController = new PlayerController(
-      this.world, 
-      this.scene, 
+      this.world,
+      this.scene,
       this.sceneManager,
       this.physicsManager,
       this.cameraPivot,
       startPos,
-      this.interactivePlatforms
+      this.interactivePlatforms,
     );
 
-this.cameraController = new CameraController(
-  this.camera, 
-  this.cameraPivot, 
-  this.sceneManager
-);
+    this.cameraController = new CameraController(
+      this.camera,
+      this.cameraPivot,
+      this.sceneManager,
+    );
 
-// === ТЕСТОВОЕ УПРАВЛЕНИЕ ЛИФТОМ ===
-    window.addEventListener('keydown', (e) => {
+    // === ТЕСТОВОЕ УПРАВЛЕНИЕ ЛИФТОМ ===
+    window.addEventListener("keydown", (e) => {
       if (document.activeElement.tagName === "INPUT") return;
-      
+
       // Кнопку 'O' мы удалили, теперь всё автоматически!
-      
-      if (e.code === 'KeyC') { 
+
+      if (e.code === "KeyC") {
         if (this.levelBuilder) {
           this.levelBuilder.closeEntrance();
           this.levelBuilder.closeExit();
@@ -371,7 +392,40 @@ this.cameraController = new CameraController(
     requestAnimationFrame(this.tick); // <--- ВОТ ЭТО МЫ ПОТЕРЯЛИ
   }
 
-start3DIntro() {
+lockGameplayCamera() {
+  // Не делаем controls.unlock(), иначе появится обычный курсор.
+  // Вместо этого оставляем Pointer Lock активным, но выключаем чувствительность мыши.
+  if (this.controls) {
+    if (this.savedPointerSpeed === undefined) {
+      this.savedPointerSpeed = this.controls.pointerSpeed ?? 1.0;
+    }
+
+    this.controls.pointerSpeed = 0;
+  }
+
+  // Блокируем колесико зума.
+  if (this.cameraController) {
+    this.cameraController.enabled = false;
+  }
+
+  if (this.cameraPivot) {
+    this.cameraPivot.rotation.z = 0;
+  }
+}
+
+unlockGameplayCamera() {
+  // Возвращаем чувствительность мыши.
+  if (this.controls) {
+    this.controls.pointerSpeed = this.savedPointerSpeed ?? 1.0;
+    this.savedPointerSpeed = undefined;
+  }
+
+  // Возвращаем колесико зума.
+  if (this.cameraController) {
+    this.cameraController.enabled = true;
+  }
+}
+  start3DIntro() {
     this.isIntroPlaying = true;
     if (this.controls) this.controls.enabled = false;
 
@@ -379,22 +433,22 @@ start3DIntro() {
     if (this.introImpactCheck) clearInterval(this.introImpactCheck);
     this.shakeIntensity = 0; // Сбрасываем тряску при новом запуске
 
-   const dropX = 0; // Бросаем ровно по центру
+    const dropX = 0; // Бросаем ровно по центру
     const dropZ = 30;
     const impactY = CONFIG.WORLD.FLOOR_LEVEL + CONFIG.PLAYER.RADIUS;
 
     this.playerController.shadowMesh.visible = false;
-    this.playerController.body.mass = 0; 
+    this.playerController.body.mass = 0;
     this.playerController.body.type = CANNON.Body.STATIC;
-    this.playerController.body.position.set(dropX, 25, dropZ); 
+    this.playerController.body.position.set(dropX, 25, dropZ);
     this.playerController.body.velocity.set(0, 0, 0);
     this.playerController.body.angularVelocity.set(0, 0, 0);
     this.playerController.body.updateMassProperties();
 
-    this.cameraPivot.position.set(dropX, impactY + 4.0, dropZ); 
+    this.cameraPivot.position.set(dropX, impactY + 4.0, dropZ);
 
     this.introTimeout = setTimeout(() => {
-      this.playerController.body.mass = CONFIG.PLAYER.MASS; 
+      this.playerController.body.mass = CONFIG.PLAYER.MASS;
       this.playerController.body.type = CANNON.Body.DYNAMIC;
       this.playerController.body.updateMassProperties();
       this.playerController.body.wakeUp();
@@ -403,40 +457,51 @@ start3DIntro() {
         // Ждем самого момента касания (+ 0.2)
         if (this.playerController.body.position.y <= impactY + 0.2) {
           clearInterval(this.introImpactCheck);
-          
+
           // ФИКС РЫВКА: Гасим инерцию, чтобы тяжелый шар не отскакивал как мячик.
           // Он тяжело шлепнется и останется ровно в координатах приземления!
           this.playerController.body.velocity.set(0, 0, 0);
-          
+
           this.playSeamlessIntroTransition();
         }
       }, 16);
     }, 1500);
   }
 
-playSeamlessIntroTransition() {
+  playSeamlessIntroTransition() {
     this.playerController.shadowMesh.visible = true;
-    this.createDustExplosion(this.playerController.body.position, 1.5); 
+    this.createDustExplosion(this.playerController.body.position, 1.5);
 
     // ЗАДАЕМ СИЛУ ТРЯСКИ (0.8 - это довольно сильный удар, можешь менять)
-    this.shakeIntensity = 0.8; 
+    this.shakeIntensity = 0.8;
 
     setTimeout(() => {
       // Отключаем режим интро и отдаем управление мыши
-      this.isIntroPlaying = false; 
+      this.isIntroPlaying = false;
       if (this.controls) this.controls.enabled = true;
     }, 200);
   }
 
-initSceneObjects() {
+  initSceneObjects() {
     // 1. Уровень
-    this.levelBuilder = new LevelBuilder(this.sceneManager, this.physicsManager);
+    this.levelBuilder = new LevelBuilder(
+      this.sceneManager,
+      this.physicsManager,
+    );
     this.levelBuilder.build();
 
     // 2. Мелкие шарики (инстансы оставляем как есть, это эффективно)
-    const ballGeo = new THREE.SphereGeometry(CONFIG.PHYSICS.BALL_RADIUS, 16, 16);
+    const ballGeo = new THREE.SphereGeometry(
+      CONFIG.PHYSICS.BALL_RADIUS,
+      16,
+      16,
+    );
     this.ballShape = new CANNON.Sphere(CONFIG.PHYSICS.BALL_RADIUS);
-    this.ballInstancedMesh = new THREE.InstancedMesh(ballGeo, this.ballMat, CONFIG.PHYSICS.MAX_BALLS);
+    this.ballInstancedMesh = new THREE.InstancedMesh(
+      ballGeo,
+      this.ballMat,
+      CONFIG.PHYSICS.MAX_BALLS,
+    );
     this.ballInstancedMesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
     this.ballInstancedMesh.castShadow = true;
     this.ballInstancedMesh.receiveShadow = true;
@@ -450,8 +515,7 @@ initSceneObjects() {
       this.ballInstancedMesh.setColorAt(i, new THREE.Color(0xffffff));
     }
 
-  
-  this.interactivePlatforms = [];
+    this.interactivePlatforms = [];
   }
 
   clearBalls() {
@@ -505,22 +569,22 @@ initSceneObjects() {
     nextFlicker();
   }
 
-resetScene() {
+  resetScene() {
     // === 1. СБРОС ЛИФТА И КАТ-СЦЕНЫ ===
     if (this.levelBuilder) {
       this.levelBuilder.closeEntrance();
       this.levelBuilder.closeExit();
-      this.levelBuilder.entranceOpenState = 0; 
-      this.levelBuilder.exitOpenState = 0; 
-      this.levelBuilder.setElevatorMode('entering'); 
+      this.levelBuilder.entranceOpenState = 0;
+      this.levelBuilder.exitOpenState = 0;
+      this.levelBuilder.setElevatorMode("entering");
     }
     this.isElevatorSequenceActive = false;
-    this.elevatorPhase = ''; 
+    this.elevatorPhase = "";
     this.isExitDoorClosingPending = false; // <--- ДОБАВИТЬ ЭТОТ ФЛАГ
-    if (this.fadeScreen) this.fadeScreen.style.opacity = '0';
+    if (this.fadeScreen) this.fadeScreen.style.opacity = "0";
     if (this.playerController) this.playerController.isLocked = false;
 
-  // ПОЛНЫЙ СБРОС КАМЕРЫ: Очищаем углы поворота, чтобы интро всегда начиналось с чистого листа
+    // ПОЛНЫЙ СБРОС КАМЕРЫ: Очищаем углы поворота, чтобы интро всегда начиналось с чистого листа
     if (this.cameraPivot) {
       this.cameraPivot.rotation.set(0, 0, 0);
     }
@@ -534,17 +598,25 @@ resetScene() {
       this.playerController.body.angularVelocity.set(0, 0, 0);
       this.playerController.body.position.set(0, 0, 30);
       this.playerController.body.quaternion.set(0, 0, 0, 1);
-      this.playerController.body.previousPosition.copy(this.playerController.body.position);
-      this.playerController.body.interpolatedPosition.copy(this.playerController.body.position);
-      this.playerController.body.previousQuaternion.copy(this.playerController.body.quaternion);
-      this.playerController.body.interpolatedQuaternion.copy(this.playerController.body.quaternion);
+      this.playerController.body.previousPosition.copy(
+        this.playerController.body.position,
+      );
+      this.playerController.body.interpolatedPosition.copy(
+        this.playerController.body.position,
+      );
+      this.playerController.body.previousQuaternion.copy(
+        this.playerController.body.quaternion,
+      );
+      this.playerController.body.interpolatedQuaternion.copy(
+        this.playerController.body.quaternion,
+      );
       this.playerController.body.wakeUp();
     }
 
     // === СБРОС ИНТЕРАКТИВНЫХ ПЛАТФОРМ (ЯЩИКОВ) ===
     // Смотри, как чисто! Вся логика спрятана внутри класса InteractiveBox
     if (this.interactivePlatforms) {
-      this.interactivePlatforms.forEach(platform => platform.reset());
+      this.interactivePlatforms.forEach((platform) => platform.reset());
     }
 
     // Сброс UI и стейта
@@ -583,14 +655,17 @@ resetScene() {
       }
     }
     this.fanLevel = 0.0;
-    
-    if (this.uiManager && typeof this.uiManager.updateFanProgress === "function") {
+
+    if (
+      this.uiManager &&
+      typeof this.uiManager.updateFanProgress === "function"
+    ) {
       this.uiManager.updateFanProgress(0);
     }
 
     this.startShrinkingBalls();
 
-// Сбрасываем цвета букв через новый WordManager
+    // Сбрасываем цвета букв через новый WordManager
     if (this.wordManager && this.wordManager.letterObjects) {
       this.wordManager.letterObjects.forEach((obj, i) => {
         const palette = CONFIG.COLORS.GOOGLE_PALETTE;
@@ -621,7 +696,7 @@ resetScene() {
       //   this.world.addBody(this.platformBody);
 
       if (state.mode === "disco") {
-       for (const l of this.wordManager.letterObjects){
+        for (const l of this.wordManager.letterObjects) {
           l.mesh.material.emissiveIntensity = 0.02;
           l.mesh.material.roughness = 0.25;
           l.mesh.material.color.setHex(l.body.userData.googleColor);
@@ -651,7 +726,7 @@ resetScene() {
           } else {
             if (this.lettersHiddenByMagnet) {
               this.uiManager.setLettersActive(true);
-              this.wordManager.showLettersSmoothly()
+              this.wordManager.showLettersSmoothly();
               this.lettersHiddenByMagnet = false;
             }
           }
@@ -814,10 +889,14 @@ resetScene() {
       .subVectors(this.inputManager.interactionTarget, camPos)
       .normalize();
 
-   // 1. ОБРАБОТКА БУКВ (Высокая чувствительность, без физической отдачи)
+    // 1. ОБРАБОТКА БУКВ (Высокая чувствительность, без физической отдачи)
     if (this.wordManager && this.wordManager.letterObjects) {
       this.wordManager.letterObjects.forEach((obj) => {
-        if (!this.wordManager.lettersEnabled || obj.body.collisionFilterMask === 0) return;
+        if (
+          !this.wordManager.lettersEnabled ||
+          obj.body.collisionFilterMask === 0
+        )
+          return;
 
         const v = new THREE.Vector3().subVectors(obj.body.position, camPos);
         const distAlongRay = v.dot(sprayDir);
@@ -887,7 +966,6 @@ resetScene() {
     }
   }
 
-
   updateBeadsBlinking() {
     const isMagnet = store.get().currentTool !== -1;
     const hasNoBalls = this.activeBallsCount === 0;
@@ -909,32 +987,32 @@ resetScene() {
     }
   }
 
-createDustExplosion(pos, intensity01) {
+  createDustExplosion(pos, intensity01) {
     // Уменьшили количество частиц в 2.5 раза (было 60 + 40, стало 25 + 15)
-    const cloudCount = 25 + Math.floor(15 * intensity01); 
+    const cloudCount = 25 + Math.floor(15 * intensity01);
 
     for (let i = 0; i < cloudCount; i++) {
       const angle = Math.random() * Math.PI * 2;
-      
+
       // Скорость разлета стала еще меньше
-      const speed = 0.15 + Math.random() * 0.2; 
+      const speed = 0.15 + Math.random() * 0.2;
 
       const spawnRadius = 0.3 + Math.random() * 0.6;
       const spawnPos = new THREE.Vector3(
         pos.x + Math.cos(angle) * spawnRadius,
-        pos.y - 0.8 + (Math.random() * 0.2), 
-        pos.z + Math.sin(angle) * spawnRadius
+        pos.y - 0.8 + Math.random() * 0.2,
+        pos.z + Math.sin(angle) * spawnRadius,
       );
 
       const vel = new THREE.Vector3(
         Math.cos(angle) * speed,
         0.01 + Math.random() * 0.03, // Практически не поднимается вверх
-        Math.sin(angle) * speed
+        Math.sin(angle) * speed,
       );
 
       // Масштаб немного убавили, чтобы они не перекрывали весь экран
       const scale = 1.5 + Math.random() * 1.5;
-      
+
       // Время жизни (скорость затухания)
       const decay = 0.006 + Math.random() * 0.006;
 
@@ -971,34 +1049,59 @@ createDustExplosion(pos, intensity01) {
 
       // 1. Считаем физику
       this.physicsManager.step(dt, isSlowMo());
-      
+
       // 2. Считаем глобальный инпут мыши (магнит, краска)
       this.inputManager.update(dt);
-      
-// 3 и 4. Обновляем игрока и камеру
+
+      // 3 и 4. Обновляем игрока и камеру
       if (!this.isIntroPlaying) {
         this.playerController.update(dt);
-        
-        // Если кат-сцена не идет ИЛИ мы находимся в фазе открытия новых дверей
-        if (!this.isElevatorSequenceActive || this.elevatorPhase === 'opening_doors') {
-          
-          // ИГРОВОЙ РЕЖИМ (Работает умная камера с защитой от прохождения сквозь стены)
+
+        if (!this.isElevatorSequenceActive) {
+          // ИГРОВОЙ РЕЖИМ:
+          // обычная умная камера работает только когда лифтовая кат-сцена полностью закончена.
           this.cameraController.update(dt, this.playerController.mesh.position);
-          
-        } else if (this.elevatorPhase === 'rolling' || this.elevatorPhase === 'doors_closing') {
-          
-          // КИНЕМАТОГРАФИЧЕСКИЙ РЕЖИМ: Камера плавно отъезжает и смотрит на лифт
-          const targetCamPos = new THREE.Vector3(0, 6, 24); 
+        } else if (
+          this.elevatorPhase === "waiting_entrance_open" ||
+          this.elevatorPhase === "rolling" ||
+          this.elevatorPhase === "doors_closing"
+        ) {
+          // КИНЕМАТОГРАФИЧЕСКИЙ РЕЖИМ:
+          // камера плавно отъезжает и смотрит на лифт.
+          const targetCamPos = new THREE.Vector3(0, 6, 24);
           this.cameraPivot.position.lerp(targetCamPos, dt * 2.0);
-          
-          this.cameraPivot.rotation.x = THREE.MathUtils.lerp(this.cameraPivot.rotation.x, -0.1, dt * 2.0);
-          this.cameraPivot.rotation.y = THREE.MathUtils.lerp(this.cameraPivot.rotation.y, 0, dt * 2.0);
+
+          this.cameraPivot.rotation.x = THREE.MathUtils.lerp(
+            this.cameraPivot.rotation.x,
+            -0.1,
+            dt * 2.0,
+          );
+          this.cameraPivot.rotation.y = THREE.MathUtils.lerp(
+            this.cameraPivot.rotation.y,
+            0,
+            dt * 2.0,
+          );
           this.cameraPivot.rotation.z = 0;
-        }
+} else if (this.elevatorPhase === "opening_doors") {
+  // ФАЗА ОТКРЫТИЯ ДВЕРЕЙ НОВОГО УРОВНЯ:
+  // просто держим камеру стабильной, пока открываются двери.
+  const exitCameraZoom = 15.0;
+  const p = this.playerController.body.position;
+
+  this.cameraPivot.position.set(0, p.y + 4.0, 11.25);
+  this.cameraPivot.rotation.set(-Math.PI / 6, 0, 0);
+
+  this.camera.position.set(0, 0, exitCameraZoom);
+  this.camera.rotation.set(0, 0, 0);
+}
       } else {
         // Синхронизируем графику падающего шара (Интро)
-        this.playerController.mesh.position.copy(this.playerController.body.position);
-        this.playerController.mesh.quaternion.copy(this.playerController.body.quaternion);
+        this.playerController.mesh.position.copy(
+          this.playerController.body.position,
+        );
+        this.playerController.mesh.quaternion.copy(
+          this.playerController.body.quaternion,
+        );
 
         // ИДЕАЛЬНЫЙ ТРЮК: скармливаем камере точку приземления
         const impactY = CONFIG.WORLD.FLOOR_LEVEL + CONFIG.PLAYER.RADIUS;
@@ -1016,9 +1119,9 @@ createDustExplosion(pos, intensity01) {
       if (this.shakeIntensity > 0) {
         this.camera.position.x += (Math.random() - 0.5) * this.shakeIntensity;
         this.camera.position.y += (Math.random() - 0.5) * this.shakeIntensity;
-        
+
         // Уменьшаем силу тряски (затухание)
-        this.shakeIntensity -= dt * 3.5; 
+        this.shakeIntensity -= dt * 3.5;
         if (this.shakeIntensity < 0) this.shakeIntensity = 0;
       }
 
@@ -1042,132 +1145,170 @@ createDustExplosion(pos, intensity01) {
         this.levelBuilder.updateDoors(dt);
       }
 
-// Обновляем двери лифта
-      if (this.levelBuilder) {
-        this.levelBuilder.updateDoors(dt);
-      }
-
       // === 1. АВТОМАТИЧЕСКИЙ НЕВИДИМЫЙ ТРИГГЕР ===
-      // На будущее: когда сделаем квесты, эта переменная будет становиться true 
+      // На будущее: когда сделаем квесты, эта переменная будет становиться true
       // только после того, как игрок выполнит задание (например, раскрасит все буквы).
-      const isElevatorUnlocked = true; 
+      const isElevatorUnlocked = true;
 
-      if (!this.isElevatorSequenceActive && this.levelBuilder && this.playerController && isElevatorUnlocked) {
+      if (
+        !this.isElevatorSequenceActive &&
+        this.levelBuilder &&
+        this.playerController &&
+        isElevatorUnlocked
+      ) {
         const pPos = this.playerController.body.position;
-        
+
         // Зона перед лифтом: X от -4 до 4, Z от 15.0 до 19.0 (за 4 метра до дверей)
         if (pPos.z < 19.0 && pPos.z > 15.0 && pPos.x > -4.0 && pPos.x < 4.0) {
-          
           this.isElevatorSequenceActive = true;
-          this.elevatorPhase = 'rolling'; 
-          this.playerController.isLocked = true; // Отбираем управление
-          this.levelBuilder.openEntrance();      // Командуем дверям открыться
+          this.elevatorPhase = "waiting_entrance_open";
+
+          this.playerController.isLocked = true; // Отбираем управление у шара
+          this.lockGameplayCamera(); // Отбираем управление у камеры
+
+          this.levelBuilder.openEntrance(); // Командуем дверям открыться
         }
       }
 
       // === 2. КАТ-СЦЕНА И АВТОПИЛОТ ===
       if (this.isElevatorSequenceActive && this.levelBuilder) {
-        const playerRef = this.playerController; 
-        
-        if (this.elevatorPhase === 'rolling' && playerRef && playerRef.body) {
+        const playerRef = this.playerController;
+
+        // ФАЗА 1: ждём, пока входные двери реально разъедутся.
+        // Иначе шар начинает ехать слишком рано и упирается в физические створки.
+        if (this.elevatorPhase === "waiting_entrance_open") {
+          playerRef.body.velocity.set(0, 0, 0);
+          playerRef.body.angularVelocity.set(0, 0, 0);
+
+          if (this.levelBuilder.entranceOpenState > 0.85) {
+            this.elevatorPhase = "rolling";
+          }
+        }
+
+        if (this.elevatorPhase === "rolling" && playerRef && playerRef.body) {
           const pPos = playerRef.body.position;
           const targetZ = 11.25; // Центр лифта
           const targetX = 0;
-          
+
           const dir = new THREE.Vector3(targetX - pPos.x, 0, targetZ - pPos.z);
           const dist = dir.length();
 
           if (dist > 0.1) {
             dir.normalize();
-            
+
             // ВАЖНО: Замедлили скорость (было 12.0, стало 5.0)
-            const speed = Math.min(5.0, dist * 2.5); 
-            const radius = 1.5; 
-            
+            const speed = Math.min(5.0, dist * 2.5);
+            const radius = 1.5;
+
             const vx = dir.x * speed;
             const vz = dir.z * speed;
-            
+
             playerRef.body.velocity.x = vx;
             playerRef.body.velocity.z = vz;
-            
+
             playerRef.body.angularVelocity.x = vz / radius;
             playerRef.body.angularVelocity.z = -vx / radius;
-            
-        } else {
+          } else {
             // ФАЗА 2: ДОЕХАЛИ. Точная парковка.
             playerRef.body.velocity.set(0, 0, 0);
             playerRef.body.angularVelocity.set(0, 0, 0);
             playerRef.body.position.set(0, pPos.y, 11.25);
-            
-            this.elevatorPhase = 'doors_closing';
-            
+
+            this.elevatorPhase = "doors_closing";
+
             // === ОДНОВРЕМЕННО: ЗАКРЫВАЕМ ДВЕРИ И ГАСИМ ЭКРАН ===
-            this.levelBuilder.closeEntrance();    
-            this.fadeScreen.style.opacity = '1'; 
-  
+            this.levelBuilder.closeEntrance();
+            this.fadeScreen.style.opacity = "1";
+
             setTimeout(() => {
               // === ФАЗА 3: МАГИЯ РАЗВОРОТА НА 180 (В ТЕМНОТЕ) ===
-              this.levelBuilder.setElevatorMode('exiting');
-              
-              // МОМЕНТАЛЬНО ПРЫГАЕМ КАМЕРОЙ ЗА СПИНУ ШАРУ:
+              this.levelBuilder.setElevatorMode("exiting");
+
+              // МОМЕНТАЛЬНО СТАВИМ КАМЕРУ В РАКУРС ВТОРОЙ КОМНАТЫ.
+              // Без lookAt(), чтобы камера не "отзеркаливалась" на первом кадре.
+              const exitCameraZoom = 15.0;
               const camTargetY = pPos.y + 4.0;
+
+              // Pivot стоит возле шара в лифте.
               this.cameraPivot.position.set(0, camTargetY, 11.25);
+
+              // Ракурс: камера позади шара со стороны лифта,
+              // смотрит вперёд в новую комнату.
               this.cameraPivot.rotation.set(-Math.PI / 6, 0, 0);
-              
+
+              // Сама камера находится позади pivot.
+              this.camera.position.set(0, 0, exitCameraZoom);
+              this.camera.rotation.set(0, 0, 0);
+
               if (this.cameraController) {
-                this.cameraController.currentZoom = 15.0;
-                this.cameraController.targetZoom = 15.0;
+                this.cameraController.currentZoom = exitCameraZoom;
+                this.cameraController.targetZoom = exitCameraZoom;
               }
 
-              this.elevatorPhase = 'opening_doors'; 
-              
+              this.elevatorPhase = "opening_doors";
+
               // === ФАЗА 4: СВЕТЛЕЕТ... ===
-              this.fadeScreen.style.opacity = '0'; 
-              
+              this.fadeScreen.style.opacity = "0";
+
+              // Ждем 600 миллисекунд (чтобы свет немного зажегся)
               // Ждем 600 миллисекунд (чтобы свет немного зажегся)
               setTimeout(() => {
-                  
-                  // ...И ТОЛЬКО ТЕПЕРЬ ОТКРЫВАЕМ ДВЕРИ
-                  this.levelBuilder.openExit(); 
-                  
-                  // Ждем еще 1.2 секунды, пока створки разъедутся
-                  setTimeout(() => {
-                      playerRef.isLocked = false; 
-                      this.isElevatorSequenceActive = false; 
-                      this.elevatorPhase = '';
-                  }, 1200); 
-                  
-              }, 600); 
+                // ...И ТОЛЬКО ТЕПЕРЬ ОТКРЫВАЕМ ДВЕРИ
+                this.levelBuilder.openExit();
 
-            }, 2200); 
+// Ждем еще 1.2 секунды, пока створки разъедутся
+setTimeout(() => {
+  playerRef.isLocked = false;
+  this.unlockGameplayCamera();
+
+  this.isElevatorSequenceActive = false;
+  this.elevatorPhase = "";
+}, 1200);
+              }, 600);
+            }, 2200);
           }
         }
       }
 
-// === 3. СЕНСОР ЗАКРЫТИЯ ДВЕРЕЙ ЗА ИГРОКОМ ===
-      if (!this.isElevatorSequenceActive && this.levelBuilder && this.playerController) {
+      // === 3. СЕНСОР ЗАКРЫТИЯ ДВЕРЕЙ ЗА ИГРОКОМ ===
+      if (
+        !this.isElevatorSequenceActive &&
+        this.levelBuilder &&
+        this.playerController
+      ) {
         const pPos = this.playerController.body.position;
-        
-        // Если шар выехал (Z < 5.0), двери открыты, и таймер ЕЩЕ НЕ запущен
-        if (pPos.z < 5.0 && this.levelBuilder.targetExitOpenState > 0 && !this.isExitDoorClosingPending) {
-          
-          this.isExitDoorClosingPending = true; // Ставим "замок", чтобы не плодить таймеры
-          
-          // Ждем 2 секунды (2000 мс) перед тем, как захлопнуть двери
-          setTimeout(() => {
-            this.levelBuilder.closeExit(); 
-            this.shakeIntensity = 0.15; // Тряска камеры при закрытии
-            
-            // Снимаем "замок", чтобы при рестарте всё работало четко
-            this.isExitDoorClosingPending = false; 
-          }, 1500); 
-        }
+
+   // Если шар выехал (Z < 5.0), двери открыты, и таймер ЕЩЕ НЕ запущен
+if (
+  pPos.z < 5.0 &&
+  this.levelBuilder.targetExitOpenState > 0 &&
+  !this.isExitDoorClosingPending
+) {
+  this.isExitDoorClosingPending = true; // Ставим "замок", чтобы не плодить таймеры
+
+  // Ждем 1.5 секунды перед тем, как захлопнуть двери.
+  // ВАЖНО: перед закрытием повторно проверяем позицию игрока.
+  setTimeout(() => {
+    const currentPos = this.playerController.body.position;
+
+    // Закрываем двери только если игрок действительно ушел во вторую комнату.
+    // Если он быстро вернулся в лифт, НЕ закрываем двери.
+    const playerReallyLeftElevator = currentPos.z < 5.0;
+
+    if (playerReallyLeftElevator) {
+      this.levelBuilder.closeExit();
+      this.shakeIntensity = 0.15; // Тряска камеры при закрытии
+    }
+
+    // Снимаем "замок", чтобы проверка могла сработать снова позже.
+    this.isExitDoorClosingPending = false;
+  }, 1500);
+}
       }
-     // 6. Синхронизация интерактивных объектов
+      // 6. Синхронизация интерактивных объектов
       if (this.interactivePlatforms) {
-        this.interactivePlatforms.forEach(platform => platform.update());
+        this.interactivePlatforms.forEach((platform) => platform.update());
       }
-      
     } else {
       this.lastTime = currentTime;
     }
@@ -1331,7 +1472,9 @@ createDustExplosion(pos, intensity01) {
     }
 
     this.physicsManager.applyEnvironmentForces(
-      (this.wordManager && this.wordManager.lettersEnabled) ? this.wordManager.letterObjects.map((obj) => obj.body) : [],
+      this.wordManager && this.wordManager.lettersEnabled
+        ? this.wordManager.letterObjects.map((obj) => obj.body)
+        : [],
       this.ballsPool,
       this.fanLevel,
       timeSec,
@@ -1511,7 +1654,7 @@ window.addEventListener("mousedown", (e) => {
 });
 
 // Элемент для отображения процентов на двери A.I.C.E.
-const progressText = document.querySelector('.core-subtext');
+const progressText = document.querySelector(".core-subtext");
 
 loadGameAssets(
   // Коллбек прогресса
@@ -1525,11 +1668,11 @@ loadGameAssets(
     if (progressText) {
       progressText.innerText = "SYSTEMS"; // Возвращаем оригинальный текст
     }
-    
+
     // Снимаем класс loading, чтобы двери могли реагировать
     document.body.classList.remove("loading");
-    
+
     // Инстанцируем тяжелый класс ИГРЫ только когда все картинки готовы!
-    window.app = new GoogleRoomApp(); 
-  }
+    window.app = new GoogleRoomApp();
+  },
 );

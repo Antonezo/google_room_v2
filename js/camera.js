@@ -5,6 +5,10 @@ export class CameraController {
     this.camera = camera;
     this.cameraPivot = cameraPivot;
     this.sceneManager = sceneManager;
+
+    // Можно выключать камеру на время кат-сцен.
+    // Это особенно важно для колесика мыши, потому что wheel слушается отдельно.
+    this.enabled = true;
     
     this.targetZoom = 15.0;
     this.currentZoom = 15.0;
@@ -21,13 +25,15 @@ export class CameraController {
     this.initZoomListener();
   }
 
-  initZoomListener() {
-    window.addEventListener("wheel", (e) => {
-      const zoomSpeed = 0.005;
-      this.targetZoom += e.deltaY * zoomSpeed;
-      this.targetZoom = THREE.MathUtils.clamp(this.targetZoom, 2.0, 40.0);
-    });
-  }
+initZoomListener() {
+  window.addEventListener("wheel", (e) => {
+    if (!this.enabled) return;
+
+    const zoomSpeed = 0.005;
+    this.targetZoom += e.deltaY * zoomSpeed;
+    this.targetZoom = THREE.MathUtils.clamp(this.targetZoom, 2.0, 40.0);
+  });
+}
 
   // Умный геттер, который обновляет массив только если добавилась новая стена
   getWallsMeshes() {

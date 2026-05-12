@@ -35,13 +35,30 @@ initZoomListener() {
   });
 }
 
-  // Умный геттер, который обновляет массив только если добавилась новая стена
-  getWallsMeshes() {
-    if (this.cachedWallsMeshes.length !== this.sceneManager.walls.length) {
-      this.cachedWallsMeshes = this.sceneManager.walls.map((w) => w.mesh);
-    }
-    return this.cachedWallsMeshes;
+invalidateWallsCache() {
+  this.cachedWallsMeshes = [];
+}
+
+// Умный геттер стен для raycaster'а.
+// После пересборки комнаты количество стен может остаться таким же,
+// но сами mesh-объекты уже будут другими. Поэтому сравниваем не только длину.
+getWallsMeshes() {
+  const sourceWalls = this.sceneManager.walls || [];
+
+  const freshMeshes = sourceWalls
+    .map((w) => w.mesh)
+    .filter((mesh) => mesh && mesh.parent && mesh.visible);
+
+  const cacheIsOutdated =
+    this.cachedWallsMeshes.length !== freshMeshes.length ||
+    this.cachedWallsMeshes.some((mesh, index) => mesh !== freshMeshes[index]);
+
+  if (cacheIsOutdated) {
+    this.cachedWallsMeshes = freshMeshes;
   }
+
+  return this.cachedWallsMeshes;
+}
 
   update(dt, playerPosition) {
     const targetPos = playerPosition.clone();
@@ -82,12 +99,17 @@ initZoomListener() {
     this.raycaster.set(pivotPos, this._rayDir);
     const wallIntersects = this.raycaster.intersectObjects(wallsMeshes);
 
-    let finalDist = maxDist;
-    if (wallIntersects.length > 0 && wallIntersects[0].distance < maxDist) {
-      finalDist = Math.max(0.4, wallIntersects[0].distance - 0.9);
-    }
+let finalDist = maxDist;
 
-    this.camera.position.set(0, 0, finalDist);
-    this.camera.rotation.set(0, 0, 0);
+if (wallIntersects.length > 0 && wallIntersects[0].distance < maxDist) {
+  // Чем больше отступ, тем меньше шанс, что камера "просунется"
+  // за стену возле углов, проёмов и лифта.
+  const cameraWallPadding = 1.8;
+
+  finalDist = Math.max(0.4, wallIntersects[0].distance - cameraWallPadding);
+}
+
+this.camera.position.set(0, 0, finalDist);
+this.camera.rotation.set(0, 0, 0);
   }
 }

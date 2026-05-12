@@ -1,6 +1,7 @@
 import * as THREE from "three";
 import * as CANNON from "cannon-es";
 import { CONFIG } from "./config.js";
+import { tileTex, tileNormalTex, tileRoughTex } from "./scene.js";
 
 export class LevelBuilder {
   constructor(sceneManager, physicsManager) {
@@ -18,27 +19,246 @@ export class LevelBuilder {
     this.w = CONFIG.WORLD.ROOM_SIZE;
     this.floorY = CONFIG.WORLD.FLOOR_LEVEL;
     this.ceilingY = CONFIG.WORLD.CEILING_HEIGHT;
+
+    // === НОВАЯ СТРУКТУРА УРОВНЕЙ ===
+    // Пока ничего не удаляем и не пересобираем.
+    // Просто начинаем складывать объекты по категориям.
+    this.currentRoomId = 1;
+
+    this.rootGroup = new THREE.Group();
+    this.rootGroup.name = "LevelRoot";
+    this.scene.add(this.rootGroup);
+
+    this.currentRoomGroup = new THREE.Group();
+    this.currentRoomGroup.name = "CurrentRoom";
+
+    this.elevatorGroup = new THREE.Group();
+    this.elevatorGroup.name = "Elevator";
+
+    this.staticLevelGroup = new THREE.Group();
+    this.staticLevelGroup.name = "StaticLevel";
+
+    this.rootGroup.add(this.currentRoomGroup);
+    this.rootGroup.add(this.elevatorGroup);
+    this.rootGroup.add(this.staticLevelGroup);
+
+    this.currentRoomBodies = [];
+    this.elevatorBodies = [];
+    this.staticBodies = [];
+
+    // Куда складывать следующий создаваемый объект.
+    // Пока по умолчанию всё идёт в static, чтобы ничего не сломать.
+    this.buildTarget = "static";
+  }
+
+  setBuildTarget(target) {
+    // target: "room" | "elevator" | "static"
+    this.buildTarget = target;
+  }
+
+  getBuildGroup() {
+    if (this.buildTarget === "room") return this.currentRoomGroup;
+    if (this.buildTarget === "elevator") return this.elevatorGroup;
+    return this.staticLevelGroup;
+  }
+
+  registerMesh(mesh) {
+    if (!mesh) return mesh;
+
+    const group = this.getBuildGroup();
+
+    // Если объект уже где-то в сцене, аккуратно переподключаем его в нужную группу.
+    if (mesh.parent && mesh.parent !== group) {
+      mesh.parent.remove(mesh);
+    }
+
+    group.add(mesh);
+    return mesh;
+  }
+
+  registerBody(body) {
+    if (!body) return body;
+
+    if (this.buildTarget === "room") {
+      this.currentRoomBodies.push(body);
+    } else if (this.buildTarget === "elevator") {
+      this.elevatorBodies.push(body);
+    } else {
+      this.staticBodies.push(body);
+    }
+
+    return body;
+  }
+
+  addBody(body) {
+    this.world.addBody(body);
+    this.registerBody(body);
+    return body;
   }
 
   build() {
-    // 1. Вызываем базовое окружение (атмосфера, небо)
+    // 1. Общее окружение: небо, базовый свет, декоративные группы.
+    this.setBuildTarget("static");
     this.sceneManager.buildEnvironment();
 
-    // 2. Строим графические стены
-    this.buildVisualWalls();
-    this.buildSecondRoom(); // Наша новая комната
+    // 2. Лифт строится отдельно и остаётся постоянным между комнатами.
+    this.setBuildTarget("elevator");
+    this.buildElevatorCabinVisual();
+    this.buildElevatorPhysics();
 
-    // 3. Строим стеклянную перегородку
-    //this.buildGlassWall();
-
-    // 4. Строим невидимые физические коллайдеры
-    this.buildPhysicsBoundaries();
-
-    // 5. Развешиваем свет
+    // 3. Свет пока общий/статический.
+    this.setBuildTarget("static");
     this.buildLightingPanels();
 
-    // ВЫЗЫВАЕМ ПОСТРОЙКУ ДВЕРЕЙ:
+    // 4. Двери и рамы лифта отдельно.
+    this.setBuildTarget("elevator");
     this.buildElevatorDoors();
+
+    // 5. При старте строим только первую комнату.
+    // Вторая комната больше НЕ создаётся сразу.
+    this.buildRoom(1);
+
+    // Возвращаем безопасный режим по умолчанию.
+    this.setBuildTarget("static");
+  }
+
+  getBuildGroup() {
+    if (this.buildTarget === "room") return this.currentRoomGroup;
+    if (this.buildTarget === "elevator") return this.elevatorGroup;
+    return this.staticLevelGroup;
+  }
+
+  registerMesh(mesh) {
+    if (!mesh) return mesh;
+
+    const group = this.getBuildGroup();
+
+    // Если объект уже где-то в сцене, аккуратно переподключаем его в нужную группу.
+    if (mesh.parent && mesh.parent !== group) {
+      mesh.parent.remove(mesh);
+    }
+
+    group.add(mesh);
+    return mesh;
+  }
+
+  registerBody(body) {
+    if (!body) return body;
+
+    if (this.buildTarget === "room") {
+      this.currentRoomBodies.push(body);
+    } else if (this.buildTarget === "elevator") {
+      this.elevatorBodies.push(body);
+    } else {
+      this.staticBodies.push(body);
+    }
+
+    return body;
+  }
+
+  addBody(body) {
+    this.world.addBody(body);
+    this.registerBody(body);
+    return body;
+  }
+
+  disposeObject3D(object) {
+    if (!object) return;
+
+    object.traverse((child) => {
+      if (!child.isMesh) return;
+
+      if (child.geometry) {
+        child.geometry.dispose();
+      }
+
+      if (child.material) {
+        const materials = Array.isArray(child.material)
+          ? child.material
+          : [child.material];
+
+        materials.forEach((material) => {
+          if (!material) return;
+
+          // ВАЖНО:
+          // Текстуры пока не dispose-им, потому что они общие
+          // и используются разными комнатами/объектами.
+          material.dispose();
+        });
+      }
+    });
+  }
+
+  clearGroup(group) {
+    if (!group) return;
+
+    while (group.children.length > 0) {
+      const child = group.children[0];
+
+      // Удаляем все меши этой группы из sceneManager.walls,
+      // иначе камера/raycast будет видеть уже удалённые "призрачные" стены.
+      if (this.sceneManager && Array.isArray(this.sceneManager.walls)) {
+        child.traverse((obj) => {
+          if (!obj.isMesh) return;
+
+          this.sceneManager.walls = this.sceneManager.walls.filter(
+            (wall) => wall.mesh !== obj,
+          );
+        });
+      }
+
+      this.disposeObject3D(child);
+      group.remove(child);
+    }
+  }
+
+  clearBodies(bodies) {
+    if (!bodies) return;
+
+    bodies.forEach((body) => {
+      if (body && this.world.bodies.includes(body)) {
+        this.world.removeBody(body);
+      }
+    });
+
+    bodies.length = 0;
+  }
+
+  clearCurrentRoom() {
+    // Удаляем только текущую комнату.
+    // Лифт, двери, общие световые группы и окружение не трогаем.
+    this.clearGroup(this.currentRoomGroup);
+    this.clearBodies(this.currentRoomBodies);
+
+    console.log("[LEVEL] Current room cleared");
+  }
+
+  buildRoom(levelId) {
+    // Строит только одну активную комнату.
+    // Лифт, двери и общее окружение здесь не создаются.
+    this.clearCurrentRoom();
+
+    this.currentRoomId = levelId;
+    this.setBuildTarget("room");
+
+    if (levelId === 1) {
+      this.buildRoom1VisualWalls();
+      this.buildRoom1Physics();
+    } else if (levelId === 2) {
+      this.buildSecondRoom();
+      this.buildRoom2Physics();
+    } else {
+      console.warn(
+        `[LEVEL] Unknown room id: ${levelId}. Falling back to room 1.`,
+      );
+      this.currentRoomId = 1;
+      this.buildRoom1VisualWalls();
+      this.buildRoom1Physics();
+    }
+
+    this.setBuildTarget("static");
+
+    console.log(`[LEVEL] Room ${this.currentRoomId} built`);
   }
 
   // Полная и безопасная очистка текущих объектов уровня
@@ -93,14 +313,30 @@ export class LevelBuilder {
     uvOffsetY = 0,
     color = 0xffffff,
   ) {
+    // Плитка должна быть только на вертикальных белых стенах.
+    // Полы и потолки обычно имеют rotation.x = +/- Math.PI / 2,
+    // поэтому их не текстурируем плиткой.
+    const isVerticalWall = Math.abs(rot.x) < 0.01;
+    const useTileTexture = color === 0xffffff && isVerticalWall;
+
     const mat = new THREE.MeshStandardMaterial({
-      color: color, // Используем цвет из аргумента
-      side: THREE.DoubleSide, // Видно с двух сторон — это страховка от «пропадания» стен
-      roughness: 0.1,
-      metalness: 0.1,
+      color: color,
+      map: useTileTexture ? tileTex : null,
+      normalMap: useTileTexture ? tileNormalTex : null,
+      roughnessMap: useTileTexture ? tileRoughTex : null,
+      side: THREE.DoubleSide,
+
+      // Текстурные стены чуть менее матовые.
+      // Обычные полы/потолки/цветные поверхности делаем матовыми,
+      // чтобы зелёный пол не выглядел глянцевым пластиком.
+      roughness: useTileTexture ? 0.35 : 0.7,
+      metalness: 0.0,
     });
 
+    mat.needsUpdate = true;
+
     const mesh = this.sceneManager.createWallMesh(width, height, pos, rot, mat);
+    this.registerMesh(mesh);
 
     if (uvOffsetX !== 0 || uvOffsetY !== 0) {
       const uvArray = mesh.geometry.attributes.uv.array;
@@ -124,35 +360,50 @@ export class LevelBuilder {
   ) {
     const wallBody = new CANNON.Body({
       mass: 0,
-      material: customMaterial, // Теперь переменная берется из параметров выше
+      material: customMaterial,
       collisionFilterGroup: CONFIG.PHYSICS.GROUPS.SCENE,
       collisionFilterMask:
         CONFIG.PHYSICS.GROUPS.OBJECTS | CONFIG.PHYSICS.GROUPS.TINY,
     });
+
     wallBody.addShape(new CANNON.Box(new CANNON.Vec3(halfX, halfY, halfZ)));
     wallBody.position.set(x, y, z);
-    this.world.addBody(wallBody);
+
+    this.addBody(wallBody);
+    return wallBody;
   }
 
   // --- ЭТАПЫ СТРОИТЕЛЬСТВА ---
   buildVisualWalls() {
+    // Совместимость со старым кодом.
+    // Если где-то случайно вызовется buildVisualWalls(),
+    // он построит и первую комнату, и кабину лифта.
+    this.setBuildTarget("room");
+    this.buildRoom1VisualWalls();
+
+    this.setBuildTarget("elevator");
+    this.buildElevatorCabinVisual();
+
+    this.setBuildTarget("static");
+  }
+
+  buildRoom1VisualWalls() {
     const roomW = 30;
     const roomD = 30;
     const wallH = this.ceilingY - this.floorY;
     const wallCenterY = this.floorY + wallH / 2;
 
     const elW = 7.5; // Лифт: ширина 3 плитки
-    const elD = 7.5; // Лифт: глубина 3 плитки
     const elH = 10.0; // Лифт: высота 4 плитки
-    const elCenterY = this.floorY + elH / 2;
 
-    // Пол и потолок комнаты
+    // Пол и потолок комнаты №1
     this.addTiledWall(
       roomW,
       roomD,
       new THREE.Vector3(0, this.floorY, 30),
       new THREE.Vector3(-Math.PI / 2, 0, 0),
     );
+
     this.addTiledWall(
       roomW,
       roomD,
@@ -160,19 +411,21 @@ export class LevelBuilder {
       new THREE.Vector3(Math.PI / 2, 0, 0),
     );
 
-    // Левая, Правая, Задняя стены комнаты
+    // Левая, правая, задняя стены комнаты №1
     this.addTiledWall(
       roomD,
       wallH,
       new THREE.Vector3(-15, wallCenterY, 30),
       new THREE.Vector3(0, Math.PI / 2, 0),
     );
+
     this.addTiledWall(
       roomD,
       wallH,
       new THREE.Vector3(15, wallCenterY, 30),
       new THREE.Vector3(0, -Math.PI / 2, 0),
     );
+
     this.addTiledWall(
       roomW,
       wallH,
@@ -180,12 +433,12 @@ export class LevelBuilder {
       new THREE.Vector3(0, Math.PI, 0),
     );
 
-    // === ПЕРЕДНЯЯ СТЕНА (С идеальными углами) ===
+    // === ПЕРЕДНЯЯ СТЕНА КОМНАТЫ №1 С ПРОЁМОМ ПОД ЛИФТ ===
     const sideW = (roomW - elW) / 2;
     const leftX = -(elW / 2) - sideW / 2;
     const rightX = elW / 2 + sideW / 2;
 
-    // Сдвигаем UV на правой стене на 1.25 (полплитки)
+    // Левая часть передней стены
     this.addTiledWall(
       sideW,
       wallH,
@@ -194,6 +447,8 @@ export class LevelBuilder {
       0,
       0,
     );
+
+    // Правая часть передней стены
     this.addTiledWall(
       sideW,
       wallH,
@@ -206,6 +461,7 @@ export class LevelBuilder {
     // Козырек над лифтом
     const topH = this.ceilingY - (this.floorY + elH);
     const topCenterY = this.floorY + elH + topH / 2;
+
     this.addTiledWall(
       elW,
       topH,
@@ -214,11 +470,18 @@ export class LevelBuilder {
       1.25,
       0,
     );
+  }
 
-    // === КАБИНА ЛИФТА ===
+  buildElevatorCabinVisual() {
+    const elW = 7.5; // Лифт: ширина 3 плитки
+    const elD = 7.5; // Лифт: глубина 3 плитки
+    const elH = 10.0; // Лифт: высота 4 плитки
+    const elCenterY = this.floorY + elH / 2;
     const elZ = 15 - elD / 2;
 
-    // Пол и потолок лифта
+    // === КАБИНА ЛИФТА ===
+
+    // Пол лифта
     this.addTiledWall(
       elW,
       elD,
@@ -227,6 +490,8 @@ export class LevelBuilder {
       1.25,
       0,
     );
+
+    // Потолок лифта
     this.addTiledWall(
       elW,
       elD,
@@ -236,13 +501,15 @@ export class LevelBuilder {
       0,
     );
 
-    // Стенки лифта
+    // Левая стенка лифта
     this.addTiledWall(
       elD,
       elH,
       new THREE.Vector3(-elW / 2, elCenterY, elZ),
       new THREE.Vector3(0, Math.PI / 2, 0),
     );
+
+    // Правая стенка лифта
     this.addTiledWall(
       elD,
       elH,
@@ -305,32 +572,39 @@ export class LevelBuilder {
     const leftX = -(elW / 2) - sideW / 2;
     const rightX = elW / 2 + sideW / 2;
 
+    // Передняя стена комнаты №2 с проёмом под лифт.
+    // Из-за поворота Math.PI UV идут зеркально относительно первой комнаты,
+    // поэтому смещение ставим на левую часть, а не на правую.
     this.addTiledWall(
       sideW,
       wallH,
       new THREE.Vector3(leftX, wallCenterY, 7.5),
       new THREE.Vector3(0, Math.PI, 0),
+      1.25,
+      0,
     );
+
     this.addTiledWall(
       sideW,
       wallH,
       new THREE.Vector3(rightX, wallCenterY, 7.5),
       new THREE.Vector3(0, Math.PI, 0),
-      1.25,
+      0,
       0,
     );
 
     const elH = 10.0;
     const topH = wallH - elH;
     const topCenterY = this.floorY + elH + topH / 2;
-    this.addTiledWall(
-      elW,
-      topH,
-      new THREE.Vector3(0, topCenterY, 7.5),
-      new THREE.Vector3(0, Math.PI, 0),
-      1.25,
-      0,
-    );
+
+ this.addTiledWall(
+  elW,
+  topH,
+  new THREE.Vector3(0, topCenterY, 7.5),
+  new THREE.Vector3(0, Math.PI, 0),
+  1.25,
+  0
+);
   }
 
   buildGlassWall() {
@@ -402,64 +676,85 @@ export class LevelBuilder {
   }
 
   buildPhysicsBoundaries() {
+    // Совместимость со старым кодом:
+    // пока физика всех частей всё ещё строится сразу,
+    // но уже разнесена по методам и buildTarget.
+    this.buildRoom1Physics();
+    this.buildRoom2Physics();
+    this.buildElevatorPhysics();
+
+    this.setBuildTarget("static");
+  }
+
+  buildRoom1Physics() {
+    this.setBuildTarget("room");
+
     const wallH = this.ceilingY - this.floorY;
     const wallCenterY = this.floorY + wallH / 2;
 
-    // === 1. ФИЗИЧЕСКИЙ ПОЛ (ТРИ СЕКЦИИ БЕЗ ЩЕЛЕЙ) ===
+    // === ФИЗИКА КОМНАТЫ №1 ===
 
-    // Секция комнаты №1 (Белая)
+    // Пол комнаты №1
     const floor1Body = new CANNON.Body({ mass: 0, material: this.matStandard });
     floor1Body.addShape(new CANNON.Box(new CANNON.Vec3(15, 10, 15)));
     floor1Body.position.set(0, this.floorY - 10, 30);
-    this.world.addBody(floor1Body);
+    this.addBody(floor1Body);
 
-    // Секция комнаты №2 (Зеленая)
+    // Внешние стены комнаты №1
+    this.createPhysicsWall(-16, wallCenterY, 30, 1, wallH / 2, 15); // Левая
+    this.createPhysicsWall(16, wallCenterY, 30, 1, wallH / 2, 15); // Правая
+    this.createPhysicsWall(0, wallCenterY, 46, 15, wallH / 2, 1); // Дальняя
+
+    // Фасад комнаты №1 с проёмом под лифт, Z = 15
+    this.createPhysicsWall(-9.375, wallCenterY, 15, 5.625, wallH / 2, 0.1);
+    this.createPhysicsWall(9.375, wallCenterY, 15, 5.625, wallH / 2, 0.1);
+    this.createPhysicsWall(0, 7.5, 15, 3.75, 5, 0.1); // Козырек
+  }
+
+  buildRoom2Physics() {
+    this.setBuildTarget("room");
+
+    const wallH = this.ceilingY - this.floorY;
+    const wallCenterY = this.floorY + wallH / 2;
+
+    // === ФИЗИКА КОМНАТЫ №2 ===
+
+    // Пол комнаты №2
     const floor2Body = new CANNON.Body({ mass: 0, material: this.matStandard });
     floor2Body.addShape(new CANNON.Box(new CANNON.Vec3(15, 10, 15)));
     floor2Body.position.set(0, this.floorY - 10, -7.5);
-    this.world.addBody(floor2Body);
+    this.addBody(floor2Body);
 
-    // Секция ЛИФТА (Соединительный мостик)
-    // Ширина 7.5 (half=3.75), Глубина 7.5 (half=3.75)
+    // Внешние стены комнаты №2
+    this.createPhysicsWall(-16, wallCenterY, -7.5, 1, wallH / 2, 15); // Левая
+    this.createPhysicsWall(16, wallCenterY, -7.5, 1, wallH / 2, 15); // Правая
+    this.createPhysicsWall(0, wallCenterY, -23.5, 15, wallH / 2, 1); // Дальняя
+
+    // Фасад комнаты №2 с проёмом под лифт, Z = 7.5
+    this.createPhysicsWall(-9.375, wallCenterY, 7.5, 5.625, wallH / 2, 0.1);
+    this.createPhysicsWall(9.375, wallCenterY, 7.5, 5.625, wallH / 2, 0.1);
+  }
+
+  buildElevatorPhysics() {
+    this.setBuildTarget("elevator");
+
+    // === ФИЗИКА ЛИФТА / СОЕДИНИТЕЛЬНОГО МОСТИКА ===
+
+    // Пол лифта
     const floorElevBody = new CANNON.Body({
       mass: 0,
       material: this.matStandard,
     });
     floorElevBody.addShape(new CANNON.Box(new CANNON.Vec3(3.75, 10, 3.75)));
-    floorElevBody.position.set(0, this.floorY - 10, 11.25); // Ровно между 7.5 и 15
-    this.world.addBody(floorElevBody);
+    floorElevBody.position.set(0, this.floorY - 10, 11.25);
+    this.addBody(floorElevBody);
 
-    // === 2. ВНЕШНИЕ ГРАНИЦЫ (СТЕНЫ) ===
-
-    // Стены комнаты №1 (Сдвигаем центры на 1 метр наружу)
-    this.createPhysicsWall(-16, wallCenterY, 30, 1, wallH / 2, 15); // Левая (было -15)
-    this.createPhysicsWall(16, wallCenterY, 30, 1, wallH / 2, 15); // Правая (было 15)
-    this.createPhysicsWall(0, wallCenterY, 46, 15, wallH / 2, 1); // Дальняя (было 45)
-
-    // Стены комнаты №2
-    this.createPhysicsWall(-16, wallCenterY, -7.5, 1, wallH / 2, 15); // Левая (было -15)
-    this.createPhysicsWall(16, wallCenterY, -7.5, 1, wallH / 2, 15); // Правая (было 15)
-    this.createPhysicsWall(0, wallCenterY, -23.5, 15, wallH / 2, 1); // Дальняя (было -22.5)
-
-    // === 3. ПЕРЕГОРОДКИ С ПРОЕМАМИ ===
-    // Делаем их тонкими (0.1 вместо 1), чтобы не мешать дверям лифта
-
-    // Фасад 1-й комнаты (Z = 15)
-    this.createPhysicsWall(-9.375, wallCenterY, 15, 5.625, wallH / 2, 0.1);
-    this.createPhysicsWall(9.375, wallCenterY, 15, 5.625, wallH / 2, 0.1);
-    this.createPhysicsWall(0, 7.5, 15, 3.75, 5, 0.1); // Козырек
-
-    // Фасад 2-й комнаты (Z = 7.5)
-    this.createPhysicsWall(-9.375, wallCenterY, 7.5, 5.625, wallH / 2, 0.1);
-    this.createPhysicsWall(9.375, wallCenterY, 7.5, 5.625, wallH / 2, 0.1);
-
-    // === 4. ВНУТРЕННИЕ СТЕНКИ ШАХТЫ ЛИФТА ===
+    // Внутренние стенки шахты лифта
     const elCenterY = this.floorY + 5;
 
-    // Стенки лифта тоже делаем тонкими
     this.createPhysicsWall(-4.75, elCenterY, 11.25, 0.1, 5, 3.75); // Левая
     this.createPhysicsWall(4.75, elCenterY, 11.25, 0.1, 5, 3.75); // Правая
-    this.createPhysicsWall(0, this.floorY + 11, 11.25, 3.75, 1, 3.75); // Потолок шахты (оставляем толстым)
+    this.createPhysicsWall(0, this.floorY + 11, 11.25, 3.75, 1, 3.75); // Потолок шахты
   }
 
   buildElevatorDoors() {

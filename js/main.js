@@ -35,13 +35,19 @@ export class GoogleRoomApp {
     document.body.appendChild(this.fadeScreen);
 
     // === ФЛАГИ СОСТОЯНИЙ ===
-    this.isElevatorSequenceActive = false; // <--- НОВЫЙ ФЛАГ ДЛЯ КАТ-СЦЕНЫ ЛИФТА
+    this.isElevatorSequenceActive = false; // Флаг лифтовой кат-сцены
     this.hasStartedGame = false;
     this.isIntroPlaying = false;
     this.isPaused = false;
     this.isResetting = false;
     this.lastTime = performance.now();
     this.platformImpact = 0;
+
+    // === СОСТОЯНИЕ УРОВНЕЙ ===
+    // Пока уровни физически ещё не пересобираются,
+    // но вся логика уже должна знать, где мы находимся.
+    this.currentLevelId = 1;
+    this.targetLevelId = null;
 
     // === ИНИЦИАЛИЗАЦИЯ МЕНЕДЖЕРОВ ===
     this.sceneManager = new SceneManager();
@@ -392,39 +398,152 @@ export class GoogleRoomApp {
     requestAnimationFrame(this.tick); // <--- ВОТ ЭТО МЫ ПОТЕРЯЛИ
   }
 
-lockGameplayCamera() {
-  // Не делаем controls.unlock(), иначе появится обычный курсор.
-  // Вместо этого оставляем Pointer Lock активным, но выключаем чувствительность мыши.
-  if (this.controls) {
-    if (this.savedPointerSpeed === undefined) {
-      this.savedPointerSpeed = this.controls.pointerSpeed ?? 1.0;
+  lockGameplayCamera() {
+    // Не делаем controls.unlock(), иначе появится обычный курсор.
+    // Вместо этого оставляем Pointer Lock активным, но выключаем чувствительность мыши.
+    if (this.controls) {
+      if (this.savedPointerSpeed === undefined) {
+        this.savedPointerSpeed = this.controls.pointerSpeed ?? 1.0;
+      }
+
+      this.controls.pointerSpeed = 0;
     }
 
-    this.controls.pointerSpeed = 0;
+    // Блокируем колесико зума.
+    if (this.cameraController) {
+      this.cameraController.enabled = false;
+    }
+
+    if (this.cameraPivot) {
+      this.cameraPivot.rotation.z = 0;
+    }
   }
 
-  // Блокируем колесико зума.
-  if (this.cameraController) {
-    this.cameraController.enabled = false;
+  unlockGameplayCamera() {
+    // Возвращаем чувствительность мыши.
+    if (this.controls) {
+      this.controls.pointerSpeed = this.savedPointerSpeed ?? 1.0;
+      this.savedPointerSpeed = undefined;
+    }
+
+    // Возвращаем колесико зума.
+    if (this.cameraController) {
+      this.cameraController.enabled = true;
+    }
+  }
+  loadLevel(levelId) {
+    // Пока это только логическое переключение уровня.
+    // На следующих этапах здесь будет:
+    // unloadCurrentRoom();
+    // buildRoom(levelId);
+    this.currentLevelId = levelId;
+    this.targetLevelId = null;
+
+    console.log(`[LEVEL] Loaded level ${levelId}`);
   }
 
-  if (this.cameraPivot) {
-    this.cameraPivot.rotation.z = 0;
-  }
-}
+  getLevelStartPosition(levelId) {
+    // Старт первого уровня — первая комната.
+    if (levelId === 1) {
+      return { x: 0, y: 0, z: 30 };
+    }
 
-unlockGameplayCamera() {
-  // Возвращаем чувствительность мыши.
-  if (this.controls) {
-    this.controls.pointerSpeed = this.savedPointerSpeed ?? 1.0;
-    this.savedPointerSpeed = undefined;
+    // Старт второго уровня — пока ставим в зоне выхода из лифта/второй комнаты.
+    // Позже уточним координаты под реальную комнату.
+    if (levelId === 2) {
+      return { x: 0, y: 0, z: 3 };
+    }
+
+    // Безопасный fallback.
+    return { x: 0, y: 0, z: 30 };
   }
 
-  // Возвращаем колесико зума.
-  if (this.cameraController) {
-    this.cameraController.enabled = true;
+  resetPlayerForLevel(levelId) {
+    if (!this.playerController || !this.playerController.body) return;
+
+    const startPos = this.getLevelStartPosition(levelId);
+    const body = this.playerController.body;
+
+    body.velocity.set(0, 0, 0);
+    body.angularVelocity.set(0, 0, 0);
+    body.position.set(startPos.x, startPos.y, startPos.z);
+    body.quaternion.set(0, 0, 0, 1);
+
+    body.previousPosition.copy(body.position);
+    body.interpolatedPosition.copy(body.position);
+    body.previousQuaternion.copy(body.quaternion);
+    body.interpolatedQuaternion.copy(body.quaternion);
+
+    body.wakeUp();
+
+    if (this.playerController.mesh) {
+      this.playerController.mesh.position.copy(body.position);
+      this.playerController.mesh.quaternion.copy(body.quaternion);
+    }
+
+    if (this.playerController.shadowMesh) {
+      this.playerController.shadowMesh.visible = true;
+    }
   }
-}
+
+  resetElevatorForLevel(levelId) {
+    if (!this.levelBuilder) return;
+
+    this.levelBuilder.closeEntrance();
+    this.levelBuilder.closeExit();
+
+    this.levelBuilder.entranceOpenState = 0;
+    this.levelBuilder.targetEntranceOpenState = 0;
+
+    this.levelBuilder.exitOpenState = 0;
+    this.levelBuilder.targetExitOpenState = 0;
+
+    // Если начинаем с 1 уровня — лифт в режиме входа.
+    // Если начинаем со 2 уровня — пока считаем, что игрок уже вышел из лифта.
+    if (levelId === 1) {
+      this.levelBuilder.setElevatorMode("entering");
+    } else {
+      this.levelBuilder.setElevatorMode("exiting");
+    }
+  }
+
+  resetCameraForLevel(levelId) {
+    if (!this.cameraPivot || !this.camera) return;
+
+    const startPos = this.getLevelStartPosition(levelId);
+
+    this.cameraPivot.position.set(startPos.x, startPos.y + 4.0, startPos.z);
+    this.cameraPivot.rotation.set(-Math.PI / 6, 0, 0);
+
+    if (this.cameraController) {
+      this.cameraController.currentZoom = 15.0;
+      this.cameraController.targetZoom = 15.0;
+    }
+
+    this.camera.position.set(0, 0, 15.0);
+    this.camera.rotation.set(0, 0, 0);
+  }
+
+  resetToLevel(levelId) {
+    this.loadLevel(levelId);
+
+    this.isElevatorSequenceActive = false;
+    this.elevatorPhase = "";
+    this.isExitDoorClosingPending = false;
+
+    if (this.fadeScreen) {
+      this.fadeScreen.style.opacity = "0";
+    }
+
+    if (this.playerController) {
+      this.playerController.isLocked = false;
+    }
+
+    this.resetElevatorForLevel(levelId);
+    this.resetPlayerForLevel(levelId);
+    this.resetCameraForLevel(levelId);
+  }
+
   start3DIntro() {
     this.isIntroPlaying = true;
     if (this.controls) this.controls.enabled = false;
@@ -570,6 +689,18 @@ unlockGameplayCamera() {
   }
 
   resetScene() {
+    // Новая игра всегда начинается с первого уровня.
+    this.currentLevelId = 1;
+    this.targetLevelId = null;
+    // Если до этого была построена другая комната,
+    // возвращаем активную комнату к первому уровню.
+    if (this.levelBuilder) {
+      this.levelBuilder.buildRoom(1);
+
+      if (this.cameraController) {
+        this.cameraController.invalidateWallsCache();
+      }
+    }
     // === 1. СБРОС ЛИФТА И КАТ-СЦЕНЫ ===
     if (this.levelBuilder) {
       this.levelBuilder.closeEntrance();
@@ -1057,9 +1188,14 @@ unlockGameplayCamera() {
       if (!this.isIntroPlaying) {
         this.playerController.update(dt);
 
-        if (!this.isElevatorSequenceActive) {
+        if (
+          !this.isElevatorSequenceActive ||
+          this.elevatorPhase === "opening_doors"
+        ) {
           // ИГРОВОЙ РЕЖИМ:
-          // обычная умная камера работает только когда лифтовая кат-сцена полностью закончена.
+          // Во время opening_doors уже можно использовать обычную умную камеру.
+          // Мышь всё равно заблокирована через pointerSpeed = 0,
+          // поэтому игрок не сможет крутить камеру во время кат-сцены.
           this.cameraController.update(dt, this.playerController.mesh.position);
         } else if (
           this.elevatorPhase === "waiting_entrance_open" ||
@@ -1076,24 +1212,15 @@ unlockGameplayCamera() {
             -0.1,
             dt * 2.0,
           );
+
           this.cameraPivot.rotation.y = THREE.MathUtils.lerp(
             this.cameraPivot.rotation.y,
             0,
             dt * 2.0,
           );
+
           this.cameraPivot.rotation.z = 0;
-} else if (this.elevatorPhase === "opening_doors") {
-  // ФАЗА ОТКРЫТИЯ ДВЕРЕЙ НОВОГО УРОВНЯ:
-  // просто держим камеру стабильной, пока открываются двери.
-  const exitCameraZoom = 15.0;
-  const p = this.playerController.body.position;
-
-  this.cameraPivot.position.set(0, p.y + 4.0, 11.25);
-  this.cameraPivot.rotation.set(-Math.PI / 6, 0, 0);
-
-  this.camera.position.set(0, 0, exitCameraZoom);
-  this.camera.rotation.set(0, 0, 0);
-}
+        }
       } else {
         // Синхронизируем графику падающего шара (Интро)
         this.playerController.mesh.position.copy(
@@ -1221,31 +1348,45 @@ unlockGameplayCamera() {
             this.fadeScreen.style.opacity = "1";
 
             setTimeout(() => {
-              // === ФАЗА 3: МАГИЯ РАЗВОРОТА НА 180 (В ТЕМНОТЕ) ===
+              // === ФАЗА 3: МАГИЯ ПЕРЕСТРОЙКИ УРОВНЯ В ТЕМНОТЕ ===
               this.levelBuilder.setElevatorMode("exiting");
 
-              // МОМЕНТАЛЬНО СТАВИМ КАМЕРУ В РАКУРС ВТОРОЙ КОМНАТЫ.
-              // Без lookAt(), чтобы камера не "отзеркаливалась" на первом кадре.
+              // В ТЕМНОТЕ пересобираем активную комнату.
+              // Комната 1 удаляется, комната 2 строится.
+              this.levelBuilder.buildRoom(2);
+              this.loadLevel(2);
+
               const exitCameraZoom = 15.0;
-              const camTargetY = pPos.y + 4.0;
+              const camTargetY = playerRef.body.position.y + 4.0;
 
-              // Pivot стоит возле шара в лифте.
-              this.cameraPivot.position.set(0, camTargetY, 11.25);
-
-              // Ракурс: камера позади шара со стороны лифта,
-              // смотрит вперёд в новую комнату.
-              this.cameraPivot.rotation.set(-Math.PI / 6, 0, 0);
-
-              // Сама камера находится позади pivot.
-              this.camera.position.set(0, 0, exitCameraZoom);
-              this.camera.rotation.set(0, 0, 0);
-
+              // Сбрасываем кэш стен камеры после пересборки комнаты.
               if (this.cameraController) {
+                this.cameraController.invalidateWallsCache();
                 this.cameraController.currentZoom = exitCameraZoom;
                 this.cameraController.targetZoom = exitCameraZoom;
               }
 
+              // Пока экран чёрный, жёстко ставим камеру в безопасный ракурс.
+              this.cameraPivot.position.set(0, camTargetY, 11.25);
+              this.cameraPivot.rotation.set(-Math.PI / 6, 0, 0);
+
+              this.camera.position.set(0, 0, exitCameraZoom);
+              this.camera.rotation.set(0, 0, 0);
+
+              // Принудительно обновляем матрицы, чтобы следующий кадр уже был правильным.
+              this.cameraPivot.updateMatrixWorld(true);
+              this.camera.updateMatrixWorld(true);
+
               this.elevatorPhase = "opening_doors";
+
+              // === ФАЗА 4: СВЕТЛЕЕТ... ===
+              // Не снимаем затемнение в этот же кадр.
+              // Даем браузеру 2 кадра, чтобы новая комната и камера точно применились.
+              requestAnimationFrame(() => {
+                requestAnimationFrame(() => {
+                  this.fadeScreen.style.opacity = "0";
+                });
+              });
 
               // === ФАЗА 4: СВЕТЛЕЕТ... ===
               this.fadeScreen.style.opacity = "0";
@@ -1256,14 +1397,14 @@ unlockGameplayCamera() {
                 // ...И ТОЛЬКО ТЕПЕРЬ ОТКРЫВАЕМ ДВЕРИ
                 this.levelBuilder.openExit();
 
-// Ждем еще 1.2 секунды, пока створки разъедутся
-setTimeout(() => {
-  playerRef.isLocked = false;
-  this.unlockGameplayCamera();
+                // Ждем еще 1.2 секунды, пока створки разъедутся
+                setTimeout(() => {
+                  playerRef.isLocked = false;
+                  this.unlockGameplayCamera();
 
-  this.isElevatorSequenceActive = false;
-  this.elevatorPhase = "";
-}, 1200);
+                  this.isElevatorSequenceActive = false;
+                  this.elevatorPhase = "";
+                }, 1200);
               }, 600);
             }, 2200);
           }
@@ -1278,32 +1419,32 @@ setTimeout(() => {
       ) {
         const pPos = this.playerController.body.position;
 
-   // Если шар выехал (Z < 5.0), двери открыты, и таймер ЕЩЕ НЕ запущен
-if (
-  pPos.z < 5.0 &&
-  this.levelBuilder.targetExitOpenState > 0 &&
-  !this.isExitDoorClosingPending
-) {
-  this.isExitDoorClosingPending = true; // Ставим "замок", чтобы не плодить таймеры
+        // Если шар выехал (Z < 5.0), двери открыты, и таймер ЕЩЕ НЕ запущен
+        if (
+          pPos.z < 5.0 &&
+          this.levelBuilder.targetExitOpenState > 0 &&
+          !this.isExitDoorClosingPending
+        ) {
+          this.isExitDoorClosingPending = true; // Ставим "замок", чтобы не плодить таймеры
 
-  // Ждем 1.5 секунды перед тем, как захлопнуть двери.
-  // ВАЖНО: перед закрытием повторно проверяем позицию игрока.
-  setTimeout(() => {
-    const currentPos = this.playerController.body.position;
+          // Ждем 1.5 секунды перед тем, как захлопнуть двери.
+          // ВАЖНО: перед закрытием повторно проверяем позицию игрока.
+          setTimeout(() => {
+            const currentPos = this.playerController.body.position;
 
-    // Закрываем двери только если игрок действительно ушел во вторую комнату.
-    // Если он быстро вернулся в лифт, НЕ закрываем двери.
-    const playerReallyLeftElevator = currentPos.z < 5.0;
+            // Закрываем двери только если игрок действительно ушел во вторую комнату.
+            // Если он быстро вернулся в лифт, НЕ закрываем двери.
+            const playerReallyLeftElevator = currentPos.z < 5.0;
 
-    if (playerReallyLeftElevator) {
-      this.levelBuilder.closeExit();
-      this.shakeIntensity = 0.15; // Тряска камеры при закрытии
-    }
+            if (playerReallyLeftElevator) {
+              this.levelBuilder.closeExit();
+              this.shakeIntensity = 0.15; // Тряска камеры при закрытии
+            }
 
-    // Снимаем "замок", чтобы проверка могла сработать снова позже.
-    this.isExitDoorClosingPending = false;
-  }, 1500);
-}
+            // Снимаем "замок", чтобы проверка могла сработать снова позже.
+            this.isExitDoorClosingPending = false;
+          }, 1500);
+        }
       }
       // 6. Синхронизация интерактивных объектов
       if (this.interactivePlatforms) {

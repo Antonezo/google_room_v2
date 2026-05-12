@@ -520,12 +520,17 @@ export class LevelBuilder {
 
   buildSecondRoom() {
     const roomW = 30;
-    const roomD = 30;
+    const roomD = 45; // Было 30. Удлиняем комнату примерно в 1.5 раза.
     const wallH = this.ceilingY - this.floorY;
     const wallCenterY = this.floorY + wallH / 2;
-    const centerZ = -7.5;
 
-    // ПОЛ. Чтобы сменить цвет, меняй 0x228b22 на любой другой (например, 0x0000ff для синего)
+    // Передняя граница комнаты остаётся у лифта на z = 7.5.
+    // При глубине 45 центр комнаты уходит дальше: 7.5 - 22.5 = -15.
+    const frontZ = 7.5;
+    const centerZ = -15.0;
+    const backZ = frontZ - roomD; // -37.5
+
+    // ПОЛ второй комнаты
     this.addTiledWall(
       roomW,
       roomD,
@@ -533,78 +538,161 @@ export class LevelBuilder {
       new THREE.Vector3(-Math.PI / 2, 0, 0),
       0,
       0,
-      0x228b22,
+      0x228b22
     );
 
-    // ПОТОЛОК
+    // ПОТОЛОК второй комнаты
     this.addTiledWall(
       roomW,
       roomD,
       new THREE.Vector3(0, this.ceilingY, centerZ),
-      new THREE.Vector3(Math.PI / 2, 0, 0),
+      new THREE.Vector3(Math.PI / 2, 0, 0)
     );
 
-    // БОКОВЫЕ СТЕНЫ
+    // ЛЕВАЯ СТЕНА
     this.addTiledWall(
       roomD,
       wallH,
       new THREE.Vector3(-15, wallCenterY, centerZ),
-      new THREE.Vector3(0, Math.PI / 2, 0),
+      new THREE.Vector3(0, Math.PI / 2, 0)
     );
+
+    // ПРАВАЯ СТЕНА
     this.addTiledWall(
       roomD,
       wallH,
       new THREE.Vector3(15, wallCenterY, centerZ),
-      new THREE.Vector3(0, -Math.PI / 2, 0),
+      new THREE.Vector3(0, -Math.PI / 2, 0)
     );
 
-    // ЗАДНЯЯ СТЕНА (Дальняя). Поворот 0, чтобы смотрела на нас
+    // ДАЛЬНЯЯ СТЕНА
     this.addTiledWall(
       roomW,
       wallH,
-      new THREE.Vector3(0, wallCenterY, -22.5),
-      new THREE.Vector3(0, 0, 0),
+      new THREE.Vector3(0, wallCenterY, backZ),
+      new THREE.Vector3(0, 0, 0)
     );
 
-    // ПЕРЕДНЯЯ СТЕНА (Примыкает к лифту). Поворот Math.PI, чтобы смотрела внутрь комнаты
+    // ПЕРЕДНЯЯ СТЕНА С ПРОЁМОМ ПОД СТАРТОВЫЙ ЛИФТ
     const elW = 7.5;
     const sideW = (roomW - elW) / 2;
-    const leftX = -(elW / 2) - sideW / 2;
-    const rightX = elW / 2 + sideW / 2;
+    const leftX = -(elW / 2) - (sideW / 2);
+    const rightX = (elW / 2) + (sideW / 2);
 
-    // Передняя стена комнаты №2 с проёмом под лифт.
     // Из-за поворота Math.PI UV идут зеркально относительно первой комнаты,
     // поэтому смещение ставим на левую часть, а не на правую.
     this.addTiledWall(
       sideW,
       wallH,
-      new THREE.Vector3(leftX, wallCenterY, 7.5),
+      new THREE.Vector3(leftX, wallCenterY, frontZ),
       new THREE.Vector3(0, Math.PI, 0),
       1.25,
-      0,
+      0
     );
 
     this.addTiledWall(
       sideW,
       wallH,
-      new THREE.Vector3(rightX, wallCenterY, 7.5),
+      new THREE.Vector3(rightX, wallCenterY, frontZ),
       new THREE.Vector3(0, Math.PI, 0),
       0,
-      0,
+      0
     );
 
     const elH = 10.0;
     const topH = wallH - elH;
     const topCenterY = this.floorY + elH + topH / 2;
 
- this.addTiledWall(
-  elW,
-  topH,
-  new THREE.Vector3(0, topCenterY, 7.5),
-  new THREE.Vector3(0, Math.PI, 0),
-  1.25,
-  0
-);
+    this.addTiledWall(
+      elW,
+      topH,
+      new THREE.Vector3(0, topCenterY, frontZ),
+      new THREE.Vector3(0, Math.PI, 0),
+      1.25,
+      0
+    );
+
+    // Временный финальный лифт/выход уровня 2.
+    // Ставим на правой стене ближе к дальнему углу.
+    this.buildRoom2ExitElevatorVisual();
+  }
+
+buildRoom2ExitElevatorVisual() {
+    // Временный финальный лифт уровня 2.
+    // Пока это только визуальная дверь/рама на правой стене.
+    // Позже сделаем полноценные створки и привяжем к переходу на уровень 3.
+
+    const exitX = 14.92;      // Правая стена комнаты
+    const exitZ = -31.0;      // Почти в дальнем правом углу, но не вплотную
+    const doorW = 7.5;
+    const doorH = 10.0;
+    const doorY = this.floorY + doorH / 2;
+
+    const group = new THREE.Group();
+    group.name = "Room2ExitElevatorVisual";
+    group.position.set(0, 0, 0);
+
+    const darkMat = new THREE.MeshStandardMaterial({
+      color: 0x050505,
+      roughness: 0.8,
+      metalness: 0.0,
+    });
+
+    const frameMat = new THREE.MeshStandardMaterial({
+      color: 0x333333,
+      roughness: 0.45,
+      metalness: 0.7,
+    });
+
+    // Чёрная "глубина" двери на правой стене.
+    const doorPanel = new THREE.Mesh(
+      new THREE.BoxGeometry(0.12, doorH, doorW),
+      darkMat
+    );
+    doorPanel.position.set(exitX, doorY, exitZ);
+    doorPanel.castShadow = false;
+    doorPanel.receiveShadow = true;
+    group.add(doorPanel);
+
+    // Вертикальные стойки рамы
+    const frameLeft = new THREE.Mesh(
+      new THREE.BoxGeometry(0.2, doorH, 0.35),
+      frameMat
+    );
+    frameLeft.position.set(exitX - 0.08, doorY, exitZ - doorW / 2);
+    group.add(frameLeft);
+
+    const frameRight = new THREE.Mesh(
+      new THREE.BoxGeometry(0.2, doorH, 0.35),
+      frameMat
+    );
+    frameRight.position.set(exitX - 0.08, doorY, exitZ + doorW / 2);
+    group.add(frameRight);
+
+    // Верхняя перемычка рамы
+    const frameTop = new THREE.Mesh(
+      new THREE.BoxGeometry(0.2, 0.35, doorW + 0.5),
+      frameMat
+    );
+    frameTop.position.set(exitX - 0.08, this.floorY + doorH, exitZ);
+    group.add(frameTop);
+
+    // Нижний порожек
+    const frameBottom = new THREE.Mesh(
+      new THREE.BoxGeometry(0.2, 0.25, doorW + 0.5),
+      frameMat
+    );
+    frameBottom.position.set(exitX - 0.08, this.floorY + 0.12, exitZ);
+    group.add(frameBottom);
+
+    group.traverse((obj) => {
+      if (obj.isMesh) {
+        obj.castShadow = true;
+        obj.receiveShadow = true;
+      }
+    });
+
+    this.registerMesh(group);
   }
 
   buildGlassWall() {
@@ -711,28 +799,34 @@ export class LevelBuilder {
     this.createPhysicsWall(0, 7.5, 15, 3.75, 5, 0.1); // Козырек
   }
 
-  buildRoom2Physics() {
+ buildRoom2Physics() {
     this.setBuildTarget("room");
 
     const wallH = this.ceilingY - this.floorY;
     const wallCenterY = this.floorY + wallH / 2;
 
+    const roomW = 30;
+    const roomD = 45;
+    const frontZ = 7.5;
+    const centerZ = -15.0;
+    const backZ = frontZ - roomD; // -37.5
+
     // === ФИЗИКА КОМНАТЫ №2 ===
 
     // Пол комнаты №2
     const floor2Body = new CANNON.Body({ mass: 0, material: this.matStandard });
-    floor2Body.addShape(new CANNON.Box(new CANNON.Vec3(15, 10, 15)));
-    floor2Body.position.set(0, this.floorY - 10, -7.5);
+    floor2Body.addShape(new CANNON.Box(new CANNON.Vec3(roomW / 2, 10, roomD / 2)));
+    floor2Body.position.set(0, this.floorY - 10, centerZ);
     this.addBody(floor2Body);
 
     // Внешние стены комнаты №2
-    this.createPhysicsWall(-16, wallCenterY, -7.5, 1, wallH / 2, 15); // Левая
-    this.createPhysicsWall(16, wallCenterY, -7.5, 1, wallH / 2, 15); // Правая
-    this.createPhysicsWall(0, wallCenterY, -23.5, 15, wallH / 2, 1); // Дальняя
+    this.createPhysicsWall(-16, wallCenterY, centerZ, 1, wallH / 2, roomD / 2); // Левая
+    this.createPhysicsWall(16, wallCenterY, centerZ, 1, wallH / 2, roomD / 2);  // Правая
+    this.createPhysicsWall(0, wallCenterY, backZ - 1, roomW / 2, wallH / 2, 1); // Дальняя
 
-    // Фасад комнаты №2 с проёмом под лифт, Z = 7.5
-    this.createPhysicsWall(-9.375, wallCenterY, 7.5, 5.625, wallH / 2, 0.1);
-    this.createPhysicsWall(9.375, wallCenterY, 7.5, 5.625, wallH / 2, 0.1);
+    // Фасад комнаты №2 с проёмом под стартовый лифт, Z = 7.5
+    this.createPhysicsWall(-9.375, wallCenterY, frontZ, 5.625, wallH / 2, 0.1);
+    this.createPhysicsWall(9.375, wallCenterY, frontZ, 5.625, wallH / 2, 0.1);
   }
 
   buildElevatorPhysics() {
@@ -767,10 +861,18 @@ export class LevelBuilder {
     const zExit = 8.2;
 
     const doorMat = new THREE.MeshStandardMaterial({
-      color: 0x151515,
-      roughness: 0.3,
-      metalness: 0.8,
-    });
+  // Не абсолютно чёрный, чтобы дверь не сливалась с пустотой,
+  // но достаточно тёмный для технического лифта.
+  color: 0x202426,
+  roughness: 0.55,
+  metalness: 0.35,
+});
+
+const seamMat = new THREE.MeshStandardMaterial({
+  color: 0x121517,
+  roughness: 0.8,
+  metalness: 0.15,
+});
 
     const frameMat = new THREE.MeshStandardMaterial({
       color: 0x333333,
@@ -779,7 +881,11 @@ export class LevelBuilder {
     });
 
     // Матовый черный материал для "бездонной пустоты" (не отражает свет!)
-    const shaftMat = new THREE.MeshBasicMaterial({ color: 0x000000 });
+    const shaftMat = new THREE.MeshStandardMaterial({
+  color: 0x101214,
+  roughness: 0.85,
+  metalness: 0.2,
+});
 
     const createFrame = (zPos) => {
       const frameGroup = new THREE.Group();
@@ -863,16 +969,92 @@ export class LevelBuilder {
     this.entranceFrame = createFrame(zEntrance);
     this.exitFrame = createFrame(zExit);
 
-    const createDoorLeaf = (side, zPos) => {
-      const mesh = new THREE.Mesh(
-        new THREE.BoxGeometry(doorW, doorH, doorD),
-        doorMat,
-      );
-      mesh.castShadow = true;
-      mesh.receiveShadow = true;
-      this.scene.add(mesh);
+ const createDoorLeaf = (side, zPos) => {
+const mesh = new THREE.Mesh(new THREE.BoxGeometry(doorW, doorH, doorD), doorMat);
+mesh.castShadow = true;
+mesh.receiveShadow = true;
 
-      const body = new CANNON.Body({
+// Это не обычная плиточная стена, а дверь лифта.
+// Камера должна видеть её как препятствие,
+// но атмосфера/плиточные текстуры не должны её перекрашивать.
+mesh.userData.skipWallMaterialUpdate = true;
+
+// === ЧЁРНАЯ "РЕЗИНОВАЯ" ВСТАВКА НА ВНУТРЕННЕМ КРАЕ СТВОРКИ ===
+// Она закрывает серый торец двери и даёт полноценный шов.
+// Состоит из:
+// 1) торцевой чёрной вставки;
+// 2) тонкой накладки с лицевой стороны;
+// 3) тонкой накладки с обратной стороны.
+const seamWidth = 0.08;
+const seamHeight = doorH + 0.02;
+const seamThickness = 0.012;
+
+// Поддержка и для числового side (-1 / 1), и для строкового ("left" / "right")
+const isLeftLeaf = side === -1 || side === "left";
+
+// Внутренний край створки.
+// Для левой створки это правый край, для правой — левый.
+const innerEdgeX = isLeftLeaf ? doorW / 2 : -doorW / 2;
+
+// Направление наружу от внутреннего края створки.
+const edgeDir = isLeftLeaf ? 1 : -1;
+
+// 1. Чёрная торцевая вставка.
+// Ставим её чуть СНАРУЖИ серого торца, чтобы не было z-fighting.
+const edgeCapThickness = 0.035;
+const edgeCap = new THREE.Mesh(
+  new THREE.BoxGeometry(edgeCapThickness, seamHeight, doorD + 0.02),
+  seamMat
+);
+
+edgeCap.position.set(
+  innerEdgeX + edgeDir * (edgeCapThickness / 2 + 0.002),
+  0,
+  0
+);
+
+edgeCap.castShadow = true;
+edgeCap.receiveShadow = true;
+mesh.add(edgeCap);
+
+// 2. Тонкие накладки на лицевой и обратной стороне.
+// Они дают видимый центральный шов, когда двери закрыты.
+const seamOffsetZ = doorD / 2 + seamThickness / 2 + 0.003;
+
+const createSeamStrip = (zOffset) => {
+  const strip = new THREE.Mesh(
+    new THREE.BoxGeometry(seamWidth, seamHeight, seamThickness),
+    seamMat
+  );
+
+  strip.position.set(
+    innerEdgeX - edgeDir * (seamWidth / 2 - 0.01),
+    0,
+    zOffset
+  );
+
+  strip.castShadow = true;
+  strip.receiveShadow = true;
+
+  mesh.add(strip);
+};
+
+createSeamStrip(seamOffsetZ);
+createSeamStrip(-seamOffsetZ);
+
+this.scene.add(mesh);
+
+  // Дверь должна быть препятствием не только для физики,
+  // но и для камеры. Иначе камерой можно заглядывать внутрь закрытого лифта.
+if (this.sceneManager && Array.isArray(this.sceneManager.walls)) {
+  this.sceneManager.walls.push({
+    mesh,
+    isElevatorDoor: true,
+    skipMaterialUpdate: true,
+  });
+}
+
+  const body = new CANNON.Body({
         mass: 0,
         type: CANNON.Body.KINEMATIC,
         material: this.matStandard,
@@ -1006,8 +1188,11 @@ export class LevelBuilder {
       dt * doorSpeed,
     );
 
-    const closedX = 1.9;
-    const openX = 5.7;
+  const closedX = 1.9;
+
+// Створки не должны полностью растворяться в чёрных карманах.
+// 5.25 оставляет небольшой видимый край двери, будто она заехала в паз.
+const openX = 5.25;
 
     // --- ДВИГАЕМ ВХОДНЫЕ ДВЕРИ ---
     const entOffset = closedX + (openX - closedX) * this.entranceOpenState;
@@ -1101,13 +1286,15 @@ export class LevelBuilder {
       { x: 7.5, z: 37.5 },
     ];
 
-    // Позиции для ВТОРОЙ комнаты (Зеленой)
-    const room2Pos = [
-      { x: -7.5, z: -15 },
-      { x: 7.5, z: -15 },
-      { x: -7.5, z: 0 },
-      { x: 7.5, z: 0 },
-    ];
+   // Позиции для ВТОРОЙ комнаты.
+// Комната 2 теперь длиннее: от z = 7.5 до z = -37.5.
+// Поэтому лампы ставим симметрично:
+// передний ряд на z = 0 — 7.5 метров от передней стены,
+// дальний ряд на z = -30 — 7.5 метров от дальней стены.
+const room2Pos = [
+  { x: -7.5, z: 0 },    { x: 7.5, z: 0 },
+  { x: -7.5, z: -30 },  { x: 7.5, z: -30 }
+];
 
     // Запускаем создание ламп для обеих комнат
     // Передаем true в конце, чтобы свет был включен (isCorridor = true)

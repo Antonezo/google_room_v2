@@ -661,9 +661,15 @@ export class SceneManager {
   setAtmosphere(mode, configColors) {
     this.labProps.visible = false;
 
-    // --- 1. ОБНОВЛЕНИЕ ТЕКСТУР И ГЛЯНЦА ---
-    for (const w of this.walls) {
-      const applyToMat = (mat, props) => {
+   // --- 1. ОБНОВЛЕНИЕ ТЕКСТУР И ГЛЯНЦА ---
+for (const w of this.walls) {
+  // Некоторые объекты лежат в walls только как препятствия для камеры.
+  // Например двери лифта. Их нельзя перекрашивать плиткой.
+  if (w.skipMaterialUpdate || w.mesh?.userData?.skipWallMaterialUpdate) {
+    continue;
+  }
+
+  const applyToMat = (mat, props) => {
         if (Array.isArray(mat)) {
           if (mat[0]) Object.assign(mat[0], props);
           if (mat[1]) {

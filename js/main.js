@@ -44,8 +44,47 @@ export class GoogleRoomApp {
     this.platformImpact = 0;
 
     // === СОСТОЯНИЕ УРОВНЕЙ ===
-    // Пока уровни физически ещё не пересобираются,
-    // но вся логика уже должна знать, где мы находимся.
+    // Конфиг уровня описывает:
+    // spawn — где появляется игрок при старте уровня;
+    // exitTrigger — зона, которая запускает переход на следующий уровень;
+    // nextLevelId — куда ведёт выход уровня.
+    this.levelConfigs = {
+      1: {
+        spawn: { x: 0, y: 0, z: 30 },
+
+        // Финальный лифт первого уровня — текущий лифт.
+        exitTrigger: {
+          xMin: -4.0,
+          xMax: 4.0,
+          zMin: 15.0,
+          zMax: 19.0,
+        },
+
+        entryDoor: "entrance",
+        nextLevelId: 2,
+      },
+
+      2: {
+        spawn: { x: 0, y: 0, z: 3 },
+
+        // Финальный выход уровня 2.
+        // Он стоит у правой боковой стены, ближе к дальнему углу комнаты.
+        exitTrigger: {
+          xMin: 10.5,
+          xMax: 15.5,
+          zMin: -35.0,
+          zMax: -27.0,
+        },
+
+        // Пока это только логический выход, не створки текущего стартового лифта.
+        // Визуальные двери финального лифта уровня 2 добавим отдельной системой.
+        entryDoor: "none",
+
+        // Пока уровня 3 нет, поэтому null.
+        nextLevelId: null,
+      },
+    };
+
     this.currentLevelId = 1;
     this.targetLevelId = null;
 
@@ -431,6 +470,43 @@ export class GoogleRoomApp {
       this.cameraController.enabled = true;
     }
   }
+
+  getCurrentLevelConfig() {
+    const config = this.levelConfigs[this.currentLevelId];
+
+    if (!config) {
+      console.warn(
+        `[LEVEL] Missing config for level ${this.currentLevelId}. Falling back to level 1.`,
+      );
+      return this.levelConfigs[1];
+    }
+
+    return config;
+  }
+
+  getNextLevelId() {
+    const config = this.getCurrentLevelConfig();
+    return config.nextLevelId || null;
+  }
+
+  getCurrentExitTrigger() {
+    const config = this.getCurrentLevelConfig();
+
+    return (
+      config.exitTrigger || {
+        xMin: -4.0,
+        xMax: 4.0,
+        zMin: 15.0,
+        zMax: 19.0,
+      }
+    );
+  }
+
+  getCurrentExitDoor() {
+    const config = this.getCurrentLevelConfig();
+    return config.entryDoor || "entrance";
+  }
+
   loadLevel(levelId) {
     // Пока это только логическое переключение уровня.
     // На следующих этапах здесь будет:
@@ -443,19 +519,13 @@ export class GoogleRoomApp {
   }
 
   getLevelStartPosition(levelId) {
-    // Старт первого уровня — первая комната.
-    if (levelId === 1) {
-      return { x: 0, y: 0, z: 30 };
+    const config = this.levelConfigs[levelId];
+
+    if (config && config.spawn) {
+      return config.spawn;
     }
 
-    // Старт второго уровня — пока ставим в зоне выхода из лифта/второй комнаты.
-    // Позже уточним координаты под реальную комнату.
-    if (levelId === 2) {
-      return { x: 0, y: 0, z: 3 };
-    }
-
-    // Безопасный fallback.
-    return { x: 0, y: 0, z: 30 };
+    return this.levelConfigs[1].spawn;
   }
 
   resetPlayerForLevel(levelId) {
@@ -1285,15 +1355,48 @@ export class GoogleRoomApp {
       ) {
         const pPos = this.playerController.body.position;
 
-        // Зона перед лифтом: X от -4 до 4, Z от 15.0 до 19.0 (за 4 метра до дверей)
-        if (pPos.z < 19.0 && pPos.z > 15.0 && pPos.x > -4.0 && pPos.x < 4.0) {
-          this.isElevatorSequenceActive = true;
-          this.elevatorPhase = "waiting_entrance_open";
+        const exitTrigger = this.getCurrentExitTrigger();
 
-          this.playerController.isLocked = true; // Отбираем управление у шара
-          this.lockGameplayCamera(); // Отбираем управление у камеры
+        const isPlayerInLevelExit =
+          pPos.x > exitTrigger.xMin &&
+          pPos.x < exitTrigger.xMax &&
+          pPos.z > exitTrigger.zMin &&
+          pPos.z < exitTrigger.zMax;
 
-          this.levelBuilder.openEntrance(); // Командуем дверям открыться
+        if (isPlayerInLevelExit) {
+          const nextLevelId = this.getNextLevelId();
+
+          // Если следующего уровня ещё нет, переход не запускаем.
+          // ВАЖНО: не делаем return из tick(), иначе игра визуально "зависает".
+          if (!nextLevelId) {
+            if (!this.noNextLevelWarningShown) {
+              console.warn(
+                "[LEVEL] Next level does not exist yet. Level exit is disabled.",
+              );
+              this.noNextLevelWarningShown = true;
+            }
+          } else {
+            this.noNextLevelWarningShown = false;
+
+            this.targetLevelId = nextLevelId;
+            this.elevatorEntryDoor = this.getCurrentExitDoor();
+
+            this.isElevatorSequenceActive = true;
+            this.elevatorPhase = "waiting_entrance_open";
+
+            this.playerController.isLocked = true;
+            this.lockGameplayCamera();
+
+         // Открываем дверь, если выход привязан к текущему тестовому лифту.
+// Для будущих финальных лифтов может быть entryDoor: "none".
+if (this.elevatorEntryDoor === "exit") {
+  this.levelBuilder.openExit();
+} else if (this.elevatorEntryDoor === "entrance") {
+  this.levelBuilder.openEntrance();
+}
+          }
+        } else {
+          this.noNextLevelWarningShown = false;
         }
       }
 
@@ -1343,18 +1446,39 @@ export class GoogleRoomApp {
 
             this.elevatorPhase = "doors_closing";
 
-            // === ОДНОВРЕМЕННО: ЗАКРЫВАЕМ ДВЕРИ И ГАСИМ ЭКРАН ===
-            this.levelBuilder.closeEntrance();
-            this.fadeScreen.style.opacity = "1";
+          // === ОДНОВРЕМЕННО: ЗАКРЫВАЕМ ДВЕРЬ И ГАСИМ ЭКРАН ===
+// Закрываем дверь, если выход привязан к текущему тестовому лифту.
+// Для временного финального выхода уровня 2 может быть entryDoor: "none".
+if (this.elevatorEntryDoor === "exit") {
+  this.levelBuilder.closeExit();
+} else if (this.elevatorEntryDoor === "entrance") {
+  this.levelBuilder.closeEntrance();
+}
+
+this.fadeScreen.style.opacity = "1";
 
             setTimeout(() => {
               // === ФАЗА 3: МАГИЯ ПЕРЕСТРОЙКИ УРОВНЯ В ТЕМНОТЕ ===
               this.levelBuilder.setElevatorMode("exiting");
 
               // В ТЕМНОТЕ пересобираем активную комнату.
-              // Комната 1 удаляется, комната 2 строится.
-              this.levelBuilder.buildRoom(2);
-              this.loadLevel(2);
+              // Берём цель, которую запомнили в момент запуска лифта.
+              const nextLevelId = this.targetLevelId;
+
+              if (!nextLevelId) {
+                console.warn(
+                  "[LEVEL] No target level for elevator transition.",
+                );
+                this.fadeScreen.style.opacity = "0";
+                this.isElevatorSequenceActive = false;
+                this.elevatorPhase = "";
+                playerRef.isLocked = false;
+                this.unlockGameplayCamera();
+                return;
+              }
+
+              this.levelBuilder.buildRoom(nextLevelId);
+              this.loadLevel(nextLevelId);
 
               const exitCameraZoom = 15.0;
               const camTargetY = playerRef.body.position.y + 4.0;

@@ -26,6 +26,7 @@ export class PlayerController {
     this.shadowMesh = new THREE.Mesh(shadowGeo, shadowMat);
     this.scene.add(this.shadowMesh);
     
+    
     this.interactivePlatforms = interactivePlatforms; 
     // ДОБАВИЛИ КЕШ ТАЙМЕРОВ ДЛЯ ПЛАТФОРМ
     this.platformTimers = new Map(); 

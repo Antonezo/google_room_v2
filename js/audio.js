@@ -10,7 +10,7 @@ export class AudioManager {
     this.isMenuMuted = true;
 
     // Хранилище для звуков интерфейса
-   this.uiBuffers = {
+this.uiBuffers = {
   mouse_menu: null,
   start: null,
   click: null,
@@ -21,9 +21,13 @@ export class AudioManager {
   lamps: null,
   biosClick: null,
   openDoor: null,
+  boxSlide: null,
 };
 
 this.currentOpenDoorSound = null;
+this.currentBoxSlideSound = null;
+this.boxSlideGain = null;
+this.boxSlideStopTimer = null;
 this.initPromise = null;
   }
 
@@ -172,6 +176,107 @@ this.initPromise = null;
     this.currentOpenDoorSound = null;
   }
 
+  async startBoxSlideLoop() {
+  await this.resumeContext();
+
+  if (!this.ctx || this.ctx.state === "suspended") return;
+  if (this.initPromise) await this.initPromise;
+  if (!this.uiBuffers.boxSlide) return;
+
+  // Если игровой SFX-канал ещё приглушён меню — быстро включаем.
+  if (this.isMenuMuted && this.fadeIn) {
+    this.fadeIn(0.08);
+  }
+
+  if (this.currentBoxSlideSound) return;
+
+    const source = this.ctx.createBufferSource();
+    source.buffer = this.uiBuffers.boxSlide;
+    source.loop = true;
+
+    const gain = this.ctx.createGain();
+    gain.gain.value = 0;
+
+    source.connect(gain);
+    gain.connect(this.sfxGainNode || this.ctx.destination);
+
+    source.start(0);
+
+    this.currentBoxSlideSound = source;
+    this.boxSlideGain = gain;
+  }
+
+  async updateBoxSlide(intensity = 0) {
+    if (!this.ctx) {
+      if (intensity > 0.005) {
+        await this.resumeContext();
+      } else {
+        return;
+      }
+    }
+
+    if (!this.ctx) return;
+
+    const safeIntensity = Math.max(0, Math.min(1, intensity));
+
+    if (safeIntensity > 0.005) {
+      if (this.boxSlideStopTimer) {
+        clearTimeout(this.boxSlideStopTimer);
+        this.boxSlideStopTimer = null;
+      }
+
+      await this.startBoxSlideLoop();
+
+      if (this.boxSlideGain) {
+        const targetVolume = 0.45 * safeIntensity;
+        this.boxSlideGain.gain.setTargetAtTime(
+          targetVolume,
+          this.ctx.currentTime,
+          0.08,
+        );
+      }
+
+      return;
+    }
+
+    if (this.boxSlideGain) {
+      this.boxSlideGain.gain.setTargetAtTime(0, this.ctx.currentTime, 0.12);
+    }
+
+    if (!this.boxSlideStopTimer) {
+      this.boxSlideStopTimer = setTimeout(() => {
+        this.stopBoxSlide();
+      }, 350);
+    }
+  }
+
+  stopBoxSlide() {
+    if (this.boxSlideStopTimer) {
+      clearTimeout(this.boxSlideStopTimer);
+      this.boxSlideStopTimer = null;
+    }
+
+    if (this.currentBoxSlideSound) {
+      try {
+        this.currentBoxSlideSound.stop();
+        this.currentBoxSlideSound.disconnect();
+      } catch (e) {
+        // Звук мог уже остановиться.
+      }
+    }
+
+    if (this.boxSlideGain) {
+      try {
+        this.boxSlideGain.disconnect();
+      } catch (e) {
+        // Уже отключён.
+      }
+    }
+
+    this.currentBoxSlideSound = null;
+    this.boxSlideGain = null;
+  }
+
   async loadUISounds() {
     console.log("🔊 Попытка загрузки звуков UI...");
 
@@ -189,20 +294,31 @@ this.initPromise = null;
       }
     };
 
-    // Обрати внимание на bios_click в квадратных скобках!
-   const [m, s, c, p, conn, err, wake, lamps, bios_click, openDoor] =
-  await Promise.all([
-    load("audio/mouse_menu.mp3"),
-    load("audio/start.mp3"),
-    load("audio/click.mp3"),
-    load("audio/gurgle.mp3"),
-    load("audio/sound-connection.mp3"),
-    load("audio/error.mp3"),
-    load("audio/robot-wake-up.mp3"),
-    load("audio/fluorescent_lamps.mp3"),
-    load("audio/bios-click.mp3"),
-    load("audio/open-door.mp3"),
-  ]);
+const [
+  m,
+  s,
+  c,
+  p,
+  conn,
+  err,
+  wake,
+  lamps,
+  bios_click,
+  openDoor,
+  boxSlide,
+] = await Promise.all([
+  load("audio/mouse_menu.mp3"),
+  load("audio/start.mp3"),
+  load("audio/click.mp3"),
+  load("audio/gurgle.mp3"),
+  load("audio/sound-connection.mp3"),
+  load("audio/error.mp3"),
+  load("audio/robot-wake-up.mp3"),
+  load("audio/fluorescent_lamps.mp3"),
+  load("audio/bios-click.mp3"),
+  load("audio/open-door.mp3"),
+  load("audio/box-slide.mp3"),
+]);
 
     this.uiBuffers.mouse_menu = m;
     this.uiBuffers.start = s;
@@ -214,6 +330,7 @@ this.initPromise = null;
     this.uiBuffers.lamps = lamps;
     this.uiBuffers.biosClick = bios_click; 
     this.uiBuffers.openDoor = openDoor;
+    this.uiBuffers.boxSlide = boxSlide;
 
     console.log("📂 Все буферы UI обновлены", this.uiBuffers);
   }

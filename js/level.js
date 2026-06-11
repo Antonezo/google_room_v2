@@ -69,8 +69,9 @@ export class LevelBuilder {
     this.room2CorridorGateActivated = false;
     this.room2CorridorGateIndicator = null;
     this.room2CorridorGateSoundPlayed = false;
-    this.room2CorridorGateIndicator = null;
-this.room2CorridorGateAudio = null;
+    // Текстура декоративной панели двери комнаты №2.
+this.room2CorridorGatePanelTexture = null;
+
 
     // Комнатные лифты: стартовые/финальные лифты,
     // которые будут создаваться вместе с конкретной комнатой.
@@ -226,15 +227,18 @@ this.room2CorridorGateAudio = null;
     this.room2GoalMarkerMesh = null;
     this.room2GoalMarkerBody = null;
 
-    this.room2CorridorGate = null;
+      this.room2CorridorGate = null;
     this.room2CorridorGateOpenState = 0;
     this.targetRoom2CorridorGateOpenState = 0;
     this.room2CorridorGateActivated = false;
-   this.stopRoom2CorridorGateSound();
 
-this.room2CorridorGateIndicator = null;
-this.room2CorridorGateSoundPlayed = false;
-this.room2CorridorGateAudio = null;
+    this.stopRoom2CorridorGateSound();
+    if (audioManager?.stopBoxSlide) {
+  audioManager.stopBoxSlide();
+}
+
+    this.room2CorridorGateIndicator = null;
+    this.room2CorridorGateSoundPlayed = false;
 
     // Все лифты, которые были частью текущей комнаты,
     // больше не должны обновляться после пересборки комнаты.
@@ -274,48 +278,6 @@ this.room2CorridorGateAudio = null;
     this.setBuildTarget("static");
 
     console.log(`[LEVEL] Room ${this.currentRoomId} built`);
-  }
-
-  // Полная и безопасная очистка текущих объектов уровня
-  clearCurrentLevel() {
-    // 1. Очистка физики Cannon.js
-    if (this.levelObjects && this.levelObjects.length > 0) {
-      this.levelObjects.forEach((obj) => {
-        if (obj && obj.body) {
-          this.world.removeBody(obj.body);
-        }
-      });
-    }
-
-    // 2. Очистка графики Three.js (освобождение GPU)
-    if (this.levelGroup) {
-      this.levelGroup.traverse((child) => {
-        if (child.isMesh) {
-          // Безопасно удаляем геометрию
-          if (child.geometry) {
-            child.geometry.dispose();
-          }
-
-          // Безопасно удаляем материалы (текстуры не трогаем, они глобальные!)
-          if (child.material) {
-            const mats = Array.isArray(child.material)
-              ? child.material
-              : [child.material];
-            mats.forEach((m) => {
-              if (m) m.dispose();
-            });
-          }
-        }
-      });
-      this.scene.remove(this.levelGroup);
-    }
-
-    // 3. Сброс ссылок (важно для Garbage Collector)
-    this.levelObjects = [];
-
-    // Пересоздаем группу чистой
-    this.levelGroup = new THREE.Group();
-    this.scene.add(this.levelGroup);
   }
 
   // --- ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ ---
@@ -442,9 +404,9 @@ this.room2CorridorGateAudio = null;
       map: baseTex || null,
       normalMap: normalTex || null,
       roughnessMap: roughTex || null,
-      roughness: 0.55,
+      roughness: 0.75,
       metalness: 0.0,
-      normalScale: new THREE.Vector2(0.75, 0.75),
+    normalScale: new THREE.Vector2(1.6, 1.6),
     });
 
     material.needsUpdate = true;
@@ -538,15 +500,15 @@ this.room2CorridorGateAudio = null;
       this.pushableObjects = [];
     }
 
-    this.pushableObjects.push({
-      mesh,
-      body,
-      topBody,
-      halfY,
-      topThickness,
-      topGap,
-    });
-
+this.pushableObjects.push({
+  mesh,
+  body,
+  topBody,
+  halfY,
+  topThickness,
+  topGap,
+  slideSound: true,
+});
     return { mesh, body, topBody };
   }
 
@@ -558,14 +520,14 @@ this.room2CorridorGateAudio = null;
     const blockW = TILE * 2; // 5.0
     const blockD = TILE * 2; // 5.0
 
-    const yellowMat = this.createPlasticBlockMaterial(
+const yellowMat = this.createPlasticBlockMaterial(
   null,
   plasticYellowNormalTex,
   plasticYellowRoughTex,
   0xf2c76b, // пастельный светло-жёлтый
 );
 
- const greenMat = this.createPlasticBlockMaterial(
+const greenMat = this.createPlasticBlockMaterial(
   null,
   plasticGreenNormalTex,
   plasticGreenRoughTex,
@@ -606,7 +568,12 @@ this.room2CorridorGateAudio = null;
   }
 
   syncPushableObjects() {
-    if (!this.pushableObjects || this.pushableObjects.length === 0) return;
+    if (!this.pushableObjects || this.pushableObjects.length === 0) {
+      if (audioManager?.updateBoxSlide) audioManager.updateBoxSlide(0);
+      return;
+    }
+
+    let maxSlideSpeed = 0;
 
     for (const obj of this.pushableObjects) {
       if (!obj || !obj.mesh || !obj.body) continue;
@@ -623,28 +590,38 @@ this.room2CorridorGateAudio = null;
         );
 
         obj.topBody.quaternion.copy(obj.body.quaternion);
-
-        // Для kinematic-тела полезно держать скорость такой же,
-        // чтобы контакты с шаром ощущались стабильнее.
         obj.topBody.velocity.copy(obj.body.velocity);
         obj.topBody.angularVelocity.set(0, 0, 0);
       }
+
+      // Звук волочения только для больших блоков-ступенек.
+      // Красный маленький кубик не должен сюда попадать.
+      if (obj.slideSound && obj.body) {
+        const slideSpeed = Math.hypot(
+          obj.body.velocity.x,
+          obj.body.velocity.z,
+        );
+
+        maxSlideSpeed = Math.max(maxSlideSpeed, slideSpeed);
+      }
+    }
+
+    if (audioManager?.updateBoxSlide) {
+      const intensity = THREE.MathUtils.clamp(
+        (maxSlideSpeed - 0.01) / 1.2,
+        0,
+        1,
+      );
+
+      if (intensity > 0.01) {
+        console.log("[BOX SLIDE]", intensity.toFixed(2), maxSlideSpeed.toFixed(2));
+      }
+
+      audioManager.updateBoxSlide(intensity);
     }
   }
 
   // --- ЭТАПЫ СТРОИТЕЛЬСТВА ---
-  buildVisualWalls() {
-    // Совместимость со старым кодом.
-    // Если где-то случайно вызовется buildVisualWalls(),
-    // он построит и первую комнату, и кабину лифта.
-    this.setBuildTarget("room");
-    this.buildRoom1VisualWalls();
-
-    this.setBuildTarget("elevator");
-    this.buildElevatorCabinVisual();
-
-    this.setBuildTarget("static");
-  }
 
   buildRoom1VisualWalls() {
     const roomW = 30;
@@ -1362,6 +1339,40 @@ markerSize: TILE * 0.9,
     };
   }
 
+    getRoom2CorridorGatePanelTexture() {
+    if (this.room2CorridorGatePanelTexture) {
+      return this.room2CorridorGatePanelTexture;
+    }
+
+    const texture = new THREE.TextureLoader().load(
+      "Image/room2-door-panel.png",
+      (tex) => {
+        tex.colorSpace = THREE.SRGBColorSpace;
+        tex.wrapS = THREE.ClampToEdgeWrapping;
+        tex.wrapT = THREE.ClampToEdgeWrapping;
+        tex.anisotropy = 4;
+        tex.needsUpdate = true;
+
+        console.log("[ROOM 2] Door panel texture loaded.");
+      },
+      undefined,
+      () => {
+        console.warn(
+          "[ROOM 2] Door panel texture not found: Image/room2-door-panel.png",
+        );
+      },
+    );
+
+    texture.colorSpace = THREE.SRGBColorSpace;
+    texture.wrapS = THREE.ClampToEdgeWrapping;
+    texture.wrapT = THREE.ClampToEdgeWrapping;
+    texture.anisotropy = 4;
+
+    this.room2CorridorGatePanelTexture = texture;
+
+    return texture;
+  }
+
   buildRoom2CorridorGate() {
     const cfg = this.getRoom2CorridorGateConfig();
 
@@ -1455,6 +1466,38 @@ markerSize: TILE * 0.9,
     gateBody.receiveShadow = true;
     gateBody.userData.skipWallMaterialUpdate = true;
     gateRoot.add(gateBody);
+
+    // Декоративная лицевая панель с картинкой.
+// Это отдельная плоскость поверх двери, а не материал всей коробки.
+const panelTex = this.getRoom2CorridorGatePanelTexture();
+
+const panelMat = new THREE.MeshStandardMaterial({
+  color: 0xffffff,
+  map: panelTex,
+  roughness: 0.78,
+  metalness: 0.04,
+  side: THREE.FrontSide,
+  transparent: false,
+});
+
+const panelW = cfg.openingW - 0.45;
+const panelH = cfg.openingH - 0.55;
+
+const doorPanel = new THREE.Mesh(
+  new THREE.PlaneGeometry(panelW, panelH),
+  panelMat,
+);
+
+// Лицевая сторона двери смотрит в +Z.
+// Панель ставим чуть впереди основной двери,
+// но оставляем тёмные боковые накладки и центральный шов поверх неё.
+doorPanel.position.set(0, 0, cfg.gateD / 2 + 0.012);
+
+doorPanel.castShadow = false;
+doorPanel.receiveShadow = true;
+doorPanel.userData.skipWallMaterialUpdate = true;
+
+gateRoot.add(doorPanel);
 
     // Вертикальные боковые тёмные полосы, как у лифта
     const sideTrimW = 0.12;
@@ -2054,278 +2097,6 @@ this.addTiledWall(
     };
   }
 
-  getRoom2GoalNicheConfig(leftWallX) {
-    const TILE = 2.5;
-
-    const nicheW = TILE * 2; // ширина по стене: 2 плитки
-    const nicheH = TILE * 2; // высота: 2 плитки
-    const nicheD = TILE * 2; // глубина внутрь стены: 2 плитки
-
-    // Левая стена комнаты №2:
-    // x = -15, комната идёт по Z от -37.5 до 7.5.
-    const roomBackZ = -37.5;
-    const roomFrontZ = 7.5;
-
-    // Центр ниши по левой стене.
-    // z = -15 — примерно середина комнаты, далеко от правого лифта.
-    const nicheZ = -15.0;
-
-    // Ниша занимает 4-й и 5-й ряды плитки от пола.
-    const bottomY = this.floorY + TILE * 3;
-    const topY = bottomY + nicheH;
-    const centerY = bottomY + nicheH / 2;
-
-    return {
-      TILE,
-
-      leftWallX,
-
-      roomBackZ,
-      roomFrontZ,
-
-      nicheZ,
-      nicheW,
-      nicheH,
-      nicheD,
-
-      openingBackZ: nicheZ - nicheW / 2,
-      openingFrontZ: nicheZ + nicheW / 2,
-
-      bottomY,
-      topY,
-      centerY,
-
-      // Ниша вдавлена наружу за левую стену, то есть в минус по X.
-      centerX: leftWallX - nicheD / 2,
-      deepX: leftWallX - nicheD,
-    };
-  }
-
-  buildRoom2GoalNicheVisual(leftWallX, wallH) {
-    const cfg = this.getRoom2GoalNicheConfig(leftWallX);
-    const wallCenterY = this.floorY + wallH / 2;
-
-    // === ЛЕВАЯ СТЕНА ВОКРУГ ОТВЕРСТИЯ ===
-
-    const backSegmentLen = cfg.openingBackZ - cfg.roomBackZ;
-    const backSegmentCenterZ = (cfg.roomBackZ + cfg.openingBackZ) / 2;
-
-    this.addTiledWall(
-      backSegmentLen,
-      wallH,
-      new THREE.Vector3(leftWallX, wallCenterY, backSegmentCenterZ),
-      new THREE.Vector3(0, Math.PI / 2, 0),
-      0,
-      0,
-    );
-
-    const frontSegmentLen = cfg.roomFrontZ - cfg.openingFrontZ;
-    const frontSegmentCenterZ = (cfg.openingFrontZ + cfg.roomFrontZ) / 2;
-
-    this.addTiledWall(
-      frontSegmentLen,
-      wallH,
-      new THREE.Vector3(leftWallX, wallCenterY, frontSegmentCenterZ),
-      new THREE.Vector3(0, Math.PI / 2, 0),
-      cfg.openingFrontZ - cfg.roomBackZ,
-      0,
-    );
-
-    // Нижняя часть стены под нишей
-    const bottomWallH = cfg.bottomY - this.floorY;
-    const bottomWallCenterY = this.floorY + bottomWallH / 2;
-
-    this.addTiledWall(
-      cfg.nicheW,
-      bottomWallH,
-      new THREE.Vector3(leftWallX, bottomWallCenterY, cfg.nicheZ),
-      new THREE.Vector3(0, Math.PI / 2, 0),
-      cfg.openingBackZ - cfg.roomBackZ,
-      0,
-    );
-
-    // Верхняя часть стены над нишей
-    const topWallH = this.ceilingY - cfg.topY;
-    const topWallCenterY = cfg.topY + topWallH / 2;
-
-    this.addTiledWall(
-      cfg.nicheW,
-      topWallH,
-      new THREE.Vector3(leftWallX, topWallCenterY, cfg.nicheZ),
-      new THREE.Vector3(0, Math.PI / 2, 0),
-      cfg.openingBackZ - cfg.roomBackZ,
-      cfg.topY - this.floorY,
-    );
-
-    // === ВНУТРЕННОСТИ НИШИ ===
-
-    // Задняя глубокая стенка ниши
-    this.addTiledWall(
-      cfg.nicheW,
-      cfg.nicheH,
-      new THREE.Vector3(cfg.deepX, cfg.centerY, cfg.nicheZ),
-      new THREE.Vector3(0, Math.PI / 2, 0),
-      cfg.openingBackZ - cfg.roomBackZ,
-      cfg.bottomY - this.floorY,
-    );
-
-    // Внутренняя стенка со стороны дальнего угла комнаты
-    this.addTiledWall(
-      cfg.nicheD,
-      cfg.nicheH,
-      new THREE.Vector3(cfg.centerX, cfg.centerY, cfg.openingBackZ),
-      new THREE.Vector3(0, 0, 0),
-      0,
-      cfg.bottomY - this.floorY,
-    );
-
-    // Внутренняя стенка со стороны стартового лифта
-    this.addTiledWall(
-      cfg.nicheD,
-      cfg.nicheH,
-      new THREE.Vector3(cfg.centerX, cfg.centerY, cfg.openingFrontZ),
-      new THREE.Vector3(0, 0, 0),
-      0,
-      cfg.bottomY - this.floorY,
-    );
-
-    // Нижняя площадка ниши — сюда шар должен приземляться
-    this.addTiledWall(
-      cfg.nicheD,
-      cfg.nicheW,
-      new THREE.Vector3(cfg.centerX, cfg.bottomY, cfg.nicheZ),
-      new THREE.Vector3(-Math.PI / 2, 0, 0),
-      0,
-      0,
-      0xf2f2f2,
-    );
-
-    // Потолок ниши
-    this.addTiledWall(
-      cfg.nicheD,
-      cfg.nicheW,
-      new THREE.Vector3(cfg.centerX, cfg.topY, cfg.nicheZ),
-      new THREE.Vector3(Math.PI / 2, 0, 0),
-      0,
-      0,
-      0xd8d8d8,
-    );
-  }
-
-  buildRoom2GoalNichePhysics(leftWallX, wallH, wallCenterY) {
-    const cfg = this.getRoom2GoalNicheConfig(leftWallX);
-
-    // Физическая левая стена раньше была:
-    // x = -16, halfX = 1.
-    // Оставляем ту же толщину, но разбиваем её на части вокруг отверстия.
-    const wallBodyX = leftWallX - 1.0;
-    const wallHalfX = 1.0;
-
-    // === ФИЗИЧЕСКАЯ ЛЕВАЯ СТЕНА ВОКРУГ НИШИ ===
-
-    const backSegmentLen = cfg.openingBackZ - cfg.roomBackZ;
-    const backSegmentCenterZ = (cfg.roomBackZ + cfg.openingBackZ) / 2;
-
-    this.createPhysicsWall(
-      wallBodyX,
-      wallCenterY,
-      backSegmentCenterZ,
-      wallHalfX,
-      wallH / 2,
-      backSegmentLen / 2,
-    );
-
-    const frontSegmentLen = cfg.roomFrontZ - cfg.openingFrontZ;
-    const frontSegmentCenterZ = (cfg.openingFrontZ + cfg.roomFrontZ) / 2;
-
-    this.createPhysicsWall(
-      wallBodyX,
-      wallCenterY,
-      frontSegmentCenterZ,
-      wallHalfX,
-      wallH / 2,
-      frontSegmentLen / 2,
-    );
-
-    // Нижняя часть стены под нишей
-    const bottomWallH = cfg.bottomY - this.floorY;
-    const bottomWallCenterY = this.floorY + bottomWallH / 2;
-
-    this.createPhysicsWall(
-      wallBodyX,
-      bottomWallCenterY,
-      cfg.nicheZ,
-      wallHalfX,
-      bottomWallH / 2,
-      cfg.nicheW / 2,
-    );
-
-    // Верхняя часть стены над нишей
-    const topWallH = this.ceilingY - cfg.topY;
-    const topWallCenterY = cfg.topY + topWallH / 2;
-
-    this.createPhysicsWall(
-      wallBodyX,
-      topWallCenterY,
-      cfg.nicheZ,
-      wallHalfX,
-      topWallH / 2,
-      cfg.nicheW / 2,
-    );
-
-    // === ФИЗИКА ВНУТРЕННЕГО КУБА-НИШИ ===
-
-    // Пол ниши
-    this.createPhysicsWall(
-      cfg.centerX,
-      cfg.bottomY - 0.1,
-      cfg.nicheZ,
-      cfg.nicheD / 2,
-      0.1,
-      cfg.nicheW / 2,
-      this.matStandard,
-    );
-
-    // Потолок ниши
-    this.createPhysicsWall(
-      cfg.centerX,
-      cfg.topY + 0.1,
-      cfg.nicheZ,
-      cfg.nicheD / 2,
-      0.1,
-      cfg.nicheW / 2,
-    );
-
-    // Стенка ниши со стороны дальнего угла комнаты
-    this.createPhysicsWall(
-      cfg.centerX,
-      cfg.centerY,
-      cfg.openingBackZ - 0.1,
-      cfg.nicheD / 2,
-      cfg.nicheH / 2,
-      0.1,
-    );
-
-    // Стенка ниши со стороны стартового лифта
-    this.createPhysicsWall(
-      cfg.centerX,
-      cfg.centerY,
-      cfg.openingFrontZ + 0.1,
-      cfg.nicheD / 2,
-      cfg.nicheH / 2,
-      0.1,
-    );
-
-    // Глубокая задняя стенка ниши
-    this.createPhysicsWall(
-      cfg.deepX - 0.1,
-      cfg.centerY,
-      cfg.nicheZ,
-      0.1,
-      cfg.nicheH / 2,
-      cfg.nicheW / 2,
-    );
-  }
 
   createElevatorMaterials(style = this.getElevatorStyle()) {
     return {
@@ -3328,6 +3099,84 @@ this.addTiledWall(
     this.buildRoom3DraftFiguresVisual();
   }
 
+    createRoom3ChalkTextMesh(text = "Coming soon...") {
+    const canvas = document.createElement("canvas");
+    canvas.width = 1024;
+    canvas.height = 512;
+
+    const ctx = canvas.getContext("2d");
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+    ctx.save();
+
+    // Небольшой наклон всей надписи, будто написано рукой.
+    ctx.translate(canvas.width / 2, canvas.height / 2);
+    ctx.rotate(-0.055);
+
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+
+    // Более тонкий рукописный стиль.
+    // На Windows обычно есть Segoe Print / Comic Sans MS.
+    ctx.font = 'italic 82px "Segoe Print", "Comic Sans MS", cursive';
+
+    ctx.fillStyle = "rgba(255,255,255,0.78)";
+    ctx.shadowColor = "rgba(255,255,255,0.08)";
+    ctx.shadowBlur = 2;
+
+    const drawChalkLine = (str, x, y) => {
+      // Не 6 проходов, а 2-3, чтобы текст был тоньше.
+      for (let i = 0; i < 3; i++) {
+        const dx = (Math.random() - 0.5) * 1.4;
+        const dy = (Math.random() - 0.5) * 1.4;
+        ctx.fillText(str, x + dx, y + dy);
+      }
+    };
+
+    drawChalkLine("Coming", 0, -48);
+    drawChalkLine("soon...", 0, 48);
+
+    // Лёгкая меловая пыль, но не слишком много.
+    ctx.strokeStyle = "rgba(255,255,255,0.10)";
+    ctx.lineWidth = 0.8;
+
+    for (let i = 0; i < 60; i++) {
+      const x = -360 + Math.random() * 720;
+      const y = -120 + Math.random() * 240;
+      const len = 2 + Math.random() * 7;
+
+      ctx.beginPath();
+      ctx.moveTo(x, y);
+      ctx.lineTo(x + len, y + (Math.random() - 0.5) * 1.5);
+      ctx.stroke();
+    }
+
+    ctx.restore();
+
+    const texture = new THREE.CanvasTexture(canvas);
+    texture.colorSpace = THREE.SRGBColorSpace;
+    texture.needsUpdate = true;
+
+    const material = new THREE.MeshBasicMaterial({
+      map: texture,
+      transparent: true,
+      opacity: 0.9,
+      depthWrite: false,
+    });
+
+    const mesh = new THREE.Mesh(
+      new THREE.PlaneGeometry(7.2, 2.5),
+      material,
+    );
+
+    mesh.name = "Room3ChalkText";
+    mesh.castShadow = false;
+    mesh.receiveShadow = false;
+    mesh.userData.skipWallMaterialUpdate = true;
+
+    return mesh;
+  }
+
   buildRoom3NicheVisual() {
     const backZ = -37.38;
     const nicheY = this.floorY + 5.0;
@@ -3356,6 +3205,10 @@ this.addTiledWall(
     );
     nicheBack.position.set(0, nicheY, backZ);
     group.add(nicheBack);
+        // Надпись мелом на доске
+    const chalkText = this.createRoom3ChalkTextMesh("Coming soon...");
+    chalkText.position.set(0, nicheY, backZ + 0.095);
+    group.add(chalkText);
 
     // Рама вокруг ниши
     const frameTop = new THREE.Mesh(

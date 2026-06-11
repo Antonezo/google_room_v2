@@ -239,6 +239,7 @@ if (audioManager?.fadeIn) audioManager.fadeIn(1.0);
  const returnToMainMenu = () => {
   // Останавливаем длинные игровые звуки при выходе в меню.
   if (audioManager?.stopOpenDoor) audioManager.stopOpenDoor();
+  if (audioManager?.stopBoxSlide) audioManager.stopBoxSlide();
 
   this.isMenuLocked = false;
   this.clearAnimTimers();

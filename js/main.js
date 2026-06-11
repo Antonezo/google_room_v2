@@ -100,8 +100,12 @@ export class GoogleRoomApp {
       },
     };
 
-    this.currentLevelId = 1;
-    this.targetLevelId = null;
+ this.currentLevelId = 1;
+this.targetLevelId = null;
+
+// id комнатного лифта, который сейчас участвует в кат-сцене.
+// Пока используется только финальный лифт уровня 2.
+this.activeRoomExitElevatorId = null;
 
     // === ИНИЦИАЛИЗАЦИЯ МЕНЕДЖЕРОВ ===
     this.sceneManager = new SceneManager();
@@ -717,9 +721,10 @@ export class GoogleRoomApp {
           playerRef.isLocked = false;
           this.unlockGameplayCamera();
 
-          this.isElevatorSequenceActive = false;
-          this.elevatorPhase = "";
-          this.targetLevelId = null;
+         this.isElevatorSequenceActive = false;
+this.elevatorPhase = "";
+this.targetLevelId = null;
+this.activeRoomExitElevatorId = null;
         }, 1200);
       }, 600);
     }, 2200);
@@ -1542,7 +1547,14 @@ export class GoogleRoomApp {
                 this.currentLevelId === 2 &&
                 this.levelBuilder.openRoom2Exit
               ) {
-                this.levelBuilder.openRoom2Exit();
+            this.activeRoomExitElevatorId = "room2_exit";
+
+if (this.levelBuilder.openRoomElevator) {
+  this.levelBuilder.openRoomElevator(this.activeRoomExitElevatorId);
+} else if (this.levelBuilder.openRoom2Exit) {
+  // Временный fallback, чтобы старый код не сломался.
+  this.levelBuilder.openRoom2Exit();
+}
               }
             } else {
               this.isElevatorSequenceActive = true;
@@ -1627,9 +1639,14 @@ export class GoogleRoomApp {
             playerRef.body.velocity.set(0, 0, 0);
             playerRef.body.angularVelocity.set(0, 0, 0);
 
-            if ((this.levelBuilder.room2ExitOpenState || 0) > 0.82) {
-              this.elevatorPhase = "room_exit_rolling";
-            }
+          const roomExitOpenState =
+  this.levelBuilder.getRoomElevatorOpenState?.(
+    this.activeRoomExitElevatorId
+  ) ?? this.levelBuilder.room2ExitOpenState ?? 0;
+
+if (roomExitOpenState > 0.82) {
+  this.elevatorPhase = "room_exit_rolling";
+}
           }
 
           // 2. Автоподкат шара к проёму.
@@ -1684,9 +1701,12 @@ const speed = THREE.MathUtils.clamp(
 
               this.elevatorPhase = "room_exit_doors_closing";
 
-              if (this.levelBuilder.closeRoom2Exit) {
-                this.levelBuilder.closeRoom2Exit();
-              }
+             if (this.levelBuilder.closeRoomElevator) {
+  this.levelBuilder.closeRoomElevator(this.activeRoomExitElevatorId);
+} else if (this.levelBuilder.closeRoom2Exit) {
+  // Временный fallback, чтобы старый код не сломался.
+  this.levelBuilder.closeRoom2Exit();
+}
             }
           }
 
@@ -1710,15 +1730,17 @@ const speed = THREE.MathUtils.clamp(
             }
 
             // Ждём, пока двери почти закрылись, и только потом запускаем fade.
-            if (
-              (this.levelBuilder.room2ExitOpenState || 0) < 0.12 &&
-              !this.roomExitCloseTimer
-            ) {
-              this.roomExitCloseTimer = setTimeout(() => {
-                this.roomExitCloseTimer = null;
-                this.startDirectLevelTransition(this.targetLevelId);
-              }, 250);
-            }
+          const roomExitOpenState =
+  this.levelBuilder.getRoomElevatorOpenState?.(
+    this.activeRoomExitElevatorId
+  ) ?? this.levelBuilder.room2ExitOpenState ?? 0;
+
+if (roomExitOpenState < 0.12 && !this.roomExitCloseTimer) {
+  this.roomExitCloseTimer = setTimeout(() => {
+    this.roomExitCloseTimer = null;
+    this.startDirectLevelTransition(this.targetLevelId);
+  }, 250);
+}
           }
         }
 

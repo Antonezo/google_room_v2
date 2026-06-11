@@ -130,14 +130,18 @@ export class PlayerController {
     let inputX = (this.keys.d ? 1 : 0) - (this.keys.a ? 1 : 0);
     let inputZ = (this.keys.s ? 1 : 0) - (this.keys.w ? 1 : 0);
 
-    // === НОВОЕ: БЛОКИРОВКА УПРАВЛЕНИЯ ДЛЯ КАТ-СЦЕН ===
+     // === НОВОЕ: БЛОКИРОВКА УПРАВЛЕНИЯ ДЛЯ КАТ-СЦЕН ===
     if (this.isLocked) {
       inputX = 0;
       inputZ = 0;
       this.keys.space = false;
     }
 
-    if (inputX !== 0 || inputZ !== 0) {
+    const hasMoveInput = inputX !== 0 || inputZ !== 0;
+    const wantsJump = this.keys.space && this.isGrounded;
+
+    if (hasMoveInput) {
+
       this._forward.set(0, 0, -1).applyQuaternion(this.cameraPivot.quaternion);
       this._forward.y = 0;
       this._forward.normalize();
@@ -156,12 +160,18 @@ export class PlayerController {
       const torqueForce = -6000.0;
       this._torqueVec.set(this._torqueAxis.x * torqueForce, this._torqueAxis.y * torqueForce, this._torqueAxis.z * torqueForce);
       
-      const airForce = 1200.0;
-      this._forceVec.set(this._moveDir.x * airForce, 0, this._moveDir.z * airForce);
+           // Управление в воздухе должно быть слабым,
+      // иначе шар перелетает маленькие платформы и ступени.
+      const airForce = 320.0;
+      this._forceVec.set(
+        this._moveDir.x * airForce,
+        0,
+        this._moveDir.z * airForce,
+      );
     }
 
-    if (this.isGrounded) {
-      if (inputX !== 0 || inputZ !== 0) {
+      if (this.isGrounded) {
+      if (hasMoveInput && !wantsJump) {
         this.body.wakeUp();
         this.body.applyTorque(this._torqueVec);
         
@@ -173,17 +183,59 @@ export class PlayerController {
         this.body.angularVelocity.scale(0.96, this.body.angularVelocity);
         this.body.velocity.scale(0.98, this.body.velocity);
       }
-    } else {
+        } else {
       if (inputX !== 0 || inputZ !== 0) {
         this.body.wakeUp();
         this.body.applyForce(this._forceVec, new CANNON.Vec3(0, 0, 0));
       }
+
+      // Небольшое воздушное сопротивление по горизонтали.
+      // Помогает не перелетать маленькие блоки.
+      this.body.velocity.x *= 0.992;
+      this.body.velocity.z *= 0.992;
+
+      // Жёсткий лимит горизонтальной скорости в воздухе.
+      // Вертикальную скорость не трогаем, чтобы прыжок остался нормальным.
+      const maxAirHorizontalSpeed = 7.0;
+      const horizontalSpeed = Math.hypot(
+        this.body.velocity.x,
+        this.body.velocity.z,
+      );
+
+      if (horizontalSpeed > maxAirHorizontalSpeed) {
+        const k = maxAirHorizontalSpeed / horizontalSpeed;
+        this.body.velocity.x *= k;
+        this.body.velocity.z *= k;
+      }
+
       this.body.angularVelocity.scale(0.92, this.body.angularVelocity);
     }
 
-    if (this.keys.space && this.isGrounded) {
+      if (wantsJump) {
       this.body.wakeUp();
-      this.body.velocity.y = 10.0;
+
+      // При прыжке с разбега даём чуть больше вертикали,
+      // чтобы шар не цеплялся за край ступеньки.
+      this.body.velocity.y = hasMoveInput ? 11.5 : 10.5;
+
+      // Убираем лишнюю раскрутку в момент отрыва.
+      // Иначе шар может продолжать буксовать/давить в край блока.
+      this.body.angularVelocity.scale(0.45, this.body.angularVelocity);
+
+      // Не даём горизонтальной скорости стать слишком большой при отрыве.
+      // Это не тормозит разбег полностью, а только убирает чрезмерный "влёт" в стенку.
+      const maxTakeoffHorizontalSpeed = 8.0;
+      const takeoffSpeed = Math.hypot(
+        this.body.velocity.x,
+        this.body.velocity.z,
+      );
+
+      if (takeoffSpeed > maxTakeoffHorizontalSpeed) {
+        const k = maxTakeoffHorizontalSpeed / takeoffSpeed;
+        this.body.velocity.x *= k;
+        this.body.velocity.z *= k;
+      }
+
       this.isGrounded = false;
       this.coyoteTimer = 0;
     }

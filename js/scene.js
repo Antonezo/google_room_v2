@@ -10,6 +10,10 @@ export let tileTex, tileNormalTex, tileRoughTex;
 export let marbleBaseTex, marbleNormalTex, marbleRoughTex;
 export let heatTex, ventGridTex;
 
+// Текстуры для толкаемых блоков-ступенек
+export let plasticYellowBaseTex, plasticYellowNormalTex, plasticYellowRoughTex;
+export let plasticGreenBaseTex, plasticGreenNormalTex, plasticGreenRoughTex;
+
 export function loadGameAssets(onProgress, onComplete) {
   const manager = new THREE.LoadingManager();
 
@@ -39,6 +43,48 @@ export function loadGameAssets(onProgress, onComplete) {
   marbleBaseTex = textureLoader.load("Image/marble_69_basecolor-1K.png");
   marbleNormalTex = textureLoader.load("Image/marble_69_normal-1K.png");
   marbleRoughTex = textureLoader.load("Image/marble_69_roughness-1K.png");
+
+    const setupPlasticTexture = (texture, isColor = false) => {
+    texture.wrapS = THREE.RepeatWrapping;
+    texture.wrapT = THREE.RepeatWrapping;
+    texture.repeat.set(1, 1);
+
+    if (isColor) {
+      texture.colorSpace = THREE.SRGBColorSpace;
+    }
+  };
+
+  // Жёлтый пластик — маленький блок
+  plasticYellowBaseTex = textureLoader.load(
+    "Image/Plastic016B_1K-PNG_Color.png",
+    (t) => setupPlasticTexture(t, true),
+  );
+
+  plasticYellowNormalTex = textureLoader.load(
+    "Image/Plastic016B_1K-PNG_NormalGL.png",
+    (t) => setupPlasticTexture(t),
+  );
+
+  plasticYellowRoughTex = textureLoader.load(
+    "Image/Plastic016B_1K-PNG_Roughness.png",
+    (t) => setupPlasticTexture(t),
+  );
+
+  // Зелёный пластик — большой блок
+  plasticGreenBaseTex = textureLoader.load(
+    "Image/Plastic017B_1K-PNG_Color.png",
+    (t) => setupPlasticTexture(t, true),
+  );
+
+  plasticGreenNormalTex = textureLoader.load(
+    "Image/Plastic017B_1K-PNG_NormalGL.png",
+    (t) => setupPlasticTexture(t),
+  );
+
+  plasticGreenRoughTex = textureLoader.load(
+    "Image/Plastic017B_1K-PNG_Roughness.png",
+    (t) => setupPlasticTexture(t),
+  );
 
   heatTex = textureLoader.load("Image/heat.png");
 

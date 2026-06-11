@@ -15,6 +15,10 @@ constructor() {
 
 // === НОВЫЙ МАТЕРИАЛ ДЛЯ ИНТЕРАКТИВНЫХ КОРОБОК ===
     this.matBox = new CANNON.Material("box");
+    
+// Верхняя поверхность интерактивных коробок.
+// Она должна быть цепкой, чтобы шар мог ехать по блоку.
+    this.matBoxTop = new CANNON.Material("boxTop");
 
     this.world.addContactMaterial(
       new CANNON.ContactMaterial(this.matStandard, this.matBouncy, {
@@ -38,7 +42,19 @@ constructor() {
 // === ПРАВИЛА СТОЛКНОВЕНИЯ: ТЯЖЕЛЫЙ ШАР + КОРОБКА ===
     this.world.addContactMaterial(
       new CANNON.ContactMaterial(this.matBox, this.matHeavy, {
-        friction: 0.15, // <--- Золотая середина! 
+        // Низкое трение, чтобы шар толкал блок,
+        // а не пытался "закатываться" по его ребру.
+        friction: 0.02,
+        restitution: 0.0,
+        contactEquationStiffness: 1e8,
+        contactEquationRelaxation: 3
+      }),
+    );
+
+// === ПРАВИЛА СТОЛКНОВЕНИЯ: ТЯЖЕЛЫЙ ШАР + ВЕРХ КОРОБКИ ===
+    this.world.addContactMaterial(
+      new CANNON.ContactMaterial(this.matBoxTop, this.matHeavy, {
+        friction: 1.5,
         restitution: 0.0,
         contactEquationStiffness: 1e8,
         contactEquationRelaxation: 3

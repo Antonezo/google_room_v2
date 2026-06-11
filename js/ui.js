@@ -172,6 +172,9 @@ export class UIManager {
       await new Promise((res) => setTimeout(res, 600));
       if (el.doors) el.doors.classList.add("loaded");
       document.body.classList.remove("loading");
+      // Включаем игровые звуки после старта новой игры.
+// Без этого sfxGainNode может оставаться на громкости 0.
+if (audioManager?.fadeIn) audioManager.fadeIn(1.0);
 
       // ==========================================
       // 3. БЫСТРЫЙ СТАРТ (Пропуск сюжета)
@@ -233,10 +236,13 @@ export class UIManager {
         if (audioManager?.playUI) audioManager.playUI("click");
       });
 
-    const returnToMainMenu = () => {
-      this.isMenuLocked = false;
-      this.clearAnimTimers();
-      this.dialogueSystem.clear();
+ const returnToMainMenu = () => {
+  // Останавливаем длинные игровые звуки при выходе в меню.
+  if (audioManager?.stopOpenDoor) audioManager.stopOpenDoor();
+
+  this.isMenuLocked = false;
+  this.clearAnimTimers();
+  this.dialogueSystem.clear();
 
       document.body.classList.add("loading");
 

@@ -1,6 +1,7 @@
 import * as THREE from "three";
 import * as CANNON from "cannon-es";
 import { CONFIG } from "./config.js";
+import { audioManager } from "./audio.js";
 import {
   tileTex,
   tileNormalTex,
@@ -58,6 +59,18 @@ export class LevelBuilder {
     this.elevatorBodies = [];
     this.staticBodies = [];
     this.pushableObjects = [];
+
+    this.room2GoalMarkerMesh = null;
+    this.room2GoalMarkerBody = null;
+
+    this.room2CorridorGate = null;
+    this.room2CorridorGateOpenState = 0;
+    this.targetRoom2CorridorGateOpenState = 0;
+    this.room2CorridorGateActivated = false;
+    this.room2CorridorGateIndicator = null;
+    this.room2CorridorGateSoundPlayed = false;
+    this.room2CorridorGateIndicator = null;
+this.room2CorridorGateAudio = null;
 
     // Комнатные лифты: стартовые/финальные лифты,
     // которые будут создаваться вместе с конкретной комнатой.
@@ -203,13 +216,25 @@ export class LevelBuilder {
   }
 
   clearCurrentRoom() {
-    // Удаляем только текущую комнату.
-    // Старый центральный лифт, двери, общие световые группы и окружение не трогаем.
     this.clearGroup(this.currentRoomGroup);
     this.clearBodies(this.currentRoomBodies);
+
     if (this.pushableObjects) {
       this.pushableObjects.length = 0;
     }
+
+    this.room2GoalMarkerMesh = null;
+    this.room2GoalMarkerBody = null;
+
+    this.room2CorridorGate = null;
+    this.room2CorridorGateOpenState = 0;
+    this.targetRoom2CorridorGateOpenState = 0;
+    this.room2CorridorGateActivated = false;
+   this.stopRoom2CorridorGateSound();
+
+this.room2CorridorGateIndicator = null;
+this.room2CorridorGateSoundPlayed = false;
+this.room2CorridorGateAudio = null;
 
     // Все лифты, которые были частью текущей комнаты,
     // больше не должны обновляться после пересборки комнаты.
@@ -426,7 +451,7 @@ export class LevelBuilder {
     return material;
   }
 
-   createPushableBlock({ name, size, position, mass, material }) {
+  createPushableBlock({ name, size, position, mass, material }) {
     const halfX = size.x / 2;
     const halfY = size.y / 2;
     const halfZ = size.z / 2;
@@ -461,12 +486,16 @@ export class LevelBuilder {
 
     body.addShape(new CANNON.Box(new CANNON.Vec3(halfX, halfY, halfZ)));
 
-    // Блоки должны ездить как тяжёлые ступени, а не заваливаться на бок.
-    body.fixedRotation = true;
+    // Блоки теперь могут естественно поворачиваться,
+    // если шар толкнул их не по центру, а в край.
+    // Но разрешаем только поворот вокруг вертикальной оси Y,
+    // чтобы они не заваливались набок и не ломали механику ступенек.
+    body.fixedRotation = false;
+    body.angularFactor = new CANNON.Vec3(0, 1, 0);
     body.updateMassProperties();
 
     body.linearDamping = 0.22;
-    body.angularDamping = 1.0;
+    body.angularDamping = 0.35;
     body.sleepSpeedLimit = 0.03;
     body.sleepTimeLimit = 0.8;
 
@@ -530,18 +559,18 @@ export class LevelBuilder {
     const blockD = TILE * 2; // 5.0
 
     const yellowMat = this.createPlasticBlockMaterial(
-      plasticYellowBaseTex,
-      plasticYellowNormalTex,
-      plasticYellowRoughTex,
-      0xfbbc05,
-    );
+  null,
+  plasticYellowNormalTex,
+  plasticYellowRoughTex,
+  0xf2c76b, // пастельный светло-жёлтый
+);
 
-    const greenMat = this.createPlasticBlockMaterial(
-      plasticGreenBaseTex,
-      plasticGreenNormalTex,
-      plasticGreenRoughTex,
-      0x34a853,
-    );
+ const greenMat = this.createPlasticBlockMaterial(
+  null,
+  plasticGreenNormalTex,
+  plasticGreenRoughTex,
+  0x86c98a, // пастельный светло-зелёный
+);
 
     // Маленький блок: высота 1 плитка
     this.createPushableBlock({
@@ -835,13 +864,8 @@ export class LevelBuilder {
       new THREE.Vector3(Math.PI / 2, 0, 0),
     );
 
-    // ЛЕВАЯ СТЕНА
-    this.addTiledWall(
-      roomD,
-      wallH,
-      new THREE.Vector3(-15, wallCenterY, centerZ),
-      new THREE.Vector3(0, Math.PI / 2, 0),
-    );
+    // ЛЕВАЯ СТЕНА С ЯЧЕЙКОЙ ДЛЯ БЕЛОГО КУБИКА
+    this.buildRoom2LeftWallWithSocketVisual(wallH);
 
     // ПРАВАЯ СТЕНА С ПРОЁМОМ ПОД ФИНАЛЬНЫЙ ЛИФТ 2 → 3
     // Правая стена идёт вдоль оси Z.
@@ -921,14 +945,14 @@ export class LevelBuilder {
       exitTopUvY,
     );
 
-     // ДАЛЬНЯЯ СТЕНА
+    // ДАЛЬНЯЯ СТЕНА
     this.addTiledWall(
       roomW,
       wallH,
       new THREE.Vector3(0, wallCenterY, backZ),
       new THREE.Vector3(0, 0, 0),
     );
-    
+
     // ПЕРЕДНЯЯ СТЕНА С ПРОЁМОМ ПОД СТАРТОВЫЙ ЛИФТ
     const elW = 7.5;
     const sideW = (roomW - elW) / 2;
@@ -972,15 +996,17 @@ export class LevelBuilder {
     this.buildRoom2PushableBlocks();
 
     // Временный финальный лифт/выход уровня 2.
-     // Полка-цель в правом углу комнаты
+    // Полка-цель в правом углу комнаты
     this.buildRoom2GoalShelfVisual();
     // Внутренняя перегородка перед лифтом 2 -> 3
     this.buildRoom2ExitPartitionVisual();
+    // Закрытая заслонка прохода в коридор
+    this.buildRoom2CorridorGate();
     // Ставим на правой стене ближе к дальнему углу.
     this.buildRoom2ExitElevatorVisual();
   }
 
-    getRoom2GoalShelfConfig() {
+  getRoom2GoalShelfConfig() {
     const TILE = 2.5;
 
     return {
@@ -993,8 +1019,8 @@ export class LevelBuilder {
       // Высота самой полки: 1 плитка
       shelfH: TILE,
 
-       // Белый кубик-цель на полке: 0.8x0.8x0.8 плитки
-      markerSize: TILE * 0.8,
+   // Белый кубик-цель на полке: 0.9x0.9x0.9 плитки
+markerSize: TILE * 0.9,
 
       // Верх полки на той же высоте, где был "пол" у ниши.
       topY: this.floorY + TILE * 3, // = 2.5 при floorY = -5
@@ -1008,7 +1034,7 @@ export class LevelBuilder {
     };
   }
 
-   buildRoom2GoalShelfVisual() {
+  buildRoom2GoalShelfVisual() {
     const cfg = this.getRoom2GoalShelfConfig();
 
     const centerX = cfg.rightWallX - cfg.shelfD / 2;
@@ -1092,45 +1118,61 @@ export class LevelBuilder {
     createRim(
       "Room2GoalShelf_RimFront",
       new THREE.Vector3(cfg.shelfD, rimHeight, rimThickness),
-      new THREE.Vector3(centerX, rimY, centerZ - cfg.shelfW / 2 + rimThickness / 2),
+      new THREE.Vector3(
+        centerX,
+        rimY,
+        centerZ - cfg.shelfW / 2 + rimThickness / 2,
+      ),
     );
 
     // Левая планка
     createRim(
       "Room2GoalShelf_RimLeft",
       new THREE.Vector3(rimThickness, rimHeight, cfg.shelfW),
-      new THREE.Vector3(centerX - cfg.shelfD / 2 + rimThickness / 2, rimY, centerZ),
+      new THREE.Vector3(
+        centerX - cfg.shelfD / 2 + rimThickness / 2,
+        rimY,
+        centerZ,
+      ),
     );
 
     // Правая планка у стены
     createRim(
       "Room2GoalShelf_RimRight",
       new THREE.Vector3(rimThickness, rimHeight, cfg.shelfW),
-      new THREE.Vector3(centerX + cfg.shelfD / 2 - rimThickness / 2, rimY, centerZ),
+      new THREE.Vector3(
+        centerX + cfg.shelfD / 2 - rimThickness / 2,
+        rimY,
+        centerZ,
+      ),
     );
 
     // Задняя планка у стены
     createRim(
       "Room2GoalShelf_RimBack",
       new THREE.Vector3(cfg.shelfD, rimHeight, rimThickness),
-      new THREE.Vector3(centerX, rimY, centerZ + cfg.shelfW / 2 - rimThickness / 2),
+      new THREE.Vector3(
+        centerX,
+        rimY,
+        centerZ + cfg.shelfW / 2 - rimThickness / 2,
+      ),
     );
 
     // Подвижный белый кубик на полке
     this.createRoom2GoalMarkerCube(centerX, centerZ, cfg.topY);
   }
 
-    createRoom2GoalMarkerCube(centerX, centerZ, shelfTopY) {
+  createRoom2GoalMarkerCube(centerX, centerZ, shelfTopY) {
     const cfg = this.getRoom2GoalShelfConfig();
 
     const size = cfg.markerSize;
     const half = size / 2;
 
-    const markerMat = new THREE.MeshStandardMaterial({
-      color: 0xffffff,
-      roughness: 0.35,
-      metalness: 0.0,
-    });
+   const markerMat = new THREE.MeshStandardMaterial({
+  color: 0xe53935, // красный кубик
+  roughness: 0.52,
+  metalness: 0.0,
+});
 
     const marker = new THREE.Mesh(
       new THREE.BoxGeometry(size, size, size),
@@ -1141,11 +1183,7 @@ export class LevelBuilder {
 
     // Ставим кубик чуть выше физической верхней площадки полки,
     // чтобы он не пересекался с ней при старте.
-    marker.position.set(
-      centerX,
-      shelfTopY + half + 0.08,
-      centerZ,
-    );
+    marker.position.set(centerX, shelfTopY + half + 0.08, centerZ);
 
     marker.castShadow = true;
     marker.receiveShadow = true;
@@ -1181,17 +1219,20 @@ export class LevelBuilder {
       this.pushableObjects = [];
     }
 
-    // syncPushableObjects уже умеет синхронизировать mesh/body.
-    // topBody здесь не нужен.
     this.pushableObjects.push({
       mesh: marker,
       body,
     });
 
+    // Сохраняем ссылку на кубик.
+    // Потом по нему будем проверять активацию гнезда.
+    this.room2GoalMarkerMesh = marker;
+    this.room2GoalMarkerBody = body;
+
     return { mesh: marker, body };
   }
 
-   buildRoom2GoalShelfPhysics() {
+  buildRoom2GoalShelfPhysics() {
     const cfg = this.getRoom2GoalShelfConfig();
 
     const centerX = cfg.rightWallX - cfg.shelfD / 2;
@@ -1227,41 +1268,33 @@ export class LevelBuilder {
     );
   }
 
-    getRoom2ExitPartitionConfig() {
+  getRoom2ExitPartitionConfig() {
     const TILE = 2.5;
 
-    // Лифт 2 -> 3 стоит на правой стене комнаты.
     const rightWallX = 15.0;
 
-    // Делаем перегородку на стороне лифта, ближе к игроку/центру комнаты,
-    // чтобы она закрывала лифт от прямого взгляда.
-    const exitLiftZ = -31.35;
-    const exitLiftW = 7.5;
-
- // Ставим перегородку ровно по сетке плитки.
-const wallZ = -23.75;
+    // Перегородка стоит ровно в одну плитку по сетке.
+    const wallZ = -23.75;
 
     // Толщина перегородки = 1 плитка.
     const wallThickness = TILE;
 
     // Перегородка начинается от правой стены и уходит в комнату.
-    // Но до левой стены не доходит на 2 плитки — там будет проход.
+    // До левой стены не доходит на 2 плитки — там проход в коридор.
     const leftWallX = -15.0;
     const gapTiles = 2;
-    const gapW = TILE * gapTiles; // 5.0
+    const gapW = TILE * gapTiles;
 
     const wallEndX = leftWallX + gapW; // -10
-    const wallStartX = rightWallX;
+    const wallStartX = rightWallX; // 15
 
     const wallLen = wallStartX - wallEndX;
     const wallCenterX = (wallStartX + wallEndX) / 2;
 
     return {
       TILE,
-
       wallZ,
       wallThickness,
-
       wallStartX,
       wallEndX,
       wallLen,
@@ -1269,16 +1302,401 @@ const wallZ = -23.75;
     };
   }
 
+  getRoom2CorridorGateConfig() {
+    const TILE = 2.5;
+    const partitionCfg = this.getRoom2ExitPartitionConfig();
+
+    const leftWallX = -15.0;
+    const openingRightX = partitionCfg.wallEndX; // -10
+    const openingLeftX = leftWallX;
+
+    // Ширина прохода = 2 плитки
+    const openingW = openingRightX - openingLeftX; // 5.0
+    const openingCenterX = (openingLeftX + openingRightX) / 2; // -12.5
+
+    // Высота проёма под дверь
+    const openingH = TILE * 4; // 10.0
+
+    const wallZ = partitionCfg.wallZ;
+    const partitionThickness = partitionCfg.wallThickness;
+    const partitionHalfT = partitionThickness / 2;
+
+    // Дверь не плоская
+    const gateD = 0.55;
+
+    // Дверь стоит СПЕРЕДИ перегородки (со стороны комнаты),
+    // чтобы потом уезжать вправо по поверхности стены.
+    const gateZ = wallZ + partitionHalfT + gateD / 2 + 0.03;
+
+    const closedX = openingCenterX;
+    const openX = closedX + openingW; // уезжает вправо поверх перегородки
+
+    const gateY = this.floorY + openingH / 2;
+
+    // Над дверью остаётся участок стены в 2 плитки высотой
+    const topWallH = this.ceilingY - (this.floorY + openingH);
+    const topWallCenterY = this.floorY + openingH + topWallH / 2;
+
+    return {
+      TILE,
+
+      openingLeftX,
+      openingRightX,
+      openingW,
+      openingH,
+      openingCenterX,
+
+      wallZ,
+      partitionThickness,
+      partitionHalfT,
+
+      gateD,
+      gateZ,
+      gateY,
+
+      closedX,
+      openX,
+
+      topWallH,
+      topWallCenterY,
+    };
+  }
+
+  buildRoom2CorridorGate() {
+    const cfg = this.getRoom2CorridorGateConfig();
+
+    // === ВЕРХ НАД ДВЕРЬЮ ===
+    // Теперь над проходом не пустота, а продолжение перегородки в плитке.
+
+    // Лицевая сторона верхнего участка стены
+    this.addTiledWall(
+      cfg.openingW,
+      cfg.topWallH,
+      new THREE.Vector3(
+        cfg.openingCenterX,
+        cfg.topWallCenterY,
+        cfg.wallZ + cfg.partitionHalfT,
+      ),
+      new THREE.Vector3(0, Math.PI, 0),
+    );
+
+    // Обратная сторона верхнего участка стены
+    this.addTiledWall(
+      cfg.openingW,
+      cfg.topWallH,
+      new THREE.Vector3(
+        cfg.openingCenterX,
+        cfg.topWallCenterY,
+        cfg.wallZ - cfg.partitionHalfT,
+      ),
+      new THREE.Vector3(0, 0, 0),
+    );
+
+    // Нижняя поверхность верхней перемычки
+    this.addAlwaysTiledSurface(
+      cfg.openingW,
+      cfg.partitionThickness,
+      new THREE.Vector3(
+        cfg.openingCenterX,
+        this.floorY + cfg.openingH,
+        cfg.wallZ,
+      ),
+      new THREE.Vector3(Math.PI / 2, 0, 0),
+    );
+
+    // Физика верхней перемычки
+    this.createPhysicsWall(
+      cfg.openingCenterX,
+      cfg.topWallCenterY,
+      cfg.wallZ,
+      cfg.openingW / 2,
+      cfg.topWallH / 2,
+      cfg.partitionThickness / 2,
+      this.matStandard,
+    );
+
+    // === ДВЕРЬ ===
+    // Стиль двери делаем как у лифта.
+    const doorMat = new THREE.MeshStandardMaterial({
+      color: 0xdcdcdc,
+      roughness: 0.55,
+      metalness: 0.35,
+    });
+
+    const seamMat = new THREE.MeshStandardMaterial({
+      color: 0x121517,
+      roughness: 0.8,
+      metalness: 0.15,
+    });
+
+    const frameMat = new THREE.MeshStandardMaterial({
+      color: 0x333333,
+      roughness: 0.5,
+      metalness: 0.9,
+    });
+
+    const gateRoot = new THREE.Group();
+    gateRoot.name = "Room2CorridorGate";
+    gateRoot.position.set(cfg.closedX, cfg.gateY, cfg.gateZ);
+
+    // Основной объём двери
+    const gateBody = new THREE.Mesh(
+      new THREE.BoxGeometry(cfg.openingW, cfg.openingH, cfg.gateD),
+      [
+        frameMat, // +X
+        frameMat, // -X
+        frameMat, // +Y
+        frameMat, // -Y
+        doorMat, // +Z
+        doorMat, // -Z
+      ],
+    );
+    gateBody.castShadow = true;
+    gateBody.receiveShadow = true;
+    gateBody.userData.skipWallMaterialUpdate = true;
+    gateRoot.add(gateBody);
+
+    // Вертикальные боковые тёмные полосы, как у лифта
+    const sideTrimW = 0.12;
+
+    const leftTrim = new THREE.Mesh(
+      new THREE.BoxGeometry(sideTrimW, cfg.openingH, cfg.gateD + 0.02),
+      seamMat,
+    );
+    leftTrim.position.set(-cfg.openingW / 2 + sideTrimW / 2, 0, 0);
+    leftTrim.castShadow = true;
+    leftTrim.receiveShadow = true;
+    leftTrim.userData.skipWallMaterialUpdate = true;
+    gateRoot.add(leftTrim);
+
+    const rightTrim = new THREE.Mesh(
+      new THREE.BoxGeometry(sideTrimW, cfg.openingH, cfg.gateD + 0.02),
+      seamMat,
+    );
+    rightTrim.position.set(cfg.openingW / 2 - sideTrimW / 2, 0, 0);
+    rightTrim.castShadow = true;
+    rightTrim.receiveShadow = true;
+    rightTrim.userData.skipWallMaterialUpdate = true;
+    gateRoot.add(rightTrim);
+
+    // Центральный шов, чтобы дверь визуально читалась "лифтовой"
+    const centerSeam = new THREE.Mesh(
+      new THREE.BoxGeometry(0.08, cfg.openingH * 0.92, cfg.gateD + 0.03),
+      seamMat,
+    );
+    centerSeam.position.set(0, 0, 0);
+    centerSeam.castShadow = true;
+    centerSeam.receiveShadow = true;
+    centerSeam.userData.skipWallMaterialUpdate = true;
+    gateRoot.add(centerSeam);
+
+    this.registerMesh(gateRoot);
+
+    // === ФИЗИКА ДВЕРИ ===
+    const body = new CANNON.Body({
+      mass: 0,
+      type: CANNON.Body.KINEMATIC,
+      material: this.matStandard,
+      collisionFilterGroup: CONFIG.PHYSICS.GROUPS.SCENE,
+      collisionFilterMask:
+        CONFIG.PHYSICS.GROUPS.OBJECTS | CONFIG.PHYSICS.GROUPS.TINY,
+    });
+
+    body.addShape(
+      new CANNON.Box(
+        new CANNON.Vec3(cfg.openingW / 2, cfg.openingH / 2, cfg.gateD / 2),
+      ),
+    );
+
+    body.position.set(cfg.closedX, cfg.gateY, cfg.gateZ);
+    this.addBody(body);
+
+    this.room2CorridorGate = {
+      root: gateRoot,
+      body,
+      closedX: cfg.closedX,
+      openX: cfg.openX,
+      y: cfg.gateY,
+      z: cfg.gateZ,
+    };
+
+    this.room2CorridorGateOpenState = 0;
+    this.targetRoom2CorridorGateOpenState = 0;
+    this.room2CorridorGateActivated = false;
+    this.buildRoom2CorridorGateIndicator();
+    return this.room2CorridorGate;
+  }
+
+  buildRoom2CorridorGateIndicator() {
+    const cfg = this.getRoom2CorridorGateConfig();
+
+    const group = new THREE.Group();
+    group.name = "Room2CorridorGateIndicator";
+
+    // Ставим индикатор над дверью, на лицевой стороне перегородки.
+    group.position.set(
+      cfg.openingCenterX,
+      this.floorY + cfg.openingH + 1.25,
+      cfg.wallZ + cfg.partitionHalfT + 0.08,
+    );
+
+    const frameMat = new THREE.MeshStandardMaterial({
+      color: 0x15191c,
+      roughness: 0.65,
+      metalness: 0.45,
+    });
+
+    const lampMat = new THREE.MeshStandardMaterial({
+      color: 0xff3030,
+      emissive: 0xff1010,
+      emissiveIntensity: 1.2,
+      roughness: 0.35,
+      metalness: 0.0,
+    });
+
+    // Чёрная рамка
+    const frame = new THREE.Mesh(
+      new THREE.BoxGeometry(2.2, 0.75, 0.08),
+      frameMat,
+    );
+    frame.castShadow = true;
+    frame.receiveShadow = true;
+    frame.userData.skipWallMaterialUpdate = true;
+    group.add(frame);
+
+    // Светящаяся цветная вставка
+    const lamp = new THREE.Mesh(
+      new THREE.BoxGeometry(1.55, 0.34, 0.1),
+      lampMat,
+    );
+    lamp.position.z = 0.04;
+    lamp.castShadow = false;
+    lamp.receiveShadow = false;
+    lamp.userData.skipWallMaterialUpdate = true;
+    group.add(lamp);
+
+    // Маленький PointLight для мягкого свечения
+    const pointLight = new THREE.PointLight(0xff3030, 0.7, 5.0);
+    pointLight.position.set(0, 0, 0.35);
+    group.add(pointLight);
+
+    this.registerMesh(group);
+
+    this.room2CorridorGateIndicator = {
+      group,
+      lamp,
+      lampMat,
+      pointLight,
+    };
+
+    return this.room2CorridorGateIndicator;
+  }
+
+  setRoom2CorridorGateIndicatorActive(isActive) {
+    if (!this.room2CorridorGateIndicator) return;
+
+    const indicator = this.room2CorridorGateIndicator;
+
+    if (isActive) {
+      indicator.lampMat.color.setHex(0x38ff6a);
+      indicator.lampMat.emissive.setHex(0x20ff55);
+      indicator.lampMat.emissiveIntensity = 1.7;
+
+      indicator.pointLight.color.setHex(0x38ff6a);
+      indicator.pointLight.intensity = 1.15;
+    } else {
+      indicator.lampMat.color.setHex(0xff3030);
+      indicator.lampMat.emissive.setHex(0xff1010);
+      indicator.lampMat.emissiveIntensity = 1.2;
+
+      indicator.pointLight.color.setHex(0xff3030);
+      indicator.pointLight.intensity = 0.7;
+    }
+
+    indicator.lampMat.needsUpdate = true;
+  }
+
+    playRoom2CorridorGateSound() {
+    if (this.room2CorridorGateSoundPlayed) return;
+
+    this.room2CorridorGateSoundPlayed = true;
+
+    if (audioManager?.playOpenDoor) {
+      audioManager.playOpenDoor();
+    }
+  }
+
+  stopRoom2CorridorGateSound() {
+    if (audioManager?.stopOpenDoor) {
+      audioManager.stopOpenDoor();
+    }
+  }
+
+  isRoom2GoalCubeInSocket() {
+    if (!this.room2GoalMarkerBody) return false;
+
+    const cfg = this.getRoom2LeftWallSocketConfig();
+    const p = this.room2GoalMarkerBody.position;
+
+    // Кубик должен находиться внутри ячейки левой стены.
+    // Делаем проверку чуть мягче, чтобы не требовать идеального центра.
+    const insideX = p.x <= cfg.wallX - 0.15 && p.x >= cfg.socketBackX - 0.35;
+
+    const insideZ =
+      p.z >= cfg.socketZMin + 0.15 && p.z <= cfg.socketZMax - 0.15;
+
+    const insideY = p.y >= this.floorY + 0.4 && p.y <= cfg.socketTopY + 0.35;
+
+    return insideX && insideZ && insideY;
+  }
+
+  updateRoom2CorridorGate(dt) {
+    if (!this.room2CorridorGate) return;
+
+       if (!this.room2CorridorGateActivated && this.isRoom2GoalCubeInSocket()) {
+      this.room2CorridorGateActivated = true;
+      this.targetRoom2CorridorGateOpenState = 1.0;
+
+      this.setRoom2CorridorGateIndicatorActive(true);
+      this.playRoom2CorridorGateSound();
+
+      console.log("[ROOM 2] Cube socket activated. Corridor gate opening.");
+    }
+
+    // Чем меньше число, тем медленнее открывается дверь.
+// 0.65 должно лучше совпасть с длинным звуком open-door.mp3.
+const gateSpeed = 1.2;
+
+    this.room2CorridorGateOpenState = THREE.MathUtils.lerp(
+      this.room2CorridorGateOpenState,
+      this.targetRoom2CorridorGateOpenState,
+      dt * gateSpeed,
+    );
+
+    const gate = this.room2CorridorGate;
+
+    const x = THREE.MathUtils.lerp(
+      gate.closedX,
+      gate.openX,
+      this.room2CorridorGateOpenState,
+    );
+
+    gate.root.position.x = x;
+    gate.body.position.x = x;
+    gate.body.aabbNeedsUpdate = true;
+  }
+
   buildRoom2ExitPartitionVisual() {
     const cfg = this.getRoom2ExitPartitionConfig();
 
     const wallH = this.ceilingY - this.floorY;
     const wallCenterY = this.floorY + wallH / 2;
-
     const halfT = cfg.wallThickness / 2;
 
-    // Перегородка идёт по X, поэтому делаем две большие стороны:
-    // одна сторона смотрит к игроку, другая — к лифту.
+    // Сторона, обращённая к игроку
+    // Подгоняем UV-смещение по мировым координатам,
+    // чтобы плитка на перегородке совпадала с общей сеткой комнаты.
+    const partitionUvOffsetX = cfg.wallEndX - -15.0;
 
     // Сторона, обращённая к игроку
     this.addTiledWall(
@@ -1286,6 +1704,8 @@ const wallZ = -23.75;
       wallH,
       new THREE.Vector3(cfg.wallCenterX, wallCenterY, cfg.wallZ + halfT),
       new THREE.Vector3(0, Math.PI, 0),
+      partitionUvOffsetX,
+      0,
     );
 
     // Сторона, обращённая к лифту
@@ -1294,10 +1714,11 @@ const wallZ = -23.75;
       wallH,
       new THREE.Vector3(cfg.wallCenterX, wallCenterY, cfg.wallZ - halfT),
       new THREE.Vector3(0, 0, 0),
+      partitionUvOffsetX,
+      0,
     );
 
-    // Свободный торец перегородки возле проёма.
-    // Именно здесь шар сможет объехать стену.
+    // Свободный торец перегородки возле прохода
     this.addTiledWall(
       cfg.wallThickness,
       wallH,
@@ -1305,7 +1726,7 @@ const wallZ = -23.75;
       new THREE.Vector3(0, Math.PI / 2, 0),
     );
 
-    // Торец у правой стены. Его почти не будет видно, но пусть будет аккуратно.
+    // Торец у правой стены
     this.addTiledWall(
       cfg.wallThickness,
       wallH,
@@ -1327,6 +1748,279 @@ const wallZ = -23.75;
       cfg.wallLen / 2,
       wallH / 2,
       cfg.wallThickness / 2,
+      this.matStandard,
+    );
+  }
+
+  getRoom2LeftWallSocketConfig() {
+    const TILE = 2.5;
+
+    // Левая несущая стена комнаты №2.
+    const wallX = -15.0;
+
+    // Физическая стена чуть снаружи комнаты:
+    // раньше она была x = -16, halfX = 1.
+    const wallBodyX = -16.0;
+    const wallHalfX = 1.0;
+
+    const roomFrontZ = 7.5;
+    const roomBackZ = -37.5;
+
+    // Отверстие ставим в левой несущей стене, рядом с проходом у перегородки.
+    const socketZ = -13.75;
+
+    // Размер отверстия: 1x1 плитка.
+    const socketSize = TILE;
+
+    // Глубина ячейки в стену.
+    const socketDepth = TILE;
+
+    const socketZMin = socketZ - socketSize / 2;
+    const socketZMax = socketZ + socketSize / 2;
+
+    const socketBottomY = this.floorY;
+    const socketTopY = this.floorY + socketSize;
+    const socketCenterY = this.floorY + socketSize / 2;
+
+    // Ячейка уходит наружу за левую стену, в минус по X.
+    const socketCenterX = wallX - socketDepth / 2;
+    const socketBackX = wallX - socketDepth;
+
+    return {
+      TILE,
+
+      wallX,
+      wallBodyX,
+      wallHalfX,
+
+      roomFrontZ,
+      roomBackZ,
+
+      socketZ,
+      socketSize,
+      socketDepth,
+
+      socketZMin,
+      socketZMax,
+
+      socketBottomY,
+      socketTopY,
+      socketCenterY,
+
+      socketCenterX,
+      socketBackX,
+    };
+  }
+
+  buildRoom2LeftWallWithSocketVisual(wallH) {
+    const cfg = this.getRoom2LeftWallSocketConfig();
+    const wallCenterY = this.floorY + wallH / 2;
+
+    // === ЛЕВАЯ СТЕНА ВОКРУГ ОТВЕРСТИЯ ===
+
+    // Участок стены от дальней стены до отверстия
+    const backLen = cfg.socketZMin - cfg.roomBackZ;
+    const backCenterZ = cfg.roomBackZ + backLen / 2;
+
+    if (backLen > 0.01) {
+      this.addTiledWall(
+        backLen,
+        wallH,
+        new THREE.Vector3(cfg.wallX, wallCenterY, backCenterZ),
+        new THREE.Vector3(0, Math.PI / 2, 0),
+        0,
+        0,
+      );
+    }
+
+    // Участок стены от отверстия до передней стены
+    const frontLen = cfg.roomFrontZ - cfg.socketZMax;
+    const frontCenterZ = cfg.socketZMax + frontLen / 2;
+
+    if (frontLen > 0.01) {
+      this.addTiledWall(
+        frontLen,
+        wallH,
+        new THREE.Vector3(cfg.wallX, wallCenterY, frontCenterZ),
+        new THREE.Vector3(0, Math.PI / 2, 0),
+        cfg.socketZMax - cfg.roomBackZ,
+        0,
+      );
+    }
+
+    // Часть стены над отверстием
+    const topH = this.ceilingY - cfg.socketTopY;
+    const topCenterY = cfg.socketTopY + topH / 2;
+
+    if (topH > 0.01) {
+      this.addTiledWall(
+        cfg.socketSize,
+        topH,
+        new THREE.Vector3(cfg.wallX, topCenterY, cfg.socketZ),
+        new THREE.Vector3(0, Math.PI / 2, 0),
+        cfg.socketZMin - cfg.roomBackZ,
+        cfg.socketTopY - this.floorY,
+      );
+    }
+
+    // === ВНУТРЕННОСТИ ЯЧЕЙКИ ===
+
+    // Задняя стенка ячейки — тоже плиточная, как стены
+    this.addAlwaysTiledSurface(
+      cfg.socketSize,
+      cfg.socketSize,
+      new THREE.Vector3(cfg.socketBackX - 0.03, cfg.socketCenterY, cfg.socketZ),
+      new THREE.Vector3(0, Math.PI / 2, 0),
+      cfg.socketZMin - cfg.roomBackZ,
+      0,
+    );
+
+    // Дальняя внутренняя стенка ячейки
+    this.addAlwaysTiledSurface(
+      cfg.socketDepth,
+      cfg.socketSize,
+      new THREE.Vector3(cfg.socketCenterX, cfg.socketCenterY, cfg.socketZMin),
+      new THREE.Vector3(0, 0, 0),
+    );
+
+    // Ближняя внутренняя стенка ячейки
+    this.addAlwaysTiledSurface(
+      cfg.socketDepth,
+      cfg.socketSize,
+      new THREE.Vector3(cfg.socketCenterX, cfg.socketCenterY, cfg.socketZMax),
+      new THREE.Vector3(0, Math.PI, 0),
+    );
+
+    // Потолок ячейки
+    this.addAlwaysTiledSurface(
+      cfg.socketDepth,
+      cfg.socketSize,
+      new THREE.Vector3(cfg.socketCenterX, cfg.socketTopY, cfg.socketZ),
+      new THREE.Vector3(Math.PI / 2, 0, Math.PI / 2),
+    );
+
+// Красный квадрат на полу внутри ячейки.
+// Это визуальная подсказка: сюда нужно задвинуть красный кубик.
+this.addTiledWall(
+  cfg.socketDepth,
+  cfg.socketSize,
+  new THREE.Vector3(
+    cfg.socketCenterX,
+    this.floorY + 0.01,
+    cfg.socketZ,
+  ),
+  new THREE.Vector3(-Math.PI / 2, 0, Math.PI / 2),
+  0,
+  0,
+  0xe53935,
+);
+  }
+
+  buildRoom2LeftWallWithSocketPhysics(wallH, wallCenterY) {
+    const cfg = this.getRoom2LeftWallSocketConfig();
+
+    // Участок стены от дальней стены до отверстия
+    const backLen = cfg.socketZMin - cfg.roomBackZ;
+    const backCenterZ = cfg.roomBackZ + backLen / 2;
+
+    if (backLen > 0.01) {
+      this.createPhysicsWall(
+        cfg.wallBodyX,
+        wallCenterY,
+        backCenterZ,
+        cfg.wallHalfX,
+        wallH / 2,
+        backLen / 2,
+        this.matStandard,
+      );
+    }
+
+    // Участок стены от отверстия до передней стены
+    const frontLen = cfg.roomFrontZ - cfg.socketZMax;
+    const frontCenterZ = cfg.socketZMax + frontLen / 2;
+
+    if (frontLen > 0.01) {
+      this.createPhysicsWall(
+        cfg.wallBodyX,
+        wallCenterY,
+        frontCenterZ,
+        cfg.wallHalfX,
+        wallH / 2,
+        frontLen / 2,
+        this.matStandard,
+      );
+    }
+
+    // Верхняя часть стены над отверстием
+    const topH = this.ceilingY - cfg.socketTopY;
+    const topCenterY = cfg.socketTopY + topH / 2;
+
+    if (topH > 0.01) {
+      this.createPhysicsWall(
+        cfg.wallBodyX,
+        topCenterY,
+        cfg.socketZ,
+        cfg.wallHalfX,
+        topH / 2,
+        cfg.socketSize / 2,
+        this.matStandard,
+      );
+    }
+
+    // Задний ограничитель ячейки.
+    // Кубик заедет внутрь, но не пролетит наружу за стену.
+    this.createPhysicsWall(
+      cfg.socketBackX - 0.05,
+      cfg.socketCenterY,
+      cfg.socketZ,
+      0.05,
+      cfg.socketSize / 2,
+      cfg.socketSize / 2,
+      this.matStandard,
+    );
+
+    // Дальняя внутренняя стенка ячейки
+    this.createPhysicsWall(
+      cfg.socketCenterX,
+      cfg.socketCenterY,
+      cfg.socketZMin - 0.05,
+      cfg.socketDepth / 2,
+      cfg.socketSize / 2,
+      0.05,
+      this.matStandard,
+    );
+
+    // Ближняя внутренняя стенка ячейки
+    this.createPhysicsWall(
+      cfg.socketCenterX,
+      cfg.socketCenterY,
+      cfg.socketZMax + 0.05,
+      cfg.socketDepth / 2,
+      cfg.socketSize / 2,
+      0.05,
+      this.matStandard,
+    );
+
+    // Потолок ячейки
+    this.createPhysicsWall(
+      cfg.socketCenterX,
+      cfg.socketTopY + 0.05,
+      cfg.socketZ,
+      cfg.socketDepth / 2,
+      0.05,
+      cfg.socketSize / 2,
+      this.matStandard,
+    );
+
+    // Физический пол ячейки.
+    // Без него белый кубик проваливается сквозь визуальный белый квадрат.
+    this.createPhysicsWall(
+      cfg.socketCenterX,
+      this.floorY + 0.04,
+      cfg.socketZ,
+      cfg.socketDepth / 2,
+      0.04,
+      cfg.socketSize / 2,
       this.matStandard,
     );
   }
@@ -2864,7 +3558,8 @@ const wallZ = -23.75;
     floor2Body.position.set(0, this.floorY - 10, centerZ);
     this.addBody(floor2Body);
 
-      this.createPhysicsWall(-16, wallCenterY, centerZ, 1, wallH / 2, roomD / 2); // Левая
+    // Левая стена с физическим отверстием под белый кубик
+    this.buildRoom2LeftWallWithSocketPhysics(wallH, wallCenterY);
 
     // Правая стена комнаты №2 с физическим проёмом под финальный лифт 2 → 3.
     // Визуальный проём уже есть в buildSecondRoom(), теперь делаем такой же проём в коллизиях.
@@ -2900,8 +3595,8 @@ const wallZ = -23.75;
       rightWallBackLen / 2,
     );
 
-        // Дальняя стена с физическим отверстием под нишу-цель.
-      this.createPhysicsWall(0, wallCenterY, backZ - 1, roomW / 2, wallH / 2, 1); // Дальняя
+    // Дальняя стена с физическим отверстием под нишу-цель.
+    this.createPhysicsWall(0, wallCenterY, backZ - 1, roomW / 2, wallH / 2, 1); // Дальняя
 
     // === ФИЗИКА КАБИНЫ ФИНАЛЬНОГО ЛИФТА 2 → 3 ===
     // Кабина стоит за правой стеной комнаты, глубина идёт по оси X.
@@ -2938,7 +3633,7 @@ const wallZ = -23.75;
       0.1,
     );
 
-        // Физика внутренней перегородки перед лифтом 2 -> 3
+    // Физика внутренней перегородки перед лифтом 2 -> 3
     this.buildRoom2ExitPartitionPhysics();
 
     this.createPhysicsWall(
@@ -2960,7 +3655,7 @@ const wallZ = -23.75;
       room2ExitW / 2,
     );
 
-        // Полка-цель в правом углу комнаты
+    // Полка-цель в правом углу комнаты
     this.buildRoom2GoalShelfPhysics();
 
     // Фасад комнаты №2 с проёмом под стартовый лифт, Z = 7.5
@@ -3505,6 +4200,7 @@ const wallZ = -23.75;
 
   updateDoors(dt) {
     this.syncPushableObjects();
+    this.updateRoom2CorridorGate(dt);
 
     if (!this.entranceLeft) return;
 
@@ -3640,14 +4336,14 @@ const wallZ = -23.75;
     // Поэтому лампы ставим симметрично:
     // передний ряд на z = 0 — 7.5 метров от передней стены,
     // дальний ряд на z = -30 — 7.5 метров от дальней стены.
-const room2Pos = [
-  // Основная квадратная часть второй комнаты (30x30)
-  { x: -7.5, z: -7.5 },
-  { x: 7.5, z: -7.5 },
+    const room2Pos = [
+      // Основная квадратная часть второй комнаты (30x30)
+      { x: -7.5, z: -7.5 },
+      { x: 7.5, z: -7.5 },
 
-  // Одна лампа в коридоре к лифту 2 -> 3
-  { x: 2.5, z: -31.25 },
-];
+      // Одна лампа в коридоре к лифту 2 -> 3
+      { x: 2.5, z: -31.25 },
+    ];
 
     // Запускаем создание ламп для обеих комнат
     // Передаем true в конце, чтобы свет был включен (isCorridor = true)

@@ -10,8 +10,21 @@ export class AudioManager {
     this.isMenuMuted = true;
 
     // Хранилище для звуков интерфейса
-    this.uiBuffers = { mouse_menu: null, start: null, click: null, pop: null, wake: null };
-    this.initPromise = null;
+   this.uiBuffers = {
+  mouse_menu: null,
+  start: null,
+  click: null,
+  pop: null,
+  wake: null,
+  connection: null,
+  error: null,
+  lamps: null,
+  biosClick: null,
+  openDoor: null,
+};
+
+this.currentOpenDoorSound = null;
+this.initPromise = null;
   }
 
   // 1. Просыпаемся (теперь только один асинхронный метод)
@@ -74,23 +87,27 @@ export class AudioManager {
   setMusicVolume(volume) {
     if (this.musicGainNode) {
       // Плавно меняем громкость музыки
-      this.musicGainNode.gain.setTargetAtTime(volume, this.ctx.currentTime, 0.1);
+      this.musicGainNode.gain.setTargetAtTime(
+        volume,
+        this.ctx.currentTime,
+        0.1,
+      );
     }
   }
 
   playScanSound() {
     if (!this.uiBuffers.connection || !this.ctx) return;
-    
+
     // На всякий случай останавливаем предыдущий, если он вдруг играет
-    this.stopScanSound(); 
+    this.stopScanSound();
 
     const source = this.ctx.createBufferSource();
     source.buffer = this.uiBuffers.connection;
-    source.connect(this.uiGainNode); 
+    source.connect(this.uiGainNode);
     source.start(0);
-    
+
     // Сохраняем ссылку на этот звук, чтобы потом его убить
-    this.currentScanSound = source; 
+    this.currentScanSound = source;
   }
 
   stopScanSound() {
@@ -103,6 +120,56 @@ export class AudioManager {
       }
       this.currentScanSound = null;
     }
+  }
+
+    async playOpenDoor() {
+    await this.resumeContext();
+
+    if (!this.ctx || this.ctx.state === "suspended") {
+      console.warn("🔇 Звук двери заблокирован браузером. Нужен клик по странице.");
+      return;
+    }
+
+    if (this.initPromise) await this.initPromise;
+
+    if (!this.uiBuffers.openDoor) {
+      console.warn('⚠️ Звук "openDoor" не найден или не загружен!');
+      return;
+    }
+
+    // Если игровой канал ещё приглушён меню — быстро включаем его.
+    if (this.isMenuMuted && this.fadeIn) {
+      this.fadeIn(0.08);
+    }
+
+    this.stopOpenDoor();
+
+    const source = this.ctx.createBufferSource();
+    source.buffer = this.uiBuffers.openDoor;
+
+    source.connect(this.sfxGainNode || this.ctx.destination);
+    source.start(0);
+
+    this.currentOpenDoorSound = source;
+
+    source.onended = () => {
+      if (this.currentOpenDoorSound === source) {
+        this.currentOpenDoorSound = null;
+      }
+    };
+  }
+
+  stopOpenDoor() {
+    if (!this.currentOpenDoorSound) return;
+
+    try {
+      this.currentOpenDoorSound.stop();
+      this.currentOpenDoorSound.disconnect();
+    } catch (e) {
+      // Игнорируем: звук мог уже закончиться.
+    }
+
+    this.currentOpenDoorSound = null;
   }
 
   async loadUISounds() {
@@ -122,18 +189,20 @@ export class AudioManager {
       }
     };
 
-// Обрати внимание на bios_click в квадратных скобках!
-    const [m, s, c, p, conn, err, wake, lamps, bios_click] = await Promise.all([ 
-      load("audio/mouse_menu.mp3"),
-      load("audio/start.mp3"),
-      load("audio/click.mp3"),
-      load("audio/gurgle.mp3"),
-      load("audio/sound-connection.mp3"),
-      load("audio/error.mp3"),
-      load("audio/robot-wake-up.mp3"), 
-      load("audio/fluorescent_lamps.mp3"),
-      load("audio/bios-click.mp3") // <-- Загружаем файл
-    ]);
+    // Обрати внимание на bios_click в квадратных скобках!
+   const [m, s, c, p, conn, err, wake, lamps, bios_click, openDoor] =
+  await Promise.all([
+    load("audio/mouse_menu.mp3"),
+    load("audio/start.mp3"),
+    load("audio/click.mp3"),
+    load("audio/gurgle.mp3"),
+    load("audio/sound-connection.mp3"),
+    load("audio/error.mp3"),
+    load("audio/robot-wake-up.mp3"),
+    load("audio/fluorescent_lamps.mp3"),
+    load("audio/bios-click.mp3"),
+    load("audio/open-door.mp3"),
+  ]);
 
     this.uiBuffers.mouse_menu = m;
     this.uiBuffers.start = s;
@@ -143,7 +212,8 @@ export class AudioManager {
     this.uiBuffers.error = err;
     this.uiBuffers.wake = wake;
     this.uiBuffers.lamps = lamps;
-    this.uiBuffers.biosClick = bios_click; // <-- Сохраняем файл в буфер
+    this.uiBuffers.biosClick = bios_click; 
+    this.uiBuffers.openDoor = openDoor;
 
     console.log("📂 Все буферы UI обновлены", this.uiBuffers);
   }
@@ -297,16 +367,21 @@ export class AudioManager {
     src.start();
     src.stop(t + dur);
   }
- // Воспроизведение звука печати из файла
+  // Воспроизведение звука печати из файла
   playBiosClick() {
-    if (!this.ctx || this.ctx.state === "suspended" || !this.uiBuffers.biosClick) return;
+    if (
+      !this.ctx ||
+      this.ctx.state === "suspended" ||
+      !this.uiBuffers.biosClick
+    )
+      return;
 
     const source = this.ctx.createBufferSource();
     source.buffer = this.uiBuffers.biosClick;
-    
-    // ФИШКА: Чуть-чуть меняем тональность каждого щелчка (Pitch), 
+
+    // ФИШКА: Чуть-чуть меняем тональность каждого щелчка (Pitch),
     // чтобы звук казался живой клавиатурой, а не пулеметом
-    source.playbackRate.value = 0.9 + Math.random() * 0.2; 
+    source.playbackRate.value = 0.9 + Math.random() * 0.2;
 
     // Подключаем к каналу интерфейса
     source.connect(this.uiGainNode);

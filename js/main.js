@@ -194,6 +194,9 @@ this.activeRoomExitElevatorId = null;
     this.uiManager = new UIManager({
       onTogglePause: () => {
         this.isPaused = !this.isPaused;
+          if (this.isPaused && audioManager?.stopOpenDoor) {
+    audioManager.stopOpenDoor();
+  }
 
         // === ЖЕЛЕЗОБЕТОННОЕ ПОЯВЛЕНИЕ КНОПКИ ===
         // Если меню открылось (пауза) и игра уже была начата

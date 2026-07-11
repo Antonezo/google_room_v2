@@ -8,11 +8,6 @@ import { CutsceneManager } from "./cutscene.js";
 
 export class UIManager {
   constructor(callbacks) {
-    this.preloadImages([
-      "/Image/tablet-2.png",
-      "/Image/blinks-eyes-tablet-2.png",
-      "/Image/light-tablet-2.png",
-    ]);
     this.cb = callbacks;
     this.isMenuLocked = false;
     this.currentLang = "RU";
@@ -82,6 +77,134 @@ export class UIManager {
 
     const el = this.elements;
 
+    const preparationElements = {
+      status: document.getElementById("game-preparation-status"),
+      stage: document.getElementById("preparation-stage"),
+      percent: document.getElementById("preparation-percent"),
+      fill: document.getElementById("preparation-progress-fill"),
+      startText: document.querySelector("#btn-start-game .btn-text"),
+    };
+
+   let preparationAnimFrame = null;
+let displayedPreparationPercent = 0;
+
+const setPreparationVisualPercent = (percent) => {
+  const safePercent = Math.max(
+    0,
+    Math.min(100, Math.round(percent)),
+  );
+
+  if (preparationElements.percent) {
+    preparationElements.percent.textContent = `${safePercent}%`;
+  }
+
+  if (preparationElements.fill) {
+    preparationElements.fill.style.width = `${safePercent}%`;
+  }
+
+  const coreSubtext = document.querySelector(".core-subtext");
+
+  if (coreSubtext) {
+    coreSubtext.textContent = `${safePercent}%`;
+  }
+};
+
+const animatePreparationPercent = (targetPercent) => {
+  const safeTarget = Math.max(
+    0,
+    Math.min(100, Math.round(targetPercent)),
+  );
+
+  if (preparationAnimFrame) {
+    cancelAnimationFrame(preparationAnimFrame);
+    preparationAnimFrame = null;
+  }
+
+  const startPercent = displayedPreparationPercent;
+  const distance = safeTarget - startPercent;
+
+  if (Math.abs(distance) < 1) {
+    displayedPreparationPercent = safeTarget;
+    setPreparationVisualPercent(safeTarget);
+    return;
+  }
+
+  const startTime = performance.now();
+
+  // Чем больше скачок, тем чуть дольше анимация.
+  const duration = Math.max(350, Math.min(900, Math.abs(distance) * 25));
+
+  const step = (now) => {
+    const t = Math.min(1, (now - startTime) / duration);
+
+    // Мягкое замедление к концу.
+    const eased = 1 - Math.pow(1 - t, 3);
+
+    displayedPreparationPercent = startPercent + distance * eased;
+
+    setPreparationVisualPercent(displayedPreparationPercent);
+
+    if (t < 1) {
+      preparationAnimFrame = requestAnimationFrame(step);
+    } else {
+      displayedPreparationPercent = safeTarget;
+      setPreparationVisualPercent(safeTarget);
+      preparationAnimFrame = null;
+    }
+  };
+
+  preparationAnimFrame = requestAnimationFrame(step);
+};
+
+const updatePreparationStatus = (stage, percent) => {
+  if (preparationElements.status) {
+    preparationElements.status.classList.add("visible");
+  }
+
+  if (preparationElements.stage) {
+    preparationElements.stage.textContent = stage;
+  }
+
+  animatePreparationPercent(percent);
+};
+
+    const setPreparationMode = (enabled) => {
+      if (el.doors) {
+        el.doors.classList.toggle("is-preparing", enabled);
+      }
+
+      if (preparationElements.status) {
+        preparationElements.status.classList.toggle("visible", enabled);
+      }
+
+      if (preparationElements.startText) {
+        preparationElements.startText.textContent = enabled
+          ? "ПОДГОТОВКА..."
+          : translations[this.currentLang].start;
+      }
+
+   if (!enabled) {
+  if (preparationAnimFrame) {
+    cancelAnimationFrame(preparationAnimFrame);
+    preparationAnimFrame = null;
+  }
+
+  displayedPreparationPercent = 0;
+
+  setPreparationVisualPercent(0);
+
+        if (preparationElements.stage) {
+          preparationElements.stage.textContent = "Ожидание запуска…";
+        }
+
+        const coreSubtext = document.querySelector(".core-subtext");
+
+        if (coreSubtext) {
+          coreSubtext.textContent = "SYSTEMS";
+        }
+      }
+    };
+
     ["pointerdown", "mousedown", "wheel", "touchstart", "contextmenu"].forEach(
       (evt) => {
         el.doors.addEventListener(evt, (e) => {
@@ -137,44 +260,106 @@ export class UIManager {
     };
 
     const executeNewGame = async () => {
-      // 1. Подготовка сцены (БЕЗ отключения света)
-      if (this.cb?.onReset) this.cb.onReset();
+      // Защита от повторного клика.
+      if (this.isMenuLocked) return;
 
-      if (this.cb?.onRegistrationStart) this.cb.onRegistrationStart();
-
-      // СРАЗУ ПЕРЕДАЕМ СИГНАЛ: Камера, лети в центр для геймплея!
-      if (this.cb?.onRegistrationEnd) this.cb.onRegistrationEnd();
-
-      this.hudManager.resetWordInput();
-
-      // Сразу задаем дефолтное имя, чтобы HUD не сломался
-      if (store?.update) store.update({ mode: "lab", playerName: "Dev" });
-
-      // 2. Блокируем меню и начинаем вход
       this.isMenuLocked = true;
       this.clearAnimTimers();
-      if (audioManager?.resumeContext) audioManager.resumeContext();
+
+      if (audioManager?.resumeContext) {
+        audioManager.resumeContext();
+      }
 
       const htmlElem = document.documentElement;
+
       if (htmlElem.requestFullscreen && !document.fullscreenElement) {
         htmlElem.requestFullscreen();
       }
 
+      // Показываем индикатор, но пока не скрываем меню.
+      setPreparationMode(true);
+      updatePreparationStatus("Запуск подготовки…", 0);
+
+      try {
+        if (this.cb?.onPrepareNewGame) {
+          await this.cb.onPrepareNewGame((stage, percent) => {
+            updatePreparationStatus(stage, percent);
+          });
+        } else {
+          console.warn("[PREPARE] Callback onPrepareNewGame не найден.");
+        }
+      } catch (error) {
+        console.error("[PREPARE] Ошибка подготовки игры:", error);
+
+        updatePreparationStatus("Ошибка подготовки", 0);
+
+        await new Promise((resolve) => setTimeout(resolve, 1200));
+
+        setPreparationMode(false);
+        this.isMenuLocked = false;
+        return;
+      }
+
+if (this.cb?.onReset) {
+  this.cb.onReset();
+}
+
+      if (this.cb?.onRegistrationStart) {
+        this.cb.onRegistrationStart();
+      }
+
+      if (this.cb?.onRegistrationEnd) {
+        this.cb.onRegistrationEnd();
+        if (this.cb?.onEnableGameplayControls) {
+  this.cb.onEnableGameplayControls();
+}
+      }
+
+      this.hudManager.resetWordInput();
+
+      if (store?.update) {
+        store.update({
+          mode: "lab",
+          playerName: "Dev",
+        });
+      }
+
+      // Теперь меню можно скрыть.
       this.menuManager.hideMenu();
 
       if (el.centerHub) {
-        el.centerHub.classList.remove("fade-in-volumetric", "hub-hidden");
-        el.centerHub.classList.add("fade-out-fast");
-        setTimeout(() => el.centerHub.classList.add("hub-hidden"), 500);
+        el.centerHub.classList.remove(
+          "fade-in-volumetric",
+          "fade-out-fast",
+          "hub-hidden",
+        );
+
+        void el.centerHub.offsetWidth;
+
+        requestAnimationFrame(() => {
+          el.centerHub.classList.add("fade-out-fast");
+
+          this.animTimers.enter1 = setTimeout(() => {
+            el.centerHub.classList.add("hub-hidden");
+          }, 650);
+        });
       }
 
-      // Ждем и открываем двери
-      await new Promise((res) => setTimeout(res, 600));
-      if (el.doors) el.doors.classList.add("loaded");
+      // Даём центральному кругу плавно исчезнуть.
+      await new Promise((resolve) => setTimeout(resolve, 700));
+
+      if (el.doors) {
+        el.doors.classList.add("loaded");
+      }
+
       document.body.classList.remove("loading");
-      // Включаем игровые звуки после старта новой игры.
-// Без этого sfxGainNode может оставаться на громкости 0.
-if (audioManager?.fadeIn) audioManager.fadeIn(1.0);
+
+      if (audioManager?.fadeIn) {
+        audioManager.fadeIn(1.0);
+      }
+
+      // Индикатор очищаем уже после скрытия меню.
+      setPreparationMode(false);
 
       // ==========================================
       // 3. БЫСТРЫЙ СТАРТ (Пропуск сюжета)
@@ -236,14 +421,14 @@ if (audioManager?.fadeIn) audioManager.fadeIn(1.0);
         if (audioManager?.playUI) audioManager.playUI("click");
       });
 
- const returnToMainMenu = () => {
-  // Останавливаем длинные игровые звуки при выходе в меню.
-  if (audioManager?.stopOpenDoor) audioManager.stopOpenDoor();
-  if (audioManager?.stopBoxSlide) audioManager.stopBoxSlide();
+    const returnToMainMenu = () => {
+      // Останавливаем длинные игровые звуки при выходе в меню.
+      if (audioManager?.stopOpenDoor) audioManager.stopOpenDoor();
+      if (audioManager?.stopBoxSlide) audioManager.stopBoxSlide();
 
-  this.isMenuLocked = false;
-  this.clearAnimTimers();
-  this.dialogueSystem.clear();
+      this.isMenuLocked = false;
+      this.clearAnimTimers();
+      this.dialogueSystem.clear();
 
       document.body.classList.add("loading");
 
@@ -275,10 +460,23 @@ if (audioManager?.fadeIn) audioManager.fadeIn(1.0);
 
       if (el.centerHub) {
         el.centerHub.classList.remove("fade-out-fast", "fade-in-volumetric");
+
         el.centerHub.classList.add("hub-hidden");
+
         this.animTimers.exit = setTimeout(() => {
-          el.centerHub.classList.remove("hub-hidden");
+          el.centerHub.classList.remove("hub-hidden", "fade-in-volumetric");
+
+          // Фиксируем скрытое начальное состояние.
+          void el.centerHub.offsetWidth;
+
           el.centerHub.classList.add("fade-in-volumetric");
+
+          const removeFadeInClass = () => {
+            el.centerHub.classList.remove("fade-in-volumetric");
+            el.centerHub.removeEventListener("animationend", removeFadeInClass);
+          };
+
+          el.centerHub.addEventListener("animationend", removeFadeInClass);
         }, 1400);
       }
 

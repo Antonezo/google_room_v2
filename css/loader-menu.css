@@ -53,24 +53,38 @@
   position: absolute;
   top: 50%;
   left: 50%;
-  transform: translate(-50%, -50%);
+
+  transform: translate(-50%, -50%) scale(1);
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
+
   z-index: calc(var(--z-loader) + 1);
   pointer-events: none;
-  transition: opacity 0.5s ease;
+
+  opacity: 1;
+  filter: blur(0);
+
+  transition:
+    opacity 0.65s ease,
+    transform 0.65s ease,
+    filter 0.65s ease;
 }
 .loader-center-hub.fade-out-fast {
   opacity: 0;
-  transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
-  transform: translate(-50%, -50%) scale(1.5);
-  filter: blur(5px);
+  transform: translate(-50%, -50%) scale(1.2);
+  filter: blur(4px);
+
+  transition:
+    opacity 0.65s ease,
+    transform 0.65s ease,
+    filter 0.65s ease;
 }
 .loader-center-hub.hub-hidden {
   opacity: 0;
-  transition: none;
+  transform: translate(-50%, -50%) scale(1.15);
+  filter: blur(4px);
 }
 .loader-center-hub.fade-in-volumetric {
   animation: fadeInCore 0.6s cubic-bezier(0.2, 0.8, 0.2, 1) forwards;
@@ -183,6 +197,8 @@
 }
 #loader-doors.loaded .loader-center-hub {
   opacity: 0;
+  transform: translate(-50%, -50%) scale(1.15);
+  filter: blur(4px);
 }
 #loader-doors.loaded {
   visibility: hidden;
@@ -630,4 +646,147 @@
     opacity: 0.25;
     filter: brightness(1.5) drop-shadow(0 0 8px var(--neon-blue));
   }
+}
+
+/* ==========================================================================
+   ПОДГОТОВКА ИГРЫ ПОСЛЕ НАЖАТИЯ "НОВАЯ ИГРА"
+   ========================================================================== */
+
+.game-preparation-status {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 0 18px;
+  margin: 0;
+
+  background: rgba(0, 12, 20, 0.72);
+  border-right: 2px solid rgba(var(--neon-blue-rgb), 0.75);
+  border-bottom: 1px solid rgba(var(--neon-blue-rgb), 0.2);
+
+  box-shadow:
+    inset -12px 0 25px rgba(var(--neon-blue-rgb), 0.05),
+    0 0 20px rgba(var(--neon-blue-rgb), 0.08);
+
+  max-height: 0;
+  opacity: 0;
+  visibility: hidden;
+  overflow: hidden;
+  transform: translateX(-18px);
+
+  transition:
+    max-height 0.35s ease,
+    padding 0.35s ease,
+    opacity 0.3s ease,
+    transform 0.3s ease,
+    visibility 0s linear 0.35s;
+}
+
+.game-preparation-status.visible {
+  max-height: 110px;
+  padding: 14px 18px;
+
+  opacity: 1;
+  visibility: visible;
+  transform: translateX(0);
+
+  transition:
+    max-height 0.35s ease,
+    padding 0.35s ease,
+    opacity 0.3s ease,
+    transform 0.3s ease,
+    visibility 0s;
+}
+
+.game-preparation-status:not(.visible) {
+  display: none;
+}
+
+.game-preparation-status.visible {
+  display: block;
+}
+
+.game-preparation-status.visible {
+  opacity: 1;
+  visibility: visible;
+  transform: translateX(0);
+}
+
+.preparation-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 15px;
+  margin-bottom: 9px;
+}
+
+.preparation-title,
+.preparation-percent {
+  font-family: "Orbitron", sans-serif;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 2px;
+}
+
+.preparation-title {
+  color: rgba(255, 255, 255, 0.75);
+}
+
+.preparation-percent {
+  color: var(--neon-blue);
+  text-shadow: 0 0 8px rgba(var(--neon-blue-rgb), 0.8);
+}
+
+.preparation-progress-track {
+  position: relative;
+  width: 100%;
+  height: 4px;
+  overflow: hidden;
+
+  background: rgba(var(--neon-blue-rgb), 0.08);
+  border: 1px solid rgba(var(--neon-blue-rgb), 0.18);
+}
+
+.preparation-progress-fill {
+  width: 0%;
+  height: 100%;
+
+  background: linear-gradient(
+    90deg,
+    rgba(var(--neon-blue-rgb), 0.35),
+    var(--neon-blue)
+  );
+
+  box-shadow: 0 0 12px rgba(var(--neon-blue-rgb), 0.8);
+
+  transition: width 0.25s ease;
+}
+
+.preparation-stage {
+  margin-top: 9px;
+
+  color: rgba(220, 250, 255, 0.75);
+  font-family: "Segoe UI", sans-serif;
+  font-size: 11px;
+  letter-spacing: 1px;
+}
+
+/* Состояние подготовки: кнопки нельзя нажимать повторно. */
+#loader-doors.is-preparing .sk-btn,
+#loader-doors.is-preparing .holo-back-tab,
+#loader-doors.is-preparing .cyber-slider,
+#loader-doors.is-preparing .lang-btn {
+  pointer-events: none;
+}
+
+#loader-doors.is-preparing .sk-btn {
+  opacity: 0.35;
+}
+
+/* Главная кнопка остаётся заметной. */
+#loader-doors.is-preparing #btn-start-game {
+  opacity: 1;
+}
+
+#loader-doors.is-preparing #btn-start-game .btn-text {
+  color: var(--neon-blue);
+  text-shadow: 0 0 12px rgba(var(--neon-blue-rgb), 0.9);
 }

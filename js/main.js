@@ -40,8 +40,13 @@ export class GoogleRoomApp {
     this.isIntroPlaying = false;
     this.isPaused = false;
     this.isResetting = false;
+    this.isPreparingGame = false;
+    this.hasPrewarmedRooms = false;
     this.lastTime = performance.now();
     this.platformImpact = 0;
+this.lastRenderStatsTime = 0;
+this.fpsFrameCount = 0;
+this.fpsLastTime = performance.now();
 
     // === СОСТОЯНИЕ УРОВНЕЙ ===
     // Конфиг уровня описывает:
@@ -114,6 +119,8 @@ this.activeRoomExitElevatorId = null;
     this.camera = this.sceneManager.camera;
     this.renderer = this.sceneManager.renderer;
     this.composer = this.sceneManager.composer;
+    // Не позволяем Three.js сбрасывать статистику после каждого прохода EffectComposer.
+this.renderer.info.autoReset = false;
     this.bloomPass = this.sceneManager.bloomPass;
 
     this._tempVec = new THREE.Vector3();
@@ -192,6 +199,15 @@ this.activeRoomExitElevatorId = null;
       this.createDustExplosion(pos, intensity);
 
     this.uiManager = new UIManager({
+
+      onEnableGameplayControls: () => {
+  if (this.controls) {
+    this.controls.enabled = true;
+  }
+
+  this.isIntroPlaying = false;
+},
+
       onTogglePause: () => {
         this.isPaused = !this.isPaused;
           if (this.isPaused && audioManager?.stopOpenDoor) {
@@ -209,7 +225,7 @@ this.activeRoomExitElevatorId = null;
 
         return this.isPaused;
       },
-      onReset: () => this.resetScene(),
+     onReset: (options) => this.resetScene(options),
       onFlickerLights: () => this.flickerLights(),
       onSpawnBalls: () => {
         if (!this.isPaused) this.spawnBalls();
@@ -268,6 +284,9 @@ this.activeRoomExitElevatorId = null;
       onRegistrationEnd: () => {
         this.sceneManager.setCameraMode("gameplay");
       },
+
+      onPrepareNewGame: (onProgress) =>
+  this.prepareNewGame(onProgress),
     });
 
     this.initSceneObjects();
@@ -373,13 +392,14 @@ this.activeRoomExitElevatorId = null;
       // 1. Если кликнули по кнопкам "Новая игра" или "Продолжить"
       if (btnStart || btnResume) {
         // Если это Новая игра - сбрасываем сцену и запоминаем, что сессия начата
-        if (btnStart) {
-          this.resetScene();
-          this.hasStartedGame = true; // Запоминаем, что игра идет!
-          this.start3DIntro();
-          // Обрати внимание: мы БОЛЬШЕ НЕ убираем класс 'locked-feature' здесь,
-          // чтобы кнопка не появлялась резко перед глазами.
-        }
+       if (btnStart) {
+  // Сам сброс теперь выполняется в executeNewGame()
+  // после завершения подготовки.
+  this.hasStartedGame = true;
+
+  // Стартовое падение шара больше не запускаем.
+  // this.start3DIntro();
+}
 
         // Захватываем мышь (возвращаемся в игру),
         // но не во время лифтовой кат-сцены.
@@ -483,6 +503,204 @@ this.activeRoomExitElevatorId = null;
 
     requestAnimationFrame(this.tick); // <--- ВОТ ЭТО МЫ ПОТЕРЯЛИ
   }
+
+async prepareNewGame(onProgress = () => {}) {
+  if (this.isPreparingGame) {
+    return;
+  }
+
+  const nextFrame = () =>
+    new Promise((resolve) => requestAnimationFrame(resolve));
+
+  // Если комнаты уже были прогреты в этой вкладке,
+  // не гоняем снова Room 1 → Room 2 → Room 3.
+  if (this.hasPrewarmedRooms) {
+    const quickStart = performance.now();
+
+    onProgress("Быстрая подготовка…", 25);
+    await nextFrame();
+
+    // После первого полного прогрева тут уже не нужно снова собирать комнаты.
+    // Даем UI один кадр, чтобы игрок увидел короткую проверку.
+    onProgress("Проверка готовых шейдеров…", 75);
+    await nextFrame();
+
+    onProgress("Система готова", 100);
+    await nextFrame();
+
+    console.log(
+      `[PREPARE] Quick start completed in ${Math.round(
+        performance.now() - quickStart,
+      )} ms`,
+    );
+
+    return;
+  }
+
+  this.isPreparingGame = true;
+
+  const totalStart = performance.now();
+
+  const compileCurrentScene = async () => {
+    // Обновляем мировые матрицы перед компиляцией.
+    this.scene.updateMatrixWorld(true);
+    this.camera.updateMatrixWorld(true);
+
+    // Даём интерфейсу успеть показать новый этап.
+    await nextFrame();
+
+    if (typeof this.renderer.compileAsync === "function") {
+      await this.renderer.compileAsync(this.scene, this.camera);
+    } else {
+      console.warn(
+        "[PREPARE] compileAsync недоступен, используется compile().",
+      );
+
+      this.renderer.compile(this.scene, this.camera);
+    }
+
+    // Прогреваем ещё и цепочку EffectComposer / Bloom.
+    this.renderer.info.reset();
+    this.composer.render();
+
+    await nextFrame();
+  };
+
+  const runStage = async (label, percentBefore, percentAfter, task) => {
+    const stageStart = performance.now();
+
+    onProgress(label, percentBefore);
+    await nextFrame();
+
+    await task();
+
+    const stageTime = Math.round(performance.now() - stageStart);
+
+    console.log(`[PREPARE] ${label} completed in ${stageTime} ms`);
+
+    onProgress(`${label} готово`, percentAfter);
+    await nextFrame();
+  };
+
+  try {
+    await runStage(
+      "Подготовка комнаты 1…",
+      5,
+      25,
+      async () => {
+        // Комната 1 уже построена при создании LevelBuilder.
+        await compileCurrentScene();
+      },
+    );
+
+    await runStage(
+      "Подготовка комнаты 2…",
+      25,
+      55,
+      async () => {
+        this.levelBuilder.buildRoom(2);
+
+        if (this.cameraController) {
+          this.cameraController.invalidateWallsCache();
+        }
+
+        await compileCurrentScene();
+      },
+    );
+
+    await runStage(
+      "Подготовка комнаты 3…",
+      55,
+      80,
+      async () => {
+        this.levelBuilder.buildRoom(3);
+
+        if (this.cameraController) {
+          this.cameraController.invalidateWallsCache();
+        }
+
+        await compileCurrentScene();
+      },
+    );
+
+    await runStage(
+      "Возврат в комнату 1…",
+      80,
+      96,
+      async () => {
+        this.levelBuilder.buildRoom(1);
+
+        if (this.cameraController) {
+          this.cameraController.invalidateWallsCache();
+        }
+
+        await compileCurrentScene();
+      },
+    );
+
+    // Возвращаем логическое состояние первой комнаты.
+    this.currentLevelId = 1;
+    this.targetLevelId = null;
+
+    // Полный прогрев комнат успешно завершён.
+    // Следующие "Новая игра" в этой вкладке будут быстрыми.
+    this.hasPrewarmedRooms = true;
+
+    const totalTime = Math.round(performance.now() - totalStart);
+
+    onProgress(`Система готова за ${(totalTime / 1000).toFixed(1)} сек`, 100);
+    await nextFrame();
+
+    console.log(`[PREPARE] Full prewarm completed in ${totalTime} ms`);
+  } catch (error) {
+    console.error("[PREPARE] Ошибка прогрева комнат:", error);
+    throw error;
+  } finally {
+    this.isPreparingGame = false;
+  }
+}
+
+hardResetTransitions() {
+  // Инвалидируем все старые отложенные действия переходов.
+  this.transitionResetToken = (this.transitionResetToken || 0) + 1;
+
+  // Останавливаем таймеры интро.
+  if (this.introTimeout) {
+    clearTimeout(this.introTimeout);
+    this.introTimeout = null;
+  }
+
+  if (this.introImpactCheck) {
+    clearInterval(this.introImpactCheck);
+    this.introImpactCheck = null;
+  }
+
+  // Останавливаем таймер финального выхода комнаты 2.
+  if (this.roomExitCloseTimer) {
+    clearTimeout(this.roomExitCloseTimer);
+    this.roomExitCloseTimer = null;
+  }
+
+  // Сбрасываем лифтовые фазы.
+  this.isElevatorSequenceActive = false;
+  this.elevatorPhase = "";
+  this.targetLevelId = null;
+  this.activeRoomExitElevatorId = null;
+  this.elevatorEntryDoor = null;
+  this.elevatorHoldPos = null;
+  this.roomExitHoldPos = null;
+  this.isExitDoorClosingPending = false;
+
+  if (this.playerController) {
+    this.playerController.isLocked = false;
+  }
+
+  if (this.fadeScreen) {
+    this.fadeScreen.style.opacity = "0";
+  }
+
+  this.unlockGameplayCamera?.();
+}
 
   lockGameplayCamera() {
     // Не делаем controls.unlock(), иначе появится обычный курсор.
@@ -689,6 +907,13 @@ this.activeRoomExitElevatorId = null;
       this.resetElevatorForLevel(nextLevelId);
       this.resetPlayerForLevel(nextLevelId);
       this.resetCameraForLevel(nextLevelId);
+
+      // Подготавливаем матрицы и шейдеры новой комнаты,
+// пока экран ещё полностью чёрный.
+this.scene.updateMatrixWorld(true);
+this.camera.updateMatrixWorld(true);
+// Временно отключено для проверки стартового прогрева.
+// this.renderer.compile(this.scene, this.camera);
 
       if (this.cameraController) {
         this.cameraController.invalidateWallsCache();
@@ -897,27 +1122,55 @@ this.activeRoomExitElevatorId = null;
     nextFlicker();
   }
 
-  resetScene() {
+  resetScene(options = {}) {
+  const { rebuildRoom = true } = options;
+    this.hardResetTransitions();
     // Новая игра всегда начинается с первого уровня.
     this.currentLevelId = 1;
     this.targetLevelId = null;
-    // Если до этого была построена другая комната,
-    // возвращаем активную комнату к первому уровню.
-    if (this.levelBuilder) {
-      this.levelBuilder.buildRoom(1);
+   // Обычно resetScene пересобирает первую комнату.
+// После стартового прогрева она уже построена и скомпилирована,
+// поэтому повторная пересборка не нужна.
+if (this.levelBuilder && rebuildRoom) {
+  this.levelBuilder.buildRoom(1);
 
-      if (this.cameraController) {
-        this.cameraController.invalidateWallsCache();
-      }
-    }
+  if (this.cameraController) {
+    this.cameraController.invalidateWallsCache();
+  }
+}
     // === 1. СБРОС ЛИФТА И КАТ-СЦЕНЫ ===
-    if (this.levelBuilder) {
-      this.levelBuilder.closeEntrance();
-      this.levelBuilder.closeExit();
-      this.levelBuilder.entranceOpenState = 0;
-      this.levelBuilder.exitOpenState = 0;
-      this.levelBuilder.setElevatorMode("entering");
-    }
+  if (this.levelBuilder) {
+  this.levelBuilder.closeEntrance();
+  this.levelBuilder.closeExit();
+
+  this.levelBuilder.entranceOpenState = 0;
+  this.levelBuilder.targetEntranceOpenState = 0;
+
+  this.levelBuilder.exitOpenState = 0;
+  this.levelBuilder.targetExitOpenState = 0;
+
+  // Если есть отдельные лифты комнат, тоже закрываем их.
+  if (this.levelBuilder.closeRoomElevator) {
+    this.levelBuilder.closeRoomElevator("room2_exit");
+  }
+
+  if (this.levelBuilder.room2ExitOpenState !== undefined) {
+    this.levelBuilder.room2ExitOpenState = 0;
+  }
+
+  if (this.levelBuilder.targetRoom2ExitOpenState !== undefined) {
+    this.levelBuilder.targetRoom2ExitOpenState = 0;
+  }
+
+  this.levelBuilder.setElevatorMode("entering");
+
+  // Принудительно применяем закрытое положение к мешам дверей.
+  // Иначе после быстрого выхода/входа визуальные панели могут остаться открытыми.
+  if (this.levelBuilder.updateDoors) {
+    this.levelBuilder.updateDoors(999);
+  }
+}
+
     this.isElevatorSequenceActive = false;
     this.elevatorPhase = "";
     this.isExitDoorClosingPending = false; // <--- ДОБАВИТЬ ЭТОТ ФЛАГ
@@ -1379,6 +1632,10 @@ this.activeRoomExitElevatorId = null;
 
   tick(currentTime) {
     requestAnimationFrame(this.tick);
+    if (this.isPreparingGame) {
+  return;
+}
+    this.fpsFrameCount++;
 
     if (!this.isPaused) {
       let dt = (currentTime - this.lastTime) / 1000;
@@ -1862,7 +2119,13 @@ if (roomExitOpenState < 0.12 && !this.roomExitCloseTimer) {
 
               // Принудительно обновляем матрицы, чтобы следующий кадр уже был правильным.
               this.cameraPivot.updateMatrixWorld(true);
-              this.camera.updateMatrixWorld(true);
+this.camera.updateMatrixWorld(true);
+
+// Прогреваем материалы и шейдеры новой комнаты,
+// пока fadeScreen ещё чёрный
+this.scene.updateMatrixWorld(true);
+// Временно отключено для проверки стартового прогрева.
+// this.renderer.compile(this.scene, this.camera);
 
               this.elevatorPhase = "opening_doors";
 
@@ -1998,7 +2261,35 @@ this.sceneManager.ringMesh.material.opacity = 0;
     }
     // ========================================================
 
-    this.composer.render();
+if (!this.isPreparingGame) {
+  // Начинаем подсчёт заново для текущего кадра.
+  this.renderer.info.reset();
+
+  // Обычный игровой рендер.
+  this.composer.render();
+}
+
+if (currentTime - this.lastRenderStatsTime >= 1000) {
+  const elapsedSeconds = (currentTime - this.fpsLastTime) / 1000;
+  const fps = Math.round(this.fpsFrameCount / elapsedSeconds);
+
+  this.lastRenderStatsTime = currentTime;
+  this.fpsLastTime = currentTime;
+  this.fpsFrameCount = 0;
+
+  const info = this.renderer.info;
+
+  console.log(
+    `[RENDER STATS] ` +
+      `level=${this.currentLevelId} | ` +
+      `fps=${fps} | ` +
+      `calls=${info.render.calls} | ` +
+      `triangles=${info.render.triangles} | ` +
+      `geometries=${info.memory.geometries} | ` +
+      `textures=${info.memory.textures} | ` +
+      `programs=${info.programs?.length ?? 0}`,
+  );
+}
   }
 
   updateEnvironment(dt, timeSec) {
@@ -2273,6 +2564,51 @@ this.sceneManager.ringMesh.material.opacity = 0;
     }
     this.ballInstancedMesh.instanceMatrix.needsUpdate = true;
   }
+}
+
+function updatePreparationStatus(stage, percent) {
+  const status = document.getElementById("game-preparation-status");
+  const stageElement = document.getElementById("preparation-stage");
+  const percentElement = document.getElementById("preparation-percent");
+  const progressFill = document.getElementById(
+    "preparation-progress-fill",
+  );
+
+  const safePercent = THREE.MathUtils.clamp(
+    Math.round(percent),
+    0,
+    100,
+  );
+
+  if (status) {
+    status.classList.add("visible");
+  }
+
+  if (stageElement) {
+    stageElement.textContent = stage;
+  }
+
+  if (percentElement) {
+    percentElement.textContent = `${safePercent}%`;
+  }
+
+  if (progressFill) {
+    progressFill.style.width = `${safePercent}%`;
+  }
+
+  const coreSubtext = document.querySelector(".core-subtext");
+
+  if (coreSubtext) {
+    coreSubtext.textContent = `${safePercent}%`;
+  }
+}
+
+function setPreparationMode(enabled) {
+  const loaderDoors = document.getElementById("loader-doors");
+
+  if (!loaderDoors) return;
+
+  loaderDoors.classList.toggle("is-preparing", enabled);
 }
 
 window.addEventListener("mousedown", (e) => {

@@ -68,19 +68,18 @@ export class LevelBuilder {
     this.targetRoom2CorridorGateOpenState = 0;
     this.room2CorridorGateActivated = false;
     this.room2CorridorGateIndicator = null;
-    this.room2CorridorGateSoundPlayed = false;
-    // Текстура декоративной панели двери комнаты №2.
+this.room2CorridorGateSoundPlayed = false;
+
+// Текстура декоративной панели двери комнаты №2.
 this.room2CorridorGatePanelTexture = null;
 
+// Загружаем панель двери заранее.
+this.getRoom2CorridorGatePanelTexture();
 
-    // Комнатные лифты: стартовые/финальные лифты,
-    // которые будут создаваться вместе с конкретной комнатой.
-    // Центральный старый лифт пока сюда НЕ переносим.
-    this.roomElevators = new Map();
+// Комнатные лифты.
+this.roomElevators = new Map();
 
-    // Куда складывать следующий создаваемый объект.
-    // Пока по умолчанию всё идёт в static, чтобы ничего не сломать.
-    this.buildTarget = "static";
+this.buildTarget = "static";
   }
 
   setBuildTarget(target) {
@@ -169,14 +168,10 @@ this.room2CorridorGatePanelTexture = null;
           ? child.material
           : [child.material];
 
-        materials.forEach((material) => {
-          if (!material) return;
-
-          // ВАЖНО:
-          // Текстуры пока не dispose-им, потому что они общие
-          // и используются разными комнатами/объектами.
-          material.dispose();
-        });
+materials.forEach((material) => {
+  if (!material) return;
+  material.dispose();
+});
       }
     });
   }
@@ -296,21 +291,16 @@ this.room2CorridorGatePanelTexture = null;
     const isVerticalWall = Math.abs(rot.x) < 0.01;
     const useTileTexture = color === 0xffffff && isVerticalWall;
 
-    const mat = new THREE.MeshStandardMaterial({
-      color: color,
-      map: useTileTexture ? tileTex : null,
-      normalMap: useTileTexture ? tileNormalTex : null,
-      roughnessMap: useTileTexture ? tileRoughTex : null,
-      side: THREE.DoubleSide,
-
-      roughness: useTileTexture ? 0.35 : 0.7,
-      metalness: 0.0,
-
-      // Убирает "мыльные кольца" / ступеньки на плавных градиентах освещения
-      dithering: true,
-    });
-
-    mat.needsUpdate = true;
+const mat = new THREE.MeshStandardMaterial({
+  color: color,
+  map: useTileTexture ? tileTex : null,
+  normalMap: useTileTexture ? tileNormalTex : null,
+  roughnessMap: useTileTexture ? tileRoughTex : null,
+  side: THREE.DoubleSide,
+  roughness: useTileTexture ? 0.35 : 0.7,
+  metalness: 0.0,
+  dithering: true,
+});
 
     const mesh = this.sceneManager.createWallMesh(width, height, pos, rot, mat);
     this.registerMesh(mesh);
@@ -337,18 +327,16 @@ this.room2CorridorGatePanelTexture = null;
     uvOffsetY = 0,
     color = 0xffffff,
   ) {
-    const mat = new THREE.MeshStandardMaterial({
-      color,
-      map: tileTex,
-      normalMap: tileNormalTex,
-      roughnessMap: tileRoughTex,
-      side: THREE.DoubleSide,
-      roughness: 0.35,
-      metalness: 0.0,
-      dithering: true,
-    });
-
-    mat.needsUpdate = true;
+const mat = new THREE.MeshStandardMaterial({
+  color,
+  map: tileTex,
+  normalMap: tileNormalTex,
+  roughnessMap: tileRoughTex,
+  side: THREE.DoubleSide,
+  roughness: 0.35,
+  metalness: 0.0,
+  dithering: true,
+});
 
     const mesh = this.sceneManager.createWallMesh(width, height, pos, rot, mat);
     mesh.userData.skipWallMaterialUpdate = true;
@@ -612,10 +600,6 @@ const greenMat = this.createPlasticBlockMaterial(
         0,
         1,
       );
-
-      if (intensity > 0.01) {
-        console.log("[BOX SLIDE]", intensity.toFixed(2), maxSlideSpeed.toFixed(2));
-      }
 
       audioManager.updateBoxSlide(intensity);
     }
@@ -1621,7 +1605,8 @@ gateRoot.add(doorPanel);
     // Маленький PointLight для мягкого свечения
     const pointLight = new THREE.PointLight(0xff3030, 0.7, 5.0);
     pointLight.position.set(0, 0, 0.35);
-    group.add(pointLight);
+    // Временно не добавляем свет в сцену для проверки шейдеров.
+// group.add(pointLight);
 
     this.registerMesh(group);
 

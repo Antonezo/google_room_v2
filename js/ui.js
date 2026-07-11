@@ -236,8 +236,13 @@ const updatePreparationStatus = (stage, percent) => {
           this.animTimers.enter2 = setTimeout(() => {
             if (audioManager?.fadeIn) audioManager.fadeIn(1.0);
 
-            el.doors.classList.add("loaded");
-            document.body.classList.remove("loading");
+         el.doors.classList.add("loaded");
+
+if (this.cb?.onStartGameplay) {
+  this.cb.onStartGameplay();
+}
+
+document.body.classList.remove("loading");
 
             if (document.body.classList.contains("lights-on")) {
               // Игрок вернулся через "Продолжить"
@@ -348,11 +353,15 @@ if (this.cb?.onReset) {
       // Даём центральному кругу плавно исчезнуть.
       await new Promise((resolve) => setTimeout(resolve, 700));
 
-      if (el.doors) {
-        el.doors.classList.add("loaded");
-      }
+     if (el.doors) {
+  el.doors.classList.add("loaded");
+}
 
-      document.body.classList.remove("loading");
+if (this.cb?.onStartGameplay) {
+  this.cb.onStartGameplay();
+}
+
+document.body.classList.remove("loading");
 
       if (audioManager?.fadeIn) {
         audioManager.fadeIn(1.0);
@@ -425,6 +434,9 @@ if (this.cb?.onReset) {
       // Останавливаем длинные игровые звуки при выходе в меню.
       if (audioManager?.stopOpenDoor) audioManager.stopOpenDoor();
       if (audioManager?.stopBoxSlide) audioManager.stopBoxSlide();
+      if (this.cb?.onBeginExitToMenu) {
+  this.cb.onBeginExitToMenu();
+}
 
       this.isMenuLocked = false;
       this.clearAnimTimers();
@@ -463,21 +475,25 @@ if (this.cb?.onReset) {
 
         el.centerHub.classList.add("hub-hidden");
 
-        this.animTimers.exit = setTimeout(() => {
-          el.centerHub.classList.remove("hub-hidden", "fade-in-volumetric");
+ this.animTimers.exit = setTimeout(() => {
+  if (this.cb?.onFinishExitToMenu) {
+    this.cb.onFinishExitToMenu();
+  }
 
-          // Фиксируем скрытое начальное состояние.
-          void el.centerHub.offsetWidth;
+  el.centerHub.classList.remove("hub-hidden", "fade-in-volumetric");
 
-          el.centerHub.classList.add("fade-in-volumetric");
+  // Фиксируем скрытое начальное состояние.
+  void el.centerHub.offsetWidth;
 
-          const removeFadeInClass = () => {
-            el.centerHub.classList.remove("fade-in-volumetric");
-            el.centerHub.removeEventListener("animationend", removeFadeInClass);
-          };
+  el.centerHub.classList.add("fade-in-volumetric");
 
-          el.centerHub.addEventListener("animationend", removeFadeInClass);
-        }, 1400);
+  const removeFadeInClass = () => {
+    el.centerHub.classList.remove("fade-in-volumetric");
+    el.centerHub.removeEventListener("animationend", removeFadeInClass);
+  };
+
+  el.centerHub.addEventListener("animationend", removeFadeInClass);
+}, 1400);
       }
 
       this.menuManager.showMenu();

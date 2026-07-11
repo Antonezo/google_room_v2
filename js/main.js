@@ -40,8 +40,16 @@ export class GoogleRoomApp {
     this.isIntroPlaying = false;
     this.isPaused = false;
     this.isResetting = false;
-    this.isPreparingGame = false;
-    this.hasPrewarmedRooms = false;
+   this.isPreparingGame = false;
+this.hasPrewarmedRooms = false;
+
+// Геймплей активен только когда игрок реально внутри игры.
+// В главном меню физика/триггеры не должны жить своей жизнью.
+this.isGameActive = false;
+
+// Короткий режим выхода в меню:
+// мир ещё 1–2 секунды физически доживает, но новые кат-сцены запрещены.
+this.isExitingToMenu = false;
     this.lastTime = performance.now();
     this.platformImpact = 0;
 this.lastRenderStatsTime = 0;
@@ -287,6 +295,18 @@ this.renderer.info.autoReset = false;
 
       onPrepareNewGame: (onProgress) =>
   this.prepareNewGame(onProgress),
+
+onBeginExitToMenu: () => {
+  this.beginExitToMenu();
+},
+
+onFinishExitToMenu: () => {
+  this.finishExitToMenu();
+},
+
+onStartGameplay: () => {
+  this.startGameplaySession();
+},
     });
 
     this.initSceneObjects();
@@ -700,6 +720,100 @@ hardResetTransitions() {
   }
 
   this.unlockGameplayCamera?.();
+}
+
+beginExitToMenu() {
+  // Начинаем мягкий выход: мир ещё виден за дверями,
+  // но новые лифтовые триггеры и кат-сцены уже запрещены.
+  this.isExitingToMenu = true;
+  this.isGameActive = true;
+
+  // Инвалидируем старые отложенные переходы.
+  this.transitionResetToken = (this.transitionResetToken || 0) + 1;
+
+  // Останавливаем опасные таймеры, которые могут позже открыть/закрыть двери.
+  if (this.roomExitCloseTimer) {
+    clearTimeout(this.roomExitCloseTimer);
+    this.roomExitCloseTimer = null;
+  }
+
+  if (this.introTimeout) {
+    clearTimeout(this.introTimeout);
+    this.introTimeout = null;
+  }
+
+  if (this.introImpactCheck) {
+    clearInterval(this.introImpactCheck);
+    this.introImpactCheck = null;
+  }
+
+  // Останавливаем старую лифтовую кат-сцену,
+  // но НЕ замораживаем физику мгновенно.
+  this.isElevatorSequenceActive = false;
+  this.elevatorPhase = "";
+  this.targetLevelId = null;
+  this.activeRoomExitElevatorId = null;
+  this.elevatorEntryDoor = null;
+  this.elevatorHoldPos = null;
+  this.roomExitHoldPos = null;
+  this.isExitDoorClosingPending = false;
+
+  if (this.playerController) {
+    this.playerController.isLocked = true;
+
+    // Не даём шару продолжать разгоняться от старого управления.
+    if (this.playerController.keys) {
+      for (const key in this.playerController.keys) {
+        this.playerController.keys[key] = false;
+      }
+    }
+  }
+
+  // Закрываем игровые лифтовые двери красиво, через updateDoors().
+  if (this.levelBuilder) {
+    this.levelBuilder.closeEntrance();
+    this.levelBuilder.closeExit();
+
+    if (this.levelBuilder.closeRoomElevator) {
+      this.levelBuilder.closeRoomElevator("room2_exit");
+    } else if (this.levelBuilder.closeRoom2Exit) {
+      this.levelBuilder.closeRoom2Exit();
+    }
+  }
+
+  if (audioManager?.stopOpenDoor) audioManager.stopOpenDoor();
+  if (audioManager?.stopBoxSlide) audioManager.stopBoxSlide();
+}
+
+finishExitToMenu() {
+  // Двери хаба уже закрылись. Теперь игровой мир действительно заморожен.
+  this.isExitingToMenu = false;
+  this.isGameActive = false;
+  this.isPaused = true;
+
+  if (this.playerController) {
+    this.playerController.isLocked = true;
+  }
+
+  // Обнуляем dt, чтобы после долгого меню физика не получила большой скачок.
+  this.lastTime = performance.now();
+}
+
+startGameplaySession() {
+  // Новая игра или продолжение реально начались.
+  this.isGameActive = true;
+  this.isExitingToMenu = false;
+  this.isPaused = false;
+
+  if (this.playerController) {
+    this.playerController.isLocked = false;
+  }
+
+  if (this.controls) {
+    this.controls.enabled = true;
+  }
+
+  this.lastTime = performance.now();
 }
 
   lockGameplayCamera() {
@@ -1635,6 +1749,18 @@ if (this.levelBuilder && rebuildRoom) {
     if (this.isPreparingGame) {
   return;
 }
+// Пока хаб-двери полностью закрыты и игрок в главном меню,
+// не считаем физику, инпут, лифты и триггеры.
+// Рендер оставляем, чтобы фон/сцена под меню отображались.
+if (!this.isGameActive && !this.isExitingToMenu) {
+  this.lastTime = currentTime;
+
+  this.renderer.info.reset();
+  this.composer.render();
+
+  return;
+}
+
     this.fpsFrameCount++;
 
     if (!this.isPaused) {
@@ -1750,12 +1876,15 @@ if (this.levelBuilder && rebuildRoom) {
       // только после того, как игрок выполнит задание (например, раскрасит все буквы).
       const isElevatorUnlocked = true;
 
-      if (
-        !this.isElevatorSequenceActive &&
-        this.levelBuilder &&
-        this.playerController &&
-        isElevatorUnlocked
-      ) {
+  if (
+  this.isGameActive &&
+  !this.isExitingToMenu &&
+  !this.isElevatorSequenceActive &&
+  this.levelBuilder &&
+  this.playerController &&
+  isElevatorUnlocked
+) {
+
         const pPos = this.playerController.body.position;
 
         const exitTrigger = this.getCurrentExitTrigger();
@@ -1837,7 +1966,12 @@ if (this.levelBuilder.openRoomElevator) {
       }
 
       // === 2. КАТ-СЦЕНА И АВТОПИЛОТ ===
-      if (this.isElevatorSequenceActive && this.levelBuilder) {
+    if (
+  this.isGameActive &&
+  !this.isExitingToMenu &&
+  this.isElevatorSequenceActive &&
+  this.levelBuilder
+) {
         const playerRef = this.playerController;
 
         // === ФИНАЛЬНЫЙ ЛИФТ УРОВНЯ 2 ===

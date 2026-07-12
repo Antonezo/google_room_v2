@@ -3,8 +3,6 @@ import { audioManager } from "./audio.js";
 import { translations } from "./i18n.js";
 import { MenuManager } from "./ui-menu.js";
 import { GameHudManager } from "./ui-hud.js";
-import { DialogueSystem } from "./ui-dialogue.js";
-import { CutsceneManager } from "./cutscene.js";
 
 export class UIManager {
   constructor(callbacks) {
@@ -15,15 +13,12 @@ export class UIManager {
     // Инициализируем помощников
     this.menuManager = new MenuManager(this);
     this.hudManager = new GameHudManager(this);
-    this.dialogueSystem = new DialogueSystem(this);
-    this.cutsceneManager = new CutsceneManager(this);
 
     // Централизованное хранилище таймеров
     this.animTimers = {
       enter1: null,
       enter2: null,
       exit: null,
-      scratch: null,
       corner1: null,
       corner2: null,
     };
@@ -32,7 +27,6 @@ export class UIManager {
     this.elements = {
       doors: document.getElementById("loader-doors"),
       centerHub: document.querySelector(".loader-center-hub"),
-      aicePortrait: document.querySelector(".aice-portrait-wrap"),
     };
 
     this.initGlobalBindings();
@@ -253,11 +247,6 @@ document.body.classList.remove("loading");
               }
               const userBadge = document.getElementById("hud-user-status");
               if (userBadge) userBadge.classList.remove("hidden");
-
-              this.animTimers.aice = setTimeout(() => {
-                const t = translations[this.currentLang];
-                this.dialogueSystem.showAiceDialogue(t.welcomeBack);
-              }, 1500);
             }
           }, 600);
         }, 500);
@@ -306,19 +295,8 @@ document.body.classList.remove("loading");
       }
 
 if (this.cb?.onReset) {
-  this.cb.onReset();
+  this.cb.onReset({ levelId: 1 });
 }
-
-      if (this.cb?.onRegistrationStart) {
-        this.cb.onRegistrationStart();
-      }
-
-      if (this.cb?.onRegistrationEnd) {
-        this.cb.onRegistrationEnd();
-        if (this.cb?.onEnableGameplayControls) {
-  this.cb.onEnableGameplayControls();
-}
-      }
 
       this.hudManager.resetWordInput();
 
@@ -394,19 +372,6 @@ document.body.classList.remove("loading");
       this.unlockFeature("feature-equipment");
       this.unlockFeature("feature-word");
       this.unlockFeature("feature-physics");
-
-      // Говорим инпутам и паузе, что регистрация пройдена
-      this.dialogueSystem.isRegistrationComplete = true;
-
-      // ЗАКОММЕНТИРОВАН СТАРЫЙ СЮЖЕТ:
-      /*
-      this.dialogueSystem.isRegistrationComplete = false;
-      this.dialogueSystem.runBiosSequence(() => {
-        setTimeout(() => {
-          this.dialogueSystem.startIntroDialogue();
-        }, 2500);
-      });
-      */
     };
 
     // Биндим кнопки меню, которые вызывают запуск игры
@@ -430,7 +395,15 @@ document.body.classList.remove("loading");
         if (audioManager?.playUI) audioManager.playUI("click");
       });
 
+let pendingMenuFrame = null;
     const returnToMainMenu = () => {
+      if (pendingMenuFrame) {
+  cancelAnimationFrame(pendingMenuFrame);
+  pendingMenuFrame = null;
+}
+       if (this.cb?.canReturnToMenu && !this.cb.canReturnToMenu()) {
+    return;
+  }
       // Останавливаем длинные игровые звуки при выходе в меню.
       if (audioManager?.stopOpenDoor) audioManager.stopOpenDoor();
       if (audioManager?.stopBoxSlide) audioManager.stopBoxSlide();
@@ -440,7 +413,6 @@ document.body.classList.remove("loading");
 
       this.isMenuLocked = false;
       this.clearAnimTimers();
-      this.dialogueSystem.clear();
 
       document.body.classList.add("loading");
 
@@ -448,24 +420,9 @@ document.body.classList.remove("loading");
         this.hudManager.elements.hudControls.classList.add("hud-hidden");
       }
 
-      const aicePanel = document.getElementById("aice-dialogue-container");
-      if (aicePanel) {
-        aicePanel.classList.add("hidden");
-        const portrait = aicePanel.querySelector(".aice-portrait-wrap");
-        const content = aicePanel.querySelector(".aice-dialogue-content");
-
-        if (portrait) portrait.style.opacity = "1";
-        if (content) content.style.opacity = "1";
-      }
-
       const userBadge = document.getElementById("hud-user-status");
       if (userBadge) userBadge.classList.add("hidden");
 
-      const regModal = document.getElementById("registration-modal");
-      if (regModal) {
-        regModal.style.opacity = "0";
-        regModal.classList.add("hidden");
-      }
 
       if (audioManager?.fadeOut) audioManager.fadeOut(1.4);
       if (el.doors) el.doors.classList.remove("loaded");
@@ -508,21 +465,51 @@ document.body.classList.remove("loading");
       if (btnStart) btnStart.classList.remove("pulse-glow-volumetric");
     };
 
-    if (btnInGameMenu) {
-      btnInGameMenu.addEventListener("click", () => {
-        returnToMainMenu();
-        if (document.fullscreenElement) document.exitFullscreen();
-      });
+const requestReturnToMainMenu = () => {
+  const canReturnNow =
+    !this.cb?.canReturnToMenu || this.cb.canReturnToMenu();
+
+  if (canReturnNow) {
+    returnToMainMenu();
+    return;
+  }
+
+  if (pendingMenuFrame) return;
+
+  const waitForElevator = () => {
+    const canReturnLater =
+      !this.cb?.canReturnToMenu || this.cb.canReturnToMenu();
+
+    if (canReturnLater) {
+      pendingMenuFrame = null;
+      returnToMainMenu();
+      return;
     }
 
-    document.addEventListener("fullscreenchange", () => {
-      if (
-        !document.fullscreenElement &&
-        el.doors?.classList.contains("loaded")
-      ) {
-        returnToMainMenu();
-      }
-    });
+    pendingMenuFrame = requestAnimationFrame(waitForElevator);
+  };
+
+  pendingMenuFrame = requestAnimationFrame(waitForElevator);
+};
+
+   if (btnInGameMenu) {
+  btnInGameMenu.addEventListener("click", () => {
+    requestReturnToMainMenu();
+
+    if (document.fullscreenElement) {
+      document.exitFullscreen();
+    }
+  });
+}
+
+  document.addEventListener("fullscreenchange", () => {
+  if (
+    !document.fullscreenElement &&
+    el.doors?.classList.contains("loaded")
+  ) {
+    requestReturnToMainMenu();
+  }
+});
   }
 
   // --- ОБНОВЛЕНИЕ ЯЗЫКА ---
@@ -591,31 +578,15 @@ document.body.classList.remove("loading");
 
   // --- ГЛОБАЛЬНЫЕ ГОРЯЧИЕ КЛАВИШИ ---
   initGlobalBindings() {
-    const ice = this.elements.aicePortrait;
-    if (ice) {
-      ice.addEventListener("mousedown", (e) => {
-        if (e.button !== 0) return;
-        e.stopPropagation();
-        ice.classList.add("is-smiling");
-        if (this.animTimers.scratch) clearTimeout(this.animTimers.scratch);
-        this.animTimers.scratch = setTimeout(() => {
-          ice.classList.remove("is-smiling");
-          this.animTimers.scratch = null;
-        }, 1000);
-      });
-      ice.addEventListener("click", (e) => e.stopPropagation());
-    }
 
     window.addEventListener("keydown", (e) => {
       if (document.activeElement.tagName === "INPUT") return;
       switch (e.code) {
-        case "KeyP":
-          e.preventDefault();
-          if (this.cb?.onTogglePause) this.cb.onTogglePause();
-          break;
-        case "KeyR":
-          if (this.cb?.onReset) this.cb.onReset();
-          break;
+     case "KeyR":
+  if (this.cb?.onRestartCurrentRoom) {
+    this.cb.onRestartCurrentRoom();
+  }
+  break;
         case "KeyH":
           document.body.classList.toggle("ui-hidden");
           this.hudManager.closePalette();

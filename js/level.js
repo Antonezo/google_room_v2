@@ -777,6 +777,164 @@ const greenMat = this.createPlasticBlockMaterial(
       ceilingMat,
     );
 
+    // === НЕВИДИМЫЕ ПЕРЕКРЫТИЯ ДЛЯ КАМЕРЫ НАД ДВЕРЯМИ ===
+//
+// Потолок кабины заканчивается раньше потолка комнаты.
+// Без этих мостиков камера может проскочить через верхнюю щель
+// между кабиной и дверной рамой и заглянуть в лифт снаружи.
+
+const cameraBlockerMaterial = new THREE.MeshBasicMaterial({
+  transparent: true,
+  opacity: 0,
+  depthWrite: false,
+  colorWrite: false,
+});
+
+const addCameraCeilingBridge = (name, centerZ, depth) => {
+  const blocker = new THREE.Mesh(
+    new THREE.BoxGeometry(
+      8.1,  // немного шире самой кабины и проёма
+      0.16, // толщина невидимого перекрытия
+      depth,
+    ),
+    cameraBlockerMaterial,
+  );
+
+  blocker.name = name;
+
+  blocker.position.set(
+    0,
+    this.floorY + elH - 0.08,
+    centerZ,
+  );
+
+  blocker.userData.skipWallMaterialUpdate = true;
+  blocker.userData.isCameraBlocker = true;
+
+  this.registerMesh(blocker);
+
+  if (
+    this.sceneManager &&
+    Array.isArray(this.sceneManager.walls)
+  ) {
+    this.sceneManager.walls.push({
+      mesh: blocker,
+      isElevatorCabinWall: true,
+      isCameraBlocker: true,
+      skipMaterialUpdate: true,
+    });
+  }
+
+  return blocker;
+};
+
+// Границы основной кабины:
+// задняя сторона: z = 8.75
+// передняя сторона: z = 13.75
+
+// Мостик между кабиной и стеной комнаты №1:
+// от z = 13.75 до z = 15.0
+this.elevatorEntranceCameraBridge = addCameraCeilingBridge(
+  "ElevatorEntranceCameraBridge",
+  (13.75 + 15.0) / 2,
+  15.0 - 13.75,
+);
+
+// Мостик между кабиной и стеной комнат №2/3:
+// от z = 7.5 до z = 8.75
+this.elevatorExitCameraBridge = addCameraCeilingBridge(
+  "ElevatorExitCameraBridge",
+  (7.5 + 8.75) / 2,
+  8.75 - 7.5,
+);
+
+// === НЕВИДИМЫЕ БОКОВЫЕ ПЕРЕКРЫТИЯ ДЛЯ КАМЕРЫ ===
+//
+// Боковые стены кабины заканчиваются на z = 8.75 и z = 13.75.
+// До стен комнат остаются короткие участки по 1.25 единицы.
+// Через эти щели камера могла обойти край кабины сбоку.
+
+const addCameraSideBridge = (name, x, centerZ, depth) => {
+  const blocker = new THREE.Mesh(
+    new THREE.BoxGeometry(
+      0.24,       // толщина по X
+      elH + 0.2,  // немного выше полной высоты кабины
+      depth,      // длина участка между кабиной и комнатой
+    ),
+    cameraBlockerMaterial,
+  );
+
+  blocker.name = name;
+
+  blocker.position.set(
+    x,
+    elCenterY,
+    centerZ,
+  );
+
+  blocker.userData.skipWallMaterialUpdate = true;
+  blocker.userData.isCameraBlocker = true;
+
+  this.registerMesh(blocker);
+
+  if (
+    this.sceneManager &&
+    Array.isArray(this.sceneManager.walls)
+  ) {
+    this.sceneManager.walls.push({
+      mesh: blocker,
+      isElevatorCabinWall: true,
+      isCameraBlocker: true,
+      skipMaterialUpdate: true,
+    });
+  }
+
+  return blocker;
+};
+
+const cabinLeftX = -elW / 2;
+const cabinRightX = elW / 2;
+
+// Со стороны комнаты №1:
+// кабина заканчивается на z = 13.75,
+// а стена комнаты находится на z = 15.
+const entranceBridgeCenterZ = (13.75 + 15.0) / 2;
+const entranceBridgeDepth = 15.0 - 13.75;
+
+this.elevatorEntranceLeftCameraBridge = addCameraSideBridge(
+  "ElevatorEntranceLeftCameraBridge",
+  cabinLeftX,
+  entranceBridgeCenterZ,
+  entranceBridgeDepth,
+);
+
+this.elevatorEntranceRightCameraBridge = addCameraSideBridge(
+  "ElevatorEntranceRightCameraBridge",
+  cabinRightX,
+  entranceBridgeCenterZ,
+  entranceBridgeDepth,
+);
+
+// Со стороны комнат №2/3:
+// стена комнаты находится на z = 7.5,
+// а кабина начинается на z = 8.75.
+const exitBridgeCenterZ = (7.5 + 8.75) / 2;
+const exitBridgeDepth = 8.75 - 7.5;
+
+this.elevatorExitLeftCameraBridge = addCameraSideBridge(
+  "ElevatorExitLeftCameraBridge",
+  cabinLeftX,
+  exitBridgeCenterZ,
+  exitBridgeDepth,
+);
+
+this.elevatorExitRightCameraBridge = addCameraSideBridge(
+  "ElevatorExitRightCameraBridge",
+  cabinRightX,
+  exitBridgeCenterZ,
+  exitBridgeDepth,
+);
+
     // Левая стенка
     createPanel(
       new THREE.PlaneGeometry(elD, elH),
@@ -3556,27 +3714,65 @@ this.addTiledWall(
     this.addBody(cylApproxBody);
   }
 
-  buildElevatorPhysics() {
-    this.setBuildTarget("elevator");
+buildElevatorPhysics() {
+  this.setBuildTarget("elevator");
 
-    // === ФИЗИКА ЛИФТА / СОЕДИНИТЕЛЬНОГО МОСТИКА ===
+  // Размеры должны совпадать с buildElevatorCabinVisual().
+  const elW = 7.5;
+  const elD = 5.0;
+  const elH = 10.0;
 
-    // Пол лифта
-    const floorElevBody = new CANNON.Body({
-      mass: 0,
-      material: this.matStandard,
-    });
-    floorElevBody.addShape(new CANNON.Box(new CANNON.Vec3(3.75, 10, 3.75)));
-    floorElevBody.position.set(0, this.floorY - 10, 11.25);
-    this.addBody(floorElevBody);
+  const elZ = 11.25;
+  const elCenterY = this.floorY + elH / 2;
 
-    // Внутренние стенки шахты лифта
-    const elCenterY = this.floorY + 5;
+  const wallThickness = 0.1;
+  const floorThickness = 0.1;
+  const ceilingThickness = 0.1;
 
-    this.createPhysicsWall(-4.75, elCenterY, 11.25, 0.1, 5, 3.75); // Левая
-    this.createPhysicsWall(4.75, elCenterY, 11.25, 0.1, 5, 3.75); // Правая
-    this.createPhysicsWall(0, this.floorY + 11, 11.25, 3.75, 1, 3.75); // Потолок шахты
-  }
+  // === ПОЛ КАБИНЫ ===
+  this.createPhysicsWall(
+    0,
+    this.floorY - floorThickness,
+    elZ,
+    elW / 2,
+    floorThickness,
+    elD / 2,
+    this.matStandard,
+  );
+
+  // === ЛЕВАЯ СТЕНА ===
+  this.createPhysicsWall(
+    -elW / 2,
+    elCenterY,
+    elZ,
+    wallThickness,
+    elH / 2,
+    elD / 2,
+    this.matSlippery,
+  );
+
+  // === ПРАВАЯ СТЕНА ===
+  this.createPhysicsWall(
+    elW / 2,
+    elCenterY,
+    elZ,
+    wallThickness,
+    elH / 2,
+    elD / 2,
+    this.matSlippery,
+  );
+
+  // === ПОТОЛОК КАБИНЫ ===
+  this.createPhysicsWall(
+    0,
+    this.floorY + elH + ceilingThickness,
+    elZ,
+    elW / 2,
+    ceilingThickness,
+    elD / 2,
+    this.matStandard,
+  );
+}
 
   buildElevatorDoors() {
     const doorW = 3.8;
@@ -3859,7 +4055,41 @@ this.addTiledWall(
         skipMaterialUpdate: true,
       });
     }
+// === ФИЗИКА ГЛУХИХ СТЕНОК КАБИНЫ ===
+// В каждый момент активна только одна из них.
+// Вторая отключается через collisionFilterMask в setElevatorMode().
 
+const createSolidWallBody = (z) => {
+  const body = new CANNON.Body({
+    mass: 0,
+    type: CANNON.Body.STATIC,
+    material: this.matSlippery,
+
+    collisionFilterGroup: CONFIG.PHYSICS.GROUPS.SCENE,
+    collisionFilterMask:
+      CONFIG.PHYSICS.GROUPS.OBJECTS |
+      CONFIG.PHYSICS.GROUPS.TINY,
+  });
+
+  body.addShape(
+    new CANNON.Box(
+      new CANNON.Vec3(
+        7.5 / 2,  // половина ширины
+        10.0 / 2, // половина высоты
+        0.1,      // половина толщины
+      ),
+    ),
+  );
+
+  body.position.set(0, doorY, z);
+
+  this.addBody(body);
+
+  return body;
+};
+
+this.entranceSolidWallBody = createSolidWallBody(cabinFrontZ);
+this.exitSolidWallBody = createSolidWallBody(cabinBackZ);
     this.entranceOpenState = 0.0;
     this.targetEntranceOpenState = 0.0;
     this.exitOpenState = 0.0;
@@ -3868,31 +4098,67 @@ this.addTiledWall(
     this.setElevatorMode("entering");
   }
 
-  setElevatorMode(mode) {
-    if (mode === "entering") {
-      // Игрок заходит: Входные двери и их рама видны. Передняя стена — белая и чистая.
-      this.entranceLeft.mesh.visible = true;
-      this.entranceRight.mesh.visible = true;
-      this.entranceFrame.visible = true; // Включаем раму входа
-      this.entranceSolidWall.visible = false;
+ setElevatorMode(mode) {
+  const activeCollisionMask =
+    CONFIG.PHYSICS.GROUPS.OBJECTS |
+    CONFIG.PHYSICS.GROUPS.TINY;
 
-      this.exitLeft.mesh.visible = false;
-      this.exitRight.mesh.visible = false;
-      this.exitFrame.visible = false; // Выключаем раму выхода!
-      this.exitSolidWall.visible = true;
-    } else if (mode === "exiting") {
-      // Игрок выезжает: Задняя стена — белая и чистая. Выходные двери и их рама видны.
-      this.entranceLeft.mesh.visible = false;
-      this.entranceRight.mesh.visible = false;
-      this.entranceFrame.visible = false; // Выключаем раму входа!
-      this.entranceSolidWall.visible = true;
+  if (mode === "entering") {
+    // Игрок заходит со стороны комнаты 1.
+    // Входная сторона открывается дверями,
+    // противоположная сторона является глухой стеной.
 
-      this.exitLeft.mesh.visible = true;
-      this.exitRight.mesh.visible = true;
-      this.exitFrame.visible = true; // Включаем раму выхода
-      this.exitSolidWall.visible = false;
+    this.entranceLeft.mesh.visible = true;
+    this.entranceRight.mesh.visible = true;
+    this.entranceFrame.visible = true;
+    this.entranceSolidWall.visible = false;
+
+    this.exitLeft.mesh.visible = false;
+    this.exitRight.mesh.visible = false;
+    this.exitFrame.visible = false;
+    this.exitSolidWall.visible = true;
+
+    // Передняя глухая стенка выключена.
+    if (this.entranceSolidWallBody) {
+      this.entranceSolidWallBody.collisionFilterMask = 0;
+      this.entranceSolidWallBody.collisionResponse = false;
+    }
+
+    // Задняя глухая стенка включена.
+    if (this.exitSolidWallBody) {
+      this.exitSolidWallBody.collisionFilterMask = activeCollisionMask;
+      this.exitSolidWallBody.collisionResponse = true;
+      this.exitSolidWallBody.aabbNeedsUpdate = true;
+    }
+  } else if (mode === "exiting") {
+    // Игрок выходит в новую комнату.
+    // Теперь входная сторона становится глухой стеной,
+    // а выходная сторона открывается дверями.
+
+    this.entranceLeft.mesh.visible = false;
+    this.entranceRight.mesh.visible = false;
+    this.entranceFrame.visible = false;
+    this.entranceSolidWall.visible = true;
+
+    this.exitLeft.mesh.visible = true;
+    this.exitRight.mesh.visible = true;
+    this.exitFrame.visible = true;
+    this.exitSolidWall.visible = false;
+
+    // Передняя глухая стенка включена.
+    if (this.entranceSolidWallBody) {
+      this.entranceSolidWallBody.collisionFilterMask = activeCollisionMask;
+      this.entranceSolidWallBody.collisionResponse = true;
+      this.entranceSolidWallBody.aabbNeedsUpdate = true;
+    }
+
+    // Задняя глухая стенка выключена.
+    if (this.exitSolidWallBody) {
+      this.exitSolidWallBody.collisionFilterMask = 0;
+      this.exitSolidWallBody.collisionResponse = false;
     }
   }
+}
 
   buildElevatorLight() {
     const elZ = 11.25;

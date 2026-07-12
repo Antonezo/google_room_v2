@@ -823,3 +823,6 @@ body.loading #holo-wrapper {
     opacity: 0.5;
   }
 }
+body.hide-sandbox-ui #holo-wrapper {
+  display: none;
+}

@@ -210,7 +210,9 @@ export class GoogleRoomApp {
       canReturnToMenu: () => {
         return !this.isElevatorSequenceActive && !this.isExitingToMenu;
       },
-
+      hasActiveSession: () => {
+        return this.hasStartedGame;
+      },
       onEnableGameplayControls: () => {
         if (this.controls) {
           this.controls.enabled = true;
@@ -321,7 +323,7 @@ export class GoogleRoomApp {
     this.inputManager = new InputManager(
       this.camera,
       this.world,
-      () => () => this.isPaused || !this.isGameActive,
+      () => this.isPaused || !this.isGameActive,
       () => store.get().currentTool,
       () => {
         const meshes = [
@@ -774,6 +776,7 @@ export class GoogleRoomApp {
   }
 
   startGameplaySession() {
+    this.hasStartedGame = true;
     // Новая игра или продолжение реально начались.
     this.isGameActive = true;
     this.isExitingToMenu = false;

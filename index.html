@@ -10,23 +10,20 @@
       href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Cdefs%3E%3CradialGradient id='blueGrad' cx='30%25' cy='30%25' r='70%25'%3E%3Cstop offset='0%25' stop-color='%23fff'/%3E%3Cstop offset='100%25' stop-color='%234285F4'/%3E%3C/radialGradient%3E%3CradialGradient id='redGrad' cx='30%25' cy='30%25' r='70%25'%3E%3Cstop offset='0%25' stop-color='%23fff'/%3E%3Cstop offset='100%25' stop-color='%23EA4335'/%3E%3C/radialGradient%3E%3CradialGradient id='yellowGrad' cx='30%25' cy='30%25' r='70%25'%3E%3Cstop offset='0%25' stop-color='%23fff'/%3E%3Cstop offset='100%25' stop-color='%23FBBC05'/%3E%3C/radialGradient%3E%3C/defs%3E%3Ccircle cx='50' cy='45' r='40' fill='url(%23blueGrad)'/%3E%3Ccircle cx='72' cy='68' r='26' fill='url(%23redGrad)'/%3E%3Ccircle cx='38' cy='72' r='20' fill='url(%23yellowGrad)'/%3E%3C/svg%3E"
       type="image/svg+xml"
     />
-    
+
     <link rel="stylesheet" href="css/variables.css" />
     <link rel="stylesheet" href="css/core.css" />
     <link rel="stylesheet" href="css/loader-menu.css" />
     <link rel="stylesheet" href="css/hud.css" />
-    <link rel="stylesheet" href="css/dialogue-aice.css" />
 
     <link
       href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700&display=swap"
       rel="stylesheet"
     />
   </head>
-  <body class="loading">
-    
+  <body class="loading hide-sandbox-ui">
     <div id="game-monitor">
       <div id="canvas-container"></div>
-     
     </div>
     <div id="loader-doors">
       <div class="loader-background-arcs">
@@ -48,31 +45,34 @@
             </button>
 
             <div
-  id="game-preparation-status"
-  class="game-preparation-status"
-  aria-live="polite"
->
-  <div class="preparation-header">
-    <span class="preparation-title">ПОДГОТОВКА СИСТЕМЫ</span>
-    <span id="preparation-percent" class="preparation-percent">0%</span>
-  </div>
-
-  <div class="preparation-progress-track">
-    <div
-      id="preparation-progress-fill"
-      class="preparation-progress-fill"
-    ></div>
-  </div>
-
-  <div id="preparation-stage" class="preparation-stage">
-    Ожидание запуска…
-  </div>
-</div>
-
-            <button
-              id="btn-resume-game"
-              class="sk-btn resume-highlight locked-feature"
+              id="game-preparation-status"
+              class="game-preparation-status"
+              aria-live="polite"
             >
+              <div class="preparation-header">
+                <span class="preparation-title">ПОДГОТОВКА СИСТЕМЫ</span>
+                <span id="preparation-percent" class="preparation-percent"
+                  >0%</span
+                >
+              </div>
+
+              <div class="preparation-progress-track">
+                <div
+                  id="preparation-progress-fill"
+                  class="preparation-progress-fill"
+                ></div>
+              </div>
+
+              <div id="preparation-stage" class="preparation-stage">
+                Ожидание запуска…
+              </div>
+            </div>
+
+           <button
+  id="btn-resume-game"
+  class="sk-btn resume-highlight locked-feature"
+  style="display: none"
+>
               <span class="btn-text">ПРОДОЛЖИТЬ</span>
               <span class="btn-dec">&gt;&gt;</span>
               <div class="resume-energy-field"></div>
@@ -100,7 +100,14 @@
                   <span class="btn-text">ГРОМКОСТЬ ЭФФЕКТОВ</span>
                   <span class="slider-value" id="val-sfx">70%</span>
                 </div>
-                <input type="range" id="slider-sfx" class="cyber-slider" min="0" max="100" value="70">
+                <input
+                  type="range"
+                  id="slider-sfx"
+                  class="cyber-slider"
+                  min="0"
+                  max="100"
+                  value="70"
+                />
               </div>
 
               <div class="slider-group">
@@ -108,7 +115,14 @@
                   <span class="btn-text">ГРОМКОСТЬ МУЗЫКИ</span>
                   <span class="slider-value" id="val-music">40%</span>
                 </div>
-                <input type="range" id="slider-music" class="cyber-slider" min="0" max="100" value="40">
+                <input
+                  type="range"
+                  id="slider-music"
+                  class="cyber-slider"
+                  min="0"
+                  max="100"
+                  value="40"
+                />
               </div>
 
               <div id="btn-toggle-lang" class="lang-group slider-group">
@@ -130,9 +144,9 @@
         </div>
       </div>
 
-      <div class="door right-door">
-        <img src="Image/mascot.png" class="menu-robot-image" alt="Айс" />
 
+
+      <div class="door right-door">
         <div class="hex-pattern"></div>
         <div class="pcb-texture"></div>
         <div class="door-joint"></div>
@@ -174,8 +188,7 @@
       <button id="btn-in-game-menu" class="hud-top-btn">
         <span class="btn-text">МЕНЮ</span>
       </button>
-    -->
-    </div>
+    --></div>
 
     <div id="holo-wrapper" class="locked-feature">
       <div id="terminal-handle"><div id="handle-icon">SYSTEM</div></div>
@@ -360,39 +373,6 @@
       </div>
     </div>
 
- <div id="aice-dialogue-container" class="hidden">
-      <div class="aice-portrait-wrap">
-        <img
-          src="Image/robot-1.png"
-          alt="A.I.C.E."
-          id="aice-base"
-          class="aice-layer base-layer"
-        />
-        <img src="Image/eyes.png" alt="Eyes" class="aice-layer eyes-layer" />
-        <img
-          src="Image/light.png"
-          alt="Light"
-          class="aice-layer beacon-layer"
-        />
-        <img
-          src="Image/smile.png"
-          alt="Smile"
-          class="aice-layer smile-layer"
-        />
-      </div>
-
-      <div class="aice-dialogue-content">
-        <div class="aice-nameplate">
-          <span class="name-text">АЙС</span>
-        </div>
-        <div id="aice-dialogue-text" class="aice-dialogue-text"></div>
-
-        <div id="bios-continue" class="bios-continue-prompt hidden">
-          <span>[ ПРОДОЛЖИТЬ >> ]</span>
-        </div>
-      </div>
-    </div>
-
     <script type="importmap">
       {
         "imports": {
@@ -414,83 +394,6 @@
           <button id="btn-confirm-no" class="holo-btn">
             <span class="btn-text">CANCEL</span>
           </button>
-        </div>
-      </div>
-    </div>
-    <div
-      id="registration-modal"
-      class="modal-overlay hidden"
-      style="opacity: 0; transition: opacity 0.3s"
-    >
-      <div class="cyber-modal holo-glass-panel">
-        <div class="registration-layout">
-          <div class="aice-portrait-wrap center-aice">
-            <!--
-<img
-  src="Image/tablet-2.png"
-  alt="AICE Base"
-  class="aice-layer base-layer"
-/>
-
-<img
-  src="Image/blinks-eyes-tablet-2.png"
-  alt="Eyes"
-  class="aice-layer tablet-eyes-layer"
-/>
-
-<img
-  src="Image/light-tablet-2.png"
-  alt="Light"
-  class="aice-layer beacon-layer"
-/>
--->
-          </div>
-
-          <div class="registration-form">
-            <div class="section-title">ТЕРМИНАЛ РЕГИСТРАЦИИ</div>
-            <div
-              id="reg-dialogue-text"
-              class="aice-dialogue-text"
-              style="min-height: 80px"
-            ></div>
-
-            <div class="input-group hidden" id="reg-input-group">
-              <input
-                type="text"
-                id="player-name-input"
-                class="cyber-input"
-                placeholder="ВВЕДИТЕ ИМЯ..."
-                maxlength="12"
-                autocomplete="off"
-                spellcheck="false"
-              />
-              <button id="btn-submit-name" class="holo-btn active-state">
-                ВВОД
-              </button>
-            </div>
-
-            <div class="choice-group hidden" id="reg-choice-group">
-              <button id="btn-what-now" class="holo-btn">
-                И что нам делать?
-              </button>
-              <button id="btn-accept-friend" class="holo-btn">
-                ЛАДНО, БУДУ ДРУГОМ
-              </button>
-              <button id="btn-reject-friend" class="holo-btn">
-                ОСТАВИТЬ МОЁ ИМЯ
-              </button>
-            </div>
-
-            <div class="choice-group hidden" id="reg-final-group">
-              <button
-                id="btn-final-confirm"
-                class="holo-btn active-state"
-                style="width: 100%"
-              >
-                СПАСИБО
-              </button>
-            </div>
-          </div>
         </div>
       </div>
     </div>

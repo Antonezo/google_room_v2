@@ -382,6 +382,17 @@ document.body.classList.remove("loading");
     const confirmModal = document.getElementById("confirm-modal");
     const btnInGameMenu = document.getElementById("btn-in-game-menu");
 
+ const updateSessionButtons = () => {
+  const hasSession = this.cb?.hasActiveSession?.() === true;
+
+  if (btnResume) {
+    btnResume.style.display = hasSession ? "flex" : "none";
+  }
+};
+
+// При первом открытии страницы активной сессии ещё нет.
+updateSessionButtons();
+
     if (btnStart) btnStart.addEventListener("click", executeNewGame);
     if (btnResume) btnResume.addEventListener("click", enterGame);
     if (btnConfirmYes)
@@ -454,14 +465,7 @@ let pendingMenuFrame = null;
       }
 
       this.menuManager.showMenu();
-
-      if (btnResume) {
-        if (this.dialogueSystem.isRegistrationComplete) {
-          btnResume.style.display = "flex";
-        } else {
-          btnResume.style.display = "none";
-        }
-      }
+      updateSessionButtons();
       if (btnStart) btnStart.classList.remove("pulse-glow-volumetric");
     };
 
@@ -555,25 +559,11 @@ const requestReturnToMainMenu = () => {
     updateText("btn-final-confirm", t.btnFinalConfirm);
     updateText("bios-continue", t.biosContinue);
 
-    const nameplate = document.querySelector(".aice-nameplate .name-text");
-    if (nameplate) nameplate.textContent = lang === "RU" ? "АЙС" : "AICE";
 
     const regTitle = document.querySelector(
       ".registration-form .section-title",
     );
     if (regTitle) regTitle.textContent = t.regTerminalTitle;
-
-    const nameInput = document.getElementById("player-name-input");
-    if (nameInput) {
-      nameInput.placeholder = t.regPlaceholder;
-      if (
-        nameInput.disabled &&
-        (nameInput.value === translations.EN.regSuccess ||
-          nameInput.value === translations.RU.regSuccess)
-      ) {
-        nameInput.value = t.regSuccess;
-      }
-    }
   }
 
   // --- ГЛОБАЛЬНЫЕ ГОРЯЧИЕ КЛАВИШИ ---

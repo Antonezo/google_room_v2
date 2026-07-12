@@ -27,7 +27,6 @@ export class GameHudManager {
       btnPaint: document.getElementById("btn-paint-main"),
       toolHint: document.getElementById("tool-hint"),
       btnRestart: document.getElementById("btn-restart-level"),
-      terminalHandle: document.getElementById("terminal-handle"),
     };
 
 // НОВЫЙ БЛОК: Скрываем плашку, если дебаг выключен
@@ -180,18 +179,6 @@ export class GameHudManager {
         this.closePalette();
       }
     });
-
-    // 3. Выдвижная панель
-    if (this.elements.terminalHandle && this.elements.holoWrapper) {
-      this.elements.terminalHandle.addEventListener("click", () => {
-        this.elements.holoWrapper.classList.toggle("open");
-        if (!this.elements.holoWrapper.classList.contains("open"))
-          this.closePalette();
-      });
-      this.elements.holoWrapper.addEventListener("mouseleave", () =>
-        this.closePalette(),
-      );
-    }
 
     // 4. Ввод слова
     if (this.elements.wordInput) {

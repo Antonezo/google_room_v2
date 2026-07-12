@@ -39,6 +39,24 @@
 
         <div id="futuristic-start-menu" class="futuristic-start-menu">
           <div id="view-main" class="menu-view active">
+            <button
+              id="btn-resume-game"
+              class="sk-btn resume-highlight-cyan"
+              style="display: none"
+            >
+              <span class="btn-text">ПРОДОЛЖИТЬ</span>
+              <span class="btn-dec">&gt;&gt;</span>
+              <div class="resume-energy-field"></div>
+            </button>
+
+            <button
+              id="btn-restart-sector"
+              class="sk-btn"
+              style="display: none"
+            >
+              <span class="btn-text">ПЕРЕЗАПУСТИТЬ СЕКТОР</span>
+            </button>
+
             <button id="btn-start-game" class="sk-btn pulse-glow-volumetric">
               <span class="btn-text">НОВАЯ ИГРА</span>
               <span class="btn-dec">&gt;&gt;</span>
@@ -68,15 +86,17 @@
               </div>
             </div>
 
-           <button
-  id="btn-resume-game"
-  class="sk-btn resume-highlight locked-feature"
+            <button id="btn-open-sectors" class="sk-btn">
+              <span class="btn-text">СЕКТОРЫ</span>
+            </button>
+
+<button
+  id="btn-return-title"
+  class="sk-btn"
   style="display: none"
 >
-              <span class="btn-text">ПРОДОЛЖИТЬ</span>
-              <span class="btn-dec">&gt;&gt;</span>
-              <div class="resume-energy-field"></div>
-            </button>
+  <span class="btn-text">ГЛАВНОЕ МЕНЮ</span>
+</button>
 
             <button id="btn-open-settings" class="sk-btn">
               <span class="btn-text">НАСТРОЙКИ</span>
@@ -87,6 +107,56 @@
               <span class="exit-joke">просто закрой вкладку :)</span>
             </button>
           </div>
+
+<div id="view-sectors" class="menu-view">
+  <button id="btn-back-sectors" class="holo-back-tab">
+    <span class="btn-dec">&lt;&lt;</span>
+    <span class="btn-text">ГЛАВНОЕ МЕНЮ</span>
+  </button>
+
+  <div class="sectors-list">
+    <button
+      class="sector-card"
+      data-sector-id="1"
+      type="button"
+    >
+      <span class="sector-number">01</span>
+
+      <span class="sector-info">
+        <span class="sector-title">СЕКТОР 1</span>
+        <span class="sector-status">ДОСТУПЕН</span>
+      </span>
+    </button>
+
+    <button
+      class="sector-card"
+      data-sector-id="2"
+      type="button"
+      hidden
+    >
+      <span class="sector-number">02</span>
+
+      <span class="sector-info">
+        <span class="sector-title">СЕКТОР 2</span>
+        <span class="sector-status">ДОСТУПЕН</span>
+      </span>
+    </button>
+
+    <button
+      class="sector-card"
+      data-sector-id="3"
+      type="button"
+      hidden
+    >
+      <span class="sector-number">03</span>
+
+      <span class="sector-info">
+        <span class="sector-title">СЕКТОР 3</span>
+        <span class="sector-status">ДОСТУПЕН</span>
+      </span>
+    </button>
+  </div>
+</div>
 
           <div id="view-settings" class="menu-view">
             <button id="btn-back-main" class="holo-back-tab">
@@ -143,8 +213,6 @@
           </div>
         </div>
       </div>
-
-
 
       <div class="door right-door">
         <div class="hex-pattern"></div>
@@ -382,6 +450,26 @@
         }
       }
     </script>
+    <script>
+  (() => {
+    try {
+      const rawSave = localStorage.getItem("google-room-save-v1");
+
+      if (!rawSave) return;
+
+      const savedProgress = JSON.parse(rawSave);
+      const resumeButton = document.getElementById("btn-resume-game");
+
+      if (savedProgress?.hasSave === true && resumeButton) {
+        resumeButton.style.display = "flex";
+      }
+    } catch (error) {
+      console.warn("[SAVE BOOTSTRAP] Не удалось проверить сохранение:", error);
+    }
+  })();
+</script>
+
+<script type="module" src="js/main.js"></script>
     <script type="module" src="js/main.js"></script>
 
     <div id="confirm-modal" class="modal-overlay hidden">

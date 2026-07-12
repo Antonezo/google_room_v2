@@ -15,6 +15,7 @@ import { PlayerController } from "./player.js";
 import { CameraController } from "./camera.js";
 import { InteractiveBox } from "./entities.js";
 import { WordManager } from "./word_manager.js";
+const SAVE_KEY = "google-room-save-v1";
 
 RectAreaLightUniformsLib.init();
 
@@ -112,6 +113,8 @@ export class GoogleRoomApp {
         nextLevelId: null,
       },
     };
+
+    this.savedProgress = this.loadSavedProgress();
 
     this.currentLevelId = 1;
     this.targetLevelId = null;
@@ -213,6 +216,43 @@ export class GoogleRoomApp {
       hasActiveSession: () => {
         return this.hasStartedGame;
       },
+  hasSavedProgress: () => {
+  return this.savedProgress?.hasSave === true;
+},
+
+getSavedSector: () => {
+  return this.savedProgress?.currentSector ?? 1;
+},
+
+onDeleteSavedProgress: () => {
+  this.deleteSavedProgress();
+},
+
+onReturnToTitle: () => {
+  // Сохраняем достигнутый сектор, но не положение предметов.
+  this.saveProgress(this.currentLevelId);
+
+  // Живая игровая сессия закончена.
+  // При следующем "Продолжить" сектор будет построен заново.
+  this.hasStartedGame = false;
+  this.isGameActive = false;
+  this.isPaused = true;
+  this.isExitingToMenu = false;
+
+  this.lastTime = performance.now();
+},
+
+getHighestUnlockedSector: () => {
+  return this.savedProgress?.highestUnlockedSector ?? 1;
+},
+
+getCurrentSector: () => {
+  if (this.hasStartedGame) {
+    return this.currentLevelId;
+  }
+
+  return this.savedProgress?.currentSector ?? 1;
+},
       onEnableGameplayControls: () => {
         if (this.controls) {
           this.controls.enabled = true;
@@ -413,29 +453,33 @@ export class GoogleRoomApp {
     // =========================================
 
     // Логика захвата курсора
-    document.addEventListener("click", (e) => {
-      const btnStart = e.target.closest("#btn-start-game");
-      const btnResume = e.target.closest("#btn-resume-game");
+document.addEventListener("click", (e) => {
+  const btnStart = e.target.closest("#btn-start-game");
+  const btnResume = e.target.closest("#btn-resume-game");
+  const btnConfirmYes = e.target.closest("#btn-confirm-yes");
 
-      // 1. Если кликнули по кнопкам "Новая игра" или "Продолжить"
-      if (btnStart || btnResume) {
-        // Если это Новая игра - сбрасываем сцену и запоминаем, что сессия начата
-        if (btnStart) {
-          // Сам сброс теперь выполняется в executeNewGame()
-          // после завершения подготовки.
-          this.hasStartedGame = true;
+  // Pointer Lock включаем:
+  // 1. при "Продолжить";
+  // 2. при подтверждении новой игры;
+  // 3. при первой новой игре, когда сохранения ещё нет.
+  const shouldLockForGameStart =
+    btnResume ||
+    btnConfirmYes ||
+    (btnStart && !this.savedProgress?.hasSave);
 
-          // Стартовое падение шара больше не запускаем.
-          // this.start3DIntro();
-        }
+  if (shouldLockForGameStart) {
+    if (!this.isElevatorSequenceActive && !this.controls.isLocked) {
+      this.controls.lock();
+    }
 
-        // Захватываем мышь (возвращаемся в игру),
-        // но не во время лифтовой кат-сцены.
-        if (!this.isElevatorSequenceActive && !this.controls.isLocked) {
-          this.controls.lock();
-        }
-        return;
-      }
+    return;
+  }
+
+  // При наличии сохранения первый клик по "Новая игра"
+  // только открывает окно подтверждения.
+  if (btnStart) {
+    return;
+  }
 
       // 2. Если кликаем по остальному меню, настройкам или HUD — игнорируем захват
       if (
@@ -531,6 +575,94 @@ export class GoogleRoomApp {
 
     requestAnimationFrame(this.tick); // <--- ВОТ ЭТО МЫ ПОТЕРЯЛИ
   }
+
+loadSavedProgress() {
+  try {
+    const rawSave = localStorage.getItem(SAVE_KEY);
+
+    if (!rawSave) {
+      return {
+        hasSave: false,
+        currentSector: 1,
+        highestUnlockedSector: 1,
+      };
+    }
+
+    const parsedSave = JSON.parse(rawSave);
+
+    const currentSector = Number(parsedSave.currentSector);
+    const highestUnlockedSector = Number(
+      parsedSave.highestUnlockedSector,
+    );
+
+    const safeCurrentSector =
+      Number.isInteger(currentSector) && this.levelConfigs[currentSector]
+        ? currentSector
+        : 1;
+
+    const safeHighestUnlockedSector =
+      Number.isInteger(highestUnlockedSector) &&
+      highestUnlockedSector >= safeCurrentSector
+        ? highestUnlockedSector
+        : safeCurrentSector;
+
+    return {
+      hasSave: true,
+      currentSector: safeCurrentSector,
+      highestUnlockedSector: safeHighestUnlockedSector,
+    };
+  } catch (error) {
+    console.warn("[SAVE] Не удалось прочитать сохранение:", error);
+
+    return {
+      hasSave: false,
+      currentSector: 1,
+      highestUnlockedSector: 1,
+    };
+  }
+}
+
+saveProgress(sectorId = this.currentLevelId) {
+  const safeSectorId = this.levelConfigs[sectorId] ? sectorId : 1;
+
+  const previousHighest =
+    this.savedProgress?.highestUnlockedSector ?? 1;
+
+  this.savedProgress = {
+    hasSave: true,
+    currentSector: safeSectorId,
+    highestUnlockedSector: Math.max(
+      previousHighest,
+      safeSectorId,
+    ),
+  };
+
+  try {
+    localStorage.setItem(
+      SAVE_KEY,
+      JSON.stringify(this.savedProgress),
+    );
+
+    console.log("[SAVE] Progress saved:", this.savedProgress);
+  } catch (error) {
+    console.warn("[SAVE] Не удалось сохранить прогресс:", error);
+  }
+}
+
+deleteSavedProgress() {
+  this.savedProgress = {
+    hasSave: false,
+    currentSector: 1,
+    highestUnlockedSector: 1,
+  };
+
+  try {
+    localStorage.removeItem(SAVE_KEY);
+    console.log("[SAVE] Progress deleted");
+  } catch (error) {
+    console.warn("[SAVE] Не удалось удалить сохранение:", error);
+  }
+}
 
   async prepareNewGame(onProgress = () => {}) {
     if (this.isPreparingGame) {
@@ -775,10 +907,15 @@ export class GoogleRoomApp {
     this.lastTime = performance.now();
   }
 
-  startGameplaySession() {
-    this.hasStartedGame = true;
-    // Новая игра или продолжение реально начались.
-    this.isGameActive = true;
+startGameplaySession() {
+  this.hasStartedGame = true;
+
+  if (!this.savedProgress?.hasSave) {
+    this.saveProgress(this.currentLevelId);
+  }
+
+  // Новая игра или продолжение реально начались.
+  this.isGameActive = true;
     this.isExitingToMenu = false;
     this.isPaused = false;
 
@@ -870,7 +1007,7 @@ export class GoogleRoomApp {
     // buildRoom(levelId);
     this.currentLevelId = levelId;
     this.targetLevelId = null;
-
+  this.saveProgress(levelId);
     console.log(`[LEVEL] Loaded level ${levelId}`);
   }
 

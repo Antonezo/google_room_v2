@@ -79,88 +79,82 @@ export class UIManager {
       startText: document.querySelector("#btn-start-game .btn-text"),
     };
 
-   let preparationAnimFrame = null;
-let displayedPreparationPercent = 0;
+    let preparationAnimFrame = null;
+    let displayedPreparationPercent = 0;
 
-const setPreparationVisualPercent = (percent) => {
-  const safePercent = Math.max(
-    0,
-    Math.min(100, Math.round(percent)),
-  );
+    const setPreparationVisualPercent = (percent) => {
+      const safePercent = Math.max(0, Math.min(100, Math.round(percent)));
 
-  if (preparationElements.percent) {
-    preparationElements.percent.textContent = `${safePercent}%`;
-  }
+      if (preparationElements.percent) {
+        preparationElements.percent.textContent = `${safePercent}%`;
+      }
 
-  if (preparationElements.fill) {
-    preparationElements.fill.style.width = `${safePercent}%`;
-  }
+      if (preparationElements.fill) {
+        preparationElements.fill.style.width = `${safePercent}%`;
+      }
 
-  const coreSubtext = document.querySelector(".core-subtext");
+      const coreSubtext = document.querySelector(".core-subtext");
 
-  if (coreSubtext) {
-    coreSubtext.textContent = `${safePercent}%`;
-  }
-};
+      if (coreSubtext) {
+        coreSubtext.textContent = `${safePercent}%`;
+      }
+    };
 
-const animatePreparationPercent = (targetPercent) => {
-  const safeTarget = Math.max(
-    0,
-    Math.min(100, Math.round(targetPercent)),
-  );
+    const animatePreparationPercent = (targetPercent) => {
+      const safeTarget = Math.max(0, Math.min(100, Math.round(targetPercent)));
 
-  if (preparationAnimFrame) {
-    cancelAnimationFrame(preparationAnimFrame);
-    preparationAnimFrame = null;
-  }
+      if (preparationAnimFrame) {
+        cancelAnimationFrame(preparationAnimFrame);
+        preparationAnimFrame = null;
+      }
 
-  const startPercent = displayedPreparationPercent;
-  const distance = safeTarget - startPercent;
+      const startPercent = displayedPreparationPercent;
+      const distance = safeTarget - startPercent;
 
-  if (Math.abs(distance) < 1) {
-    displayedPreparationPercent = safeTarget;
-    setPreparationVisualPercent(safeTarget);
-    return;
-  }
+      if (Math.abs(distance) < 1) {
+        displayedPreparationPercent = safeTarget;
+        setPreparationVisualPercent(safeTarget);
+        return;
+      }
 
-  const startTime = performance.now();
+      const startTime = performance.now();
 
-  // Чем больше скачок, тем чуть дольше анимация.
-  const duration = Math.max(350, Math.min(900, Math.abs(distance) * 25));
+      // Чем больше скачок, тем чуть дольше анимация.
+      const duration = Math.max(350, Math.min(900, Math.abs(distance) * 25));
 
-  const step = (now) => {
-    const t = Math.min(1, (now - startTime) / duration);
+      const step = (now) => {
+        const t = Math.min(1, (now - startTime) / duration);
 
-    // Мягкое замедление к концу.
-    const eased = 1 - Math.pow(1 - t, 3);
+        // Мягкое замедление к концу.
+        const eased = 1 - Math.pow(1 - t, 3);
 
-    displayedPreparationPercent = startPercent + distance * eased;
+        displayedPreparationPercent = startPercent + distance * eased;
 
-    setPreparationVisualPercent(displayedPreparationPercent);
+        setPreparationVisualPercent(displayedPreparationPercent);
 
-    if (t < 1) {
+        if (t < 1) {
+          preparationAnimFrame = requestAnimationFrame(step);
+        } else {
+          displayedPreparationPercent = safeTarget;
+          setPreparationVisualPercent(safeTarget);
+          preparationAnimFrame = null;
+        }
+      };
+
       preparationAnimFrame = requestAnimationFrame(step);
-    } else {
-      displayedPreparationPercent = safeTarget;
-      setPreparationVisualPercent(safeTarget);
-      preparationAnimFrame = null;
-    }
-  };
+    };
 
-  preparationAnimFrame = requestAnimationFrame(step);
-};
+    const updatePreparationStatus = (stage, percent) => {
+      if (preparationElements.status) {
+        preparationElements.status.classList.add("visible");
+      }
 
-const updatePreparationStatus = (stage, percent) => {
-  if (preparationElements.status) {
-    preparationElements.status.classList.add("visible");
-  }
+      if (preparationElements.stage) {
+        preparationElements.stage.textContent = stage;
+      }
 
-  if (preparationElements.stage) {
-    preparationElements.stage.textContent = stage;
-  }
-
-  animatePreparationPercent(percent);
-};
+      animatePreparationPercent(percent);
+    };
 
     const setPreparationMode = (enabled) => {
       if (el.doors) {
@@ -177,15 +171,15 @@ const updatePreparationStatus = (stage, percent) => {
           : translations[this.currentLang].start;
       }
 
-   if (!enabled) {
-  if (preparationAnimFrame) {
-    cancelAnimationFrame(preparationAnimFrame);
-    preparationAnimFrame = null;
-  }
+      if (!enabled) {
+        if (preparationAnimFrame) {
+          cancelAnimationFrame(preparationAnimFrame);
+          preparationAnimFrame = null;
+        }
 
-  displayedPreparationPercent = 0;
+        displayedPreparationPercent = 0;
 
-  setPreparationVisualPercent(0);
+        setPreparationVisualPercent(0);
 
         if (preparationElements.stage) {
           preparationElements.stage.textContent = "Ожидание запуска…";
@@ -230,13 +224,13 @@ const updatePreparationStatus = (stage, percent) => {
           this.animTimers.enter2 = setTimeout(() => {
             if (audioManager?.fadeIn) audioManager.fadeIn(1.0);
 
-         el.doors.classList.add("loaded");
+            el.doors.classList.add("loaded");
 
-if (this.cb?.onStartGameplay) {
-  this.cb.onStartGameplay();
-}
+            if (this.cb?.onStartGameplay) {
+              this.cb.onStartGameplay();
+            }
 
-document.body.classList.remove("loading");
+            document.body.classList.remove("loading");
 
             if (document.body.classList.contains("lights-on")) {
               // Игрок вернулся через "Продолжить"
@@ -253,7 +247,10 @@ document.body.classList.remove("loading");
       }
     };
 
-    const executeNewGame = async () => {
+    const executePreparedGame = async ({
+      levelId = 1,
+      eraseSave = false,
+    } = {}) => {
       // Защита от повторного клика.
       if (this.isMenuLocked) return;
 
@@ -294,18 +291,26 @@ document.body.classList.remove("loading");
         return;
       }
 
-if (this.cb?.onReset) {
-  this.cb.onReset({ levelId: 1 });
+    if (eraseSave && this.cb?.onDeleteSavedProgress) {
+  this.cb.onDeleteSavedProgress();
 }
 
-      this.hudManager.resetWordInput();
+// Сначала возвращаем общее состояние атмосферы.
+// Оно может менять цвета общих материалов комнаты.
+if (store?.update) {
+  store.update({
+    mode: "lab",
+    playerName: "Dev",
+  });
+}
 
-      if (store?.update) {
-        store.update({
-          mode: "lab",
-          playerName: "Dev",
-        });
-      }
+// И только после этого строим выбранный сектор,
+// чтобы его собственные материалы и цвета применились последними.
+if (this.cb?.onReset) {
+  this.cb.onReset({ levelId });
+}
+
+this.hudManager.resetWordInput();
 
       // Теперь меню можно скрыть.
       this.menuManager.hideMenu();
@@ -331,15 +336,15 @@ if (this.cb?.onReset) {
       // Даём центральному кругу плавно исчезнуть.
       await new Promise((resolve) => setTimeout(resolve, 700));
 
-     if (el.doors) {
-  el.doors.classList.add("loaded");
-}
+      if (el.doors) {
+        el.doors.classList.add("loaded");
+      }
 
-if (this.cb?.onStartGameplay) {
-  this.cb.onStartGameplay();
-}
+      if (this.cb?.onStartGameplay) {
+        this.cb.onStartGameplay();
+      }
 
-document.body.classList.remove("loading");
+      document.body.classList.remove("loading");
 
       if (audioManager?.fadeIn) {
         audioManager.fadeIn(1.0);
@@ -377,50 +382,155 @@ document.body.classList.remove("loading");
     // Биндим кнопки меню, которые вызывают запуск игры
     const btnStart = document.getElementById("btn-start-game");
     const btnResume = document.getElementById("btn-resume-game");
+    const btnRestartSector = document.getElementById("btn-restart-sector");
+
+    const btnSectors = document.getElementById("btn-open-sectors");
+    const btnReturnTitle = document.getElementById("btn-return-title");
+
     const btnConfirmYes = document.getElementById("btn-confirm-yes");
     const btnConfirmNo = document.getElementById("btn-confirm-no");
     const confirmModal = document.getElementById("confirm-modal");
     const btnInGameMenu = document.getElementById("btn-in-game-menu");
 
- const updateSessionButtons = () => {
-  const hasSession = this.cb?.hasActiveSession?.() === true;
+    const updateSessionButtons = () => {
+      const hasActiveSession = this.cb?.hasActiveSession?.() === true;
 
-  if (btnResume) {
-    btnResume.style.display = hasSession ? "flex" : "none";
-  }
-};
+      const hasSavedProgress = this.cb?.hasSavedProgress?.() === true;
 
-// При первом открытии страницы активной сессии ещё нет.
-updateSessionButtons();
+      // "Продолжить":
+      // показываем либо для живой паузы,
+      // либо для загрузки сохранённого сектора.
+      if (btnResume) {
+        btnResume.style.display =
+          hasActiveSession || hasSavedProgress ? "flex" : "none";
+      }
 
-    if (btnStart) btnStart.addEventListener("click", executeNewGame);
-    if (btnResume) btnResume.addEventListener("click", enterGame);
-    if (btnConfirmYes)
+      // Только внутри живой сессии.
+      if (btnRestartSector) {
+        btnRestartSector.style.display = hasActiveSession ? "flex" : "none";
+      }
+
+      // В меню паузы новую игру не показываем.
+      if (btnStart) {
+        btnStart.style.display = hasActiveSession ? "none" : "flex";
+      }
+
+      // В меню паузы список секторов тоже скрываем.
+      if (btnSectors) {
+        btnSectors.style.display = hasActiveSession ? "none" : "flex";
+      }
+
+      // Эта кнопка существует только в меню паузы.
+      if (btnReturnTitle) {
+        btnReturnTitle.style.display = hasActiveSession ? "flex" : "none";
+      }
+    };
+
+    // При первом открытии страницы активной сессии ещё нет.
+    updateSessionButtons();
+
+    const startFreshGame = () => {
+      executePreparedGame({
+        levelId: 1,
+        eraseSave: true,
+      });
+    };
+
+    const continueGame = () => {
+      const hasActiveSession = this.cb?.hasActiveSession?.() === true;
+
+      // Esc-пауза: возвращаемся в ту же живую сцену.
+      if (hasActiveSession) {
+        enterGame();
+        return;
+      }
+
+      const hasSavedProgress = this.cb?.hasSavedProgress?.() === true;
+
+      // Запуск игры после закрытия вкладки:
+      // строим сохранённый сектор заново.
+      if (hasSavedProgress) {
+        const savedSector = this.cb?.getSavedSector?.() ?? 1;
+
+        executePreparedGame({
+          levelId: savedSector,
+          eraseSave: false,
+        });
+      }
+    };
+
+    if (btnStart) {
+      btnStart.addEventListener("click", () => {
+        const hasSavedProgress = this.cb?.hasSavedProgress?.() === true;
+
+        // Существующее сохранение будет заменено.
+        if (hasSavedProgress && confirmModal) {
+          confirmModal.classList.remove("hidden");
+          return;
+        }
+
+        startFreshGame();
+      });
+    }
+
+    if (btnResume) {
+      btnResume.addEventListener("click", continueGame);
+    }
+
+    if (btnRestartSector) {
+      btnRestartSector.addEventListener("click", () => {
+        if (this.isMenuLocked) return;
+
+        if (this.cb?.onRestartCurrentRoom) {
+          this.cb.onRestartCurrentRoom();
+        }
+
+        enterGame();
+      });
+    }
+
+    if (btnReturnTitle) {
+      btnReturnTitle.addEventListener("click", () => {
+        if (this.cb?.onReturnToTitle) {
+          this.cb.onReturnToTitle();
+        }
+
+        updateSessionButtons();
+      });
+    }
+
+    if (btnConfirmYes) {
       btnConfirmYes.addEventListener("click", () => {
-        confirmModal.classList.add("hidden");
-        executeNewGame();
+        confirmModal?.classList.add("hidden");
+        startFreshGame();
       });
-    if (btnConfirmNo)
-      btnConfirmNo.addEventListener("click", () => {
-        confirmModal.classList.add("hidden");
-        if (audioManager?.playUI) audioManager.playUI("click");
-      });
+    }
 
-let pendingMenuFrame = null;
+    if (btnConfirmNo) {
+      btnConfirmNo.addEventListener("click", () => {
+        confirmModal?.classList.add("hidden");
+
+        if (audioManager?.playUI) {
+          audioManager.playUI("click");
+        }
+      });
+    }
+
+    let pendingMenuFrame = null;
     const returnToMainMenu = () => {
       if (pendingMenuFrame) {
-  cancelAnimationFrame(pendingMenuFrame);
-  pendingMenuFrame = null;
-}
-       if (this.cb?.canReturnToMenu && !this.cb.canReturnToMenu()) {
-    return;
-  }
+        cancelAnimationFrame(pendingMenuFrame);
+        pendingMenuFrame = null;
+      }
+      if (this.cb?.canReturnToMenu && !this.cb.canReturnToMenu()) {
+        return;
+      }
       // Останавливаем длинные игровые звуки при выходе в меню.
       if (audioManager?.stopOpenDoor) audioManager.stopOpenDoor();
       if (audioManager?.stopBoxSlide) audioManager.stopBoxSlide();
       if (this.cb?.onBeginExitToMenu) {
-  this.cb.onBeginExitToMenu();
-}
+        this.cb.onBeginExitToMenu();
+      }
 
       this.isMenuLocked = false;
       this.clearAnimTimers();
@@ -434,7 +544,6 @@ let pendingMenuFrame = null;
       const userBadge = document.getElementById("hud-user-status");
       if (userBadge) userBadge.classList.add("hidden");
 
-
       if (audioManager?.fadeOut) audioManager.fadeOut(1.4);
       if (el.doors) el.doors.classList.remove("loaded");
 
@@ -443,25 +552,25 @@ let pendingMenuFrame = null;
 
         el.centerHub.classList.add("hub-hidden");
 
- this.animTimers.exit = setTimeout(() => {
-  if (this.cb?.onFinishExitToMenu) {
-    this.cb.onFinishExitToMenu();
-  }
+        this.animTimers.exit = setTimeout(() => {
+          if (this.cb?.onFinishExitToMenu) {
+            this.cb.onFinishExitToMenu();
+          }
 
-  el.centerHub.classList.remove("hub-hidden", "fade-in-volumetric");
+          el.centerHub.classList.remove("hub-hidden", "fade-in-volumetric");
 
-  // Фиксируем скрытое начальное состояние.
-  void el.centerHub.offsetWidth;
+          // Фиксируем скрытое начальное состояние.
+          void el.centerHub.offsetWidth;
 
-  el.centerHub.classList.add("fade-in-volumetric");
+          el.centerHub.classList.add("fade-in-volumetric");
 
-  const removeFadeInClass = () => {
-    el.centerHub.classList.remove("fade-in-volumetric");
-    el.centerHub.removeEventListener("animationend", removeFadeInClass);
-  };
+          const removeFadeInClass = () => {
+            el.centerHub.classList.remove("fade-in-volumetric");
+            el.centerHub.removeEventListener("animationend", removeFadeInClass);
+          };
 
-  el.centerHub.addEventListener("animationend", removeFadeInClass);
-}, 1400);
+          el.centerHub.addEventListener("animationend", removeFadeInClass);
+        }, 1400);
       }
 
       this.menuManager.showMenu();
@@ -469,51 +578,51 @@ let pendingMenuFrame = null;
       if (btnStart) btnStart.classList.remove("pulse-glow-volumetric");
     };
 
-const requestReturnToMainMenu = () => {
-  const canReturnNow =
-    !this.cb?.canReturnToMenu || this.cb.canReturnToMenu();
+    const requestReturnToMainMenu = () => {
+      const canReturnNow =
+        !this.cb?.canReturnToMenu || this.cb.canReturnToMenu();
 
-  if (canReturnNow) {
-    returnToMainMenu();
-    return;
-  }
+      if (canReturnNow) {
+        returnToMainMenu();
+        return;
+      }
 
-  if (pendingMenuFrame) return;
+      if (pendingMenuFrame) return;
 
-  const waitForElevator = () => {
-    const canReturnLater =
-      !this.cb?.canReturnToMenu || this.cb.canReturnToMenu();
+      const waitForElevator = () => {
+        const canReturnLater =
+          !this.cb?.canReturnToMenu || this.cb.canReturnToMenu();
 
-    if (canReturnLater) {
-      pendingMenuFrame = null;
-      returnToMainMenu();
-      return;
+        if (canReturnLater) {
+          pendingMenuFrame = null;
+          returnToMainMenu();
+          return;
+        }
+
+        pendingMenuFrame = requestAnimationFrame(waitForElevator);
+      };
+
+      pendingMenuFrame = requestAnimationFrame(waitForElevator);
+    };
+
+    if (btnInGameMenu) {
+      btnInGameMenu.addEventListener("click", () => {
+        requestReturnToMainMenu();
+
+        if (document.fullscreenElement) {
+          document.exitFullscreen();
+        }
+      });
     }
 
-    pendingMenuFrame = requestAnimationFrame(waitForElevator);
-  };
-
-  pendingMenuFrame = requestAnimationFrame(waitForElevator);
-};
-
-   if (btnInGameMenu) {
-  btnInGameMenu.addEventListener("click", () => {
-    requestReturnToMainMenu();
-
-    if (document.fullscreenElement) {
-      document.exitFullscreen();
-    }
-  });
-}
-
-  document.addEventListener("fullscreenchange", () => {
-  if (
-    !document.fullscreenElement &&
-    el.doors?.classList.contains("loaded")
-  ) {
-    requestReturnToMainMenu();
-  }
-});
+    document.addEventListener("fullscreenchange", () => {
+      if (
+        !document.fullscreenElement &&
+        el.doors?.classList.contains("loaded")
+      ) {
+        requestReturnToMainMenu();
+      }
+    });
   }
 
   // --- ОБНОВЛЕНИЕ ЯЗЫКА ---
@@ -533,10 +642,13 @@ const requestReturnToMainMenu = () => {
 
     updateBtnText("btn-start-game", t.start);
     updateBtnText("btn-resume-game", t.resume);
+    updateBtnText("btn-restart-sector", t.restartSector);
+    updateBtnText("btn-open-sectors", t.sectors);
     updateBtnText("btn-open-settings", t.settings);
     updateBtnText("btn-exit", t.exit);
     updateBtnText("btn-back-main", t.back);
     updateBtnText("btn-in-game-menu", t.inGameMenu);
+    updateBtnText("btn-return-title", t.titleMenu);
 
     const exitJokeEl = document.querySelector("#btn-exit .exit-joke");
     if (exitJokeEl) exitJokeEl.textContent = t.exitJoke;
@@ -559,7 +671,6 @@ const requestReturnToMainMenu = () => {
     updateText("btn-final-confirm", t.btnFinalConfirm);
     updateText("bios-continue", t.biosContinue);
 
-
     const regTitle = document.querySelector(
       ".registration-form .section-title",
     );
@@ -568,15 +679,14 @@ const requestReturnToMainMenu = () => {
 
   // --- ГЛОБАЛЬНЫЕ ГОРЯЧИЕ КЛАВИШИ ---
   initGlobalBindings() {
-
     window.addEventListener("keydown", (e) => {
       if (document.activeElement.tagName === "INPUT") return;
       switch (e.code) {
-     case "KeyR":
-  if (this.cb?.onRestartCurrentRoom) {
-    this.cb.onRestartCurrentRoom();
-  }
-  break;
+        case "KeyR":
+          if (this.cb?.onRestartCurrentRoom) {
+            this.cb.onRestartCurrentRoom();
+          }
+          break;
         case "KeyH":
           document.body.classList.toggle("ui-hidden");
           this.hudManager.closePalette();

@@ -5,13 +5,17 @@ export class MenuManager {
     this.ui = uiDispatcher; // Связь с главным UIManager
 
     // Экраны
-    this.startMenu = document.getElementById("futuristic-start-menu");
-    this.mainView = document.getElementById("view-main");
-    this.settingsView = document.getElementById("view-settings");
+this.startMenu = document.getElementById("futuristic-start-menu");
+this.mainView = document.getElementById("view-main");
+this.sectorsView = document.getElementById("view-sectors");
+this.settingsView = document.getElementById("view-settings");
 
     // Кнопки (исправлены ID под твой HTML!)
-    this.btnSettings = document.getElementById("btn-open-settings");
-    this.btnBackMain = document.getElementById("btn-back-main");
+   this.btnSectors = document.getElementById("btn-open-sectors");
+this.btnSettings = document.getElementById("btn-open-settings");
+
+this.btnBackSectors = document.getElementById("btn-back-sectors");
+this.btnBackMain = document.getElementById("btn-back-main");
     this.btnExit = document.getElementById("btn-exit");
     this.btnLang = document.getElementById("btn-toggle-lang");
 
@@ -24,15 +28,46 @@ export class MenuManager {
     this.initBindings();
   }
 
+updateSectorsView() {
+  const highestUnlocked =
+    this.ui.cb?.getHighestUnlockedSector?.() ?? 1;
+
+  const currentSector =
+    this.ui.cb?.getCurrentSector?.() ?? 1;
+
+  const sectorCards = document.querySelectorAll(".sector-card");
+
+  sectorCards.forEach((card) => {
+    const sectorId = Number(card.dataset.sectorId);
+    const isUnlocked = sectorId <= highestUnlocked;
+    const isCurrent = sectorId === currentSector;
+
+    card.hidden = !isUnlocked;
+    card.classList.toggle("current-sector", isCurrent);
+
+    const status = card.querySelector(".sector-status");
+
+    if (status) {
+      status.textContent = isCurrent
+        ? "ТЕКУЩИЙ СЕКТОР"
+        : "ДОСТУПЕН";
+    }
+  });
+}
+
 initBindings() {
 // === ЗВУКИ НАВЕДЕНИЯ И КЛИКОВ ДЛЯ ВСЕХ КНОПОК ===
-    const menuButtons = [
-      { id: "btn-start-game", clickSound: "start" },
-      { id: "btn-resume-game", clickSound: "start" },
-      { id: "btn-open-settings", clickSound: "click" },
-      { id: "btn-exit", clickSound: "click" },
-      { id: "btn-back-main", clickSound: "click" }
-    ];
+const menuButtons = [
+  { id: "btn-start-game", clickSound: "start" },
+  { id: "btn-resume-game", clickSound: "start" },
+  { id: "btn-restart-sector", clickSound: "start" },
+  { id: "btn-open-sectors", clickSound: "click" },
+  { id: "btn-open-settings", clickSound: "click" },
+  { id: "btn-return-title", clickSound: "click" },
+  { id: "btn-exit", clickSound: "click" },
+  { id: "btn-back-sectors", clickSound: "click" },
+  { id: "btn-back-main", clickSound: "click" },
+];
 
     menuButtons.forEach(item => {
       const btn = document.getElementById(item.id);
@@ -51,6 +86,24 @@ initBindings() {
       }
     });
     // ===================================================
+
+    document.querySelectorAll(".sector-card").forEach((card) => {
+  card.addEventListener("mouseenter", () => {
+    if (
+      audioManager?.ctx?.state === "running" &&
+      !this.ui.isMenuLocked &&
+      !this.ui.blockHoverSound
+    ) {
+      audioManager.playUI("mouse_menu");
+    }
+  });
+
+  card.addEventListener("click", () => {
+    if (audioManager?.playUI) {
+      audioManager.playUI("click");
+    }
+  });
+});
 
 // === ЗВУКИ НАВЕДЕНИЯ ДЛЯ ПОЛЗУНКОВ (без кнопок внутри языков) ===
     const settingsElements = document.querySelectorAll(
@@ -72,6 +125,19 @@ initBindings() {
       hideView.classList.remove("active");
       showView.classList.add("active");
     };
+
+    if (this.btnSectors) {
+  this.btnSectors.addEventListener("click", () => {
+    this.updateSectorsView();
+    toggleView(this.mainView, this.sectorsView);
+  });
+}
+
+if (this.btnBackSectors) {
+  this.btnBackSectors.addEventListener("click", () => {
+    toggleView(this.sectorsView, this.mainView);
+  });
+}
 
     if (this.btnSettings) {
       this.btnSettings.addEventListener("click", () =>
@@ -162,10 +228,11 @@ if (audioManager?.playUI) audioManager.playUI("click");
       this.startMenu.classList.remove("game-started");
 
       // Сбрасываем вид на "Главный экран", если игрок вышел, находясь в настройках
-      if (this.mainView && this.settingsView) {
-        this.settingsView.classList.remove("active");
-        this.mainView.classList.add("active");
-      }
+     if (this.mainView) {
+  this.settingsView?.classList.remove("active");
+  this.sectorsView?.classList.remove("active");
+  this.mainView.classList.add("active");
+}
     }
   }
 }

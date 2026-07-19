@@ -232,15 +232,25 @@
 #view-main {
   gap: 12px;
 }
+
 .menu-view.active {
   display: flex;
   animation: fadeInMenu 0.4s ease forwards;
 }
+
+/* При первом запуске главное меню уже является частью двери. */
+body.initial-main-view #view-main.menu-view.active {
+  animation: none;
+  opacity: 1;
+  transform: none;
+}
+
 @keyframes fadeInMenu {
   from {
     opacity: 0;
     transform: translateX(-30px);
   }
+
   to {
     opacity: 1;
     transform: translateX(0);
@@ -903,4 +913,13 @@
 
 .sector-card.current-sector .sector-title {
   text-shadow: 0 0 10px var(--neon-blue);
+}
+
+[data-lang-text] {
+  display: none;
+}
+
+html[data-ui-lang="EN"] [data-lang-text="EN"],
+html[data-ui-lang="RU"] [data-lang-text="RU"] {
+  display: inline;
 }

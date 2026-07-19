@@ -9,7 +9,9 @@
   gap: 12px;
   z-index: var(--z-hud);
   /* ВОТ ТУТ МАГИЯ: задержка 1.4s при появлении (ждаться дверей) */
-  transition: opacity 0.4s ease 1.4s, transform 0.4s ease 1.4s;
+  transition:
+    opacity 0.4s ease 1.4s,
+    transform 0.4s ease 1.4s;
   align-items: center;
 }
 #hud-controls.hud-hidden {
@@ -17,7 +19,7 @@
   pointer-events: none;
   transform: translateY(-10px);
   /* При скрытии задержка не нужна, прячем интерфейс мгновенно */
-  transition-delay: 0s; 
+  transition-delay: 0s;
 }
 body.loading #hud-controls,
 body.loading #holo-wrapper {
@@ -825,4 +827,335 @@ body.loading #holo-wrapper {
 }
 body.hide-sandbox-ui #holo-wrapper {
   display: none;
+}
+
+/* ==========================================================================
+   БЫСТРОЕ МЕНЮ ПАУЗЫ
+   ========================================================================== */
+
+.pause-overlay {
+  position: fixed;
+  inset: 0;
+   cursor: var(--cur-ui-arrow);
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  padding: 24px;
+  box-sizing: border-box;
+
+  background:
+    radial-gradient(
+      circle at center,
+      rgba(var(--neon-blue-rgb), 0.07) 0%,
+      transparent 55%
+    ),
+    rgba(2, 7, 14, 0.44);
+
+  backdrop-filter: blur(5px) saturate(0.8);
+  -webkit-backdrop-filter: blur(5px) saturate(0.8);
+
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+
+  transition:
+    opacity 0.22s ease,
+    visibility 0s linear 0.22s;
+
+  z-index: calc(var(--z-hud) + 50);
+}
+
+.pause-overlay.is-open {
+  opacity: 1;
+  visibility: visible;
+  pointer-events: auto;
+
+  transition:
+    opacity 0.22s ease,
+    visibility 0s linear 0s;
+}
+
+.pause-panel {
+  position: relative;
+
+  width: min(500px, calc(100vw - 48px));
+  padding: 34px 38px 28px;
+  box-sizing: border-box;
+
+  background:
+    linear-gradient(rgba(var(--neon-blue-rgb), 0.035) 1px, transparent 1px),
+    linear-gradient(
+      90deg,
+      rgba(var(--neon-blue-rgb), 0.035) 1px,
+      transparent 1px
+    ),
+    linear-gradient(145deg, rgba(7, 18, 31, 0.88), rgba(3, 10, 19, 0.76));
+
+  background-size:
+    28px 28px,
+    28px 28px,
+    auto;
+
+  border: 1px solid rgba(var(--neon-blue-rgb), 0.42);
+
+  clip-path: polygon(
+    18px 0,
+    100% 0,
+    100% calc(100% - 18px),
+    calc(100% - 18px) 100%,
+    0 100%,
+    0 18px
+  );
+
+  box-shadow:
+    0 22px 70px rgba(0, 0, 0, 0.58),
+    0 0 30px rgba(var(--neon-blue-rgb), 0.12),
+    inset 0 0 35px rgba(var(--neon-blue-rgb), 0.035);
+
+  opacity: 0;
+  transform: translateY(14px) scale(0.975);
+
+  transition:
+    opacity 0.24s ease,
+    transform 0.24s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+.pause-overlay.is-open .pause-panel {
+  opacity: 1;
+  transform: translateY(0) scale(1);
+}
+
+.pause-panel::before,
+.pause-panel::after {
+  content: "";
+  position: absolute;
+  pointer-events: none;
+}
+
+.pause-panel::before {
+  top: 0;
+  right: 26px;
+
+  width: 90px;
+  height: 2px;
+
+  background: var(--neon-blue);
+
+  box-shadow:
+    0 0 10px var(--neon-blue),
+    0 0 22px rgba(var(--neon-blue-rgb), 0.65);
+}
+
+.pause-panel::after {
+  right: 0;
+  bottom: 28px;
+
+  width: 2px;
+  height: 70px;
+
+  background: rgba(var(--neon-blue-rgb), 0.8);
+
+  box-shadow: 0 0 12px rgba(var(--neon-blue-rgb), 0.7);
+}
+
+.pause-header {
+  position: relative;
+  z-index: 2;
+
+  margin-bottom: 24px;
+  text-align: right;
+}
+
+.pause-system-label {
+  margin-bottom: 7px;
+
+  color: rgba(var(--neon-blue-rgb), 0.72);
+
+  font-family: "Orbitron", sans-serif;
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 3px;
+}
+
+.pause-title {
+  margin: 0;
+
+  color: #fff;
+
+  font-family: "Orbitron", sans-serif;
+  font-size: 31px;
+  font-weight: 700;
+  letter-spacing: 8px;
+
+  text-shadow:
+    0 0 10px rgba(var(--neon-blue-rgb), 0.7),
+    0 0 25px rgba(var(--neon-blue-rgb), 0.25);
+}
+
+.pause-divider {
+  position: relative;
+
+  height: 1px;
+  margin-top: 17px;
+
+  background: linear-gradient(
+    90deg,
+    transparent,
+    rgba(var(--neon-blue-rgb), 0.22),
+    rgba(var(--neon-blue-rgb), 0.7)
+  );
+}
+
+.pause-divider span {
+  position: absolute;
+  top: -2px;
+  right: 0;
+
+  width: 38px;
+  height: 5px;
+
+  background: var(--neon-blue);
+  box-shadow: 0 0 10px var(--neon-blue);
+}
+
+.pause-menu {
+  position: relative;
+  z-index: 2;
+
+  display: flex;
+  flex-direction: column;
+  gap: 11px;
+}
+
+#pause-overlay .pause-menu[hidden],
+#pause-overlay .pause-footer[hidden],
+#pause-overlay .pause-settings-host[hidden] {
+  display: none;
+}
+
+.pause-menu .sk-btn {
+  height: 54px;
+  font-size: 15px;
+  cursor: var(--cur-ui-arrow);
+}
+
+.pause-menu .sk-btn .btn-text {
+  letter-spacing: 2.5px;
+}
+
+.pause-menu .pause-primary::before {
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    rgba(var(--neon-blue-rgb), 0.08) 40%,
+    rgba(var(--neon-blue-rgb), 0.26) 100%
+  );
+
+  border-right-color: #fff;
+
+  box-shadow:
+    0 0 18px rgba(var(--neon-blue-rgb), 0.18),
+    inset -10px 0 20px rgba(var(--neon-blue-rgb), 0.08);
+}
+
+.pause-menu .pause-primary .btn-text {
+  text-shadow: 0 0 9px rgba(var(--neon-blue-rgb), 0.7);
+}
+
+.pause-footer {
+  position: relative;
+  z-index: 2;
+
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 10px;
+
+  margin-top: 22px;
+
+  color: rgba(255, 255, 255, 0.38);
+
+  font-family: "Orbitron", sans-serif;
+  font-size: 8px;
+  letter-spacing: 2px;
+}
+
+.pause-footer span:first-child {
+  padding: 4px 7px;
+
+  color: rgba(var(--neon-blue-rgb), 0.9);
+  border: 1px solid rgba(var(--neon-blue-rgb), 0.35);
+  background: rgba(var(--neon-blue-rgb), 0.06);
+
+  box-shadow: inset 0 0 8px rgba(var(--neon-blue-rgb), 0.08);
+}
+
+.pause-settings-host {
+  position: relative;
+  z-index: 2;
+  width: 100%;
+}
+
+
+.pause-settings-host
+  #view-settings.inside-pause {
+  display: flex;
+  width: 100%;
+  gap: 16px;
+  animation: pauseSettingsIn 0.22s ease;
+}
+
+.pause-settings-host
+  #view-settings.inside-pause
+  .holo-back-tab {
+  margin-bottom: 8px;
+}
+
+.pause-settings-host
+  #view-settings.inside-pause
+  .settings-list {
+  gap: 14px;
+}
+
+.pause-settings-host
+  #view-settings.inside-pause
+  .slider-group {
+  min-height: 52px;
+  padding-top: 8px;
+  padding-bottom: 8px;
+}
+
+.pause-settings-host
+  #view-settings.inside-pause
+  .slider-header {
+  font-size: 11px;
+}
+
+@keyframes pauseSettingsIn {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@media (max-width: 620px) {
+  .pause-panel {
+    padding: 28px 22px 24px;
+  }
+
+  .pause-title {
+    font-size: 25px;
+    letter-spacing: 6px;
+  }
+
+  .pause-menu .sk-btn {
+    font-size: 13px;
+  }
 }

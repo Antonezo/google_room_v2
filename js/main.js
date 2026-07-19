@@ -261,31 +261,72 @@ getCurrentSector: () => {
         this.isIntroPlaying = false;
       },
 
-      onTogglePause: () => {
-        // Во время лифтового перехода меню не открываем,
-        // иначе последовательность может оборваться между фазами.
-        if (this.isElevatorSequenceActive || this.isExitingToMenu) {
-          return this.isPaused;
-        }
+ canOpenPause: () => {
+  return (
+    this.hasStartedGame &&
+    this.isGameActive &&
+    !this.isElevatorSequenceActive &&
+    !this.isExitingToMenu
+  );
+},
 
-        this.isPaused = !this.isPaused;
+onSetPaused: (paused) => {
+  // Поставить игру на паузу во время лифтовой кат-сцены нельзя.
+  if (
+    paused &&
+    (this.isElevatorSequenceActive || this.isExitingToMenu)
+  ) {
+    return false;
+  }
 
-        if (this.isPaused && audioManager?.stopOpenDoor) {
-          audioManager.stopOpenDoor();
-        }
+  this.isPaused = paused;
 
-        if (this.isPaused && this.hasStartedGame) {
-          const resumeBtn = document.getElementById("btn-resume-game");
+  if (paused) {
+    if (audioManager?.stopOpenDoor) {
+      audioManager.stopOpenDoor();
+    }
 
-          if (resumeBtn) {
-            resumeBtn.classList.remove("locked-feature");
-          }
-        }
+    if (audioManager?.stopBoxSlide) {
+      audioManager.stopBoxSlide();
+    }
 
-        return this.isPaused;
-      },
+    // Сбрасываем зажатые клавиши движения,
+    // чтобы после паузы шар сам не продолжал ехать.
+    if (this.playerController?.keys) {
+      for (const key in this.playerController.keys) {
+        this.playerController.keys[key] = false;
+      }
+    }
+  } else {
+    // После паузы не допускаем большого скачка физики по времени.
+    this.lastTime = performance.now();
+  }
+
+  return true;
+},
+
+onReleaseGameplayControls: () => {
+  if (this.controls?.isLocked) {
+    this.controls.unlock();
+  }
+},
+
+onResumeGameplayControls: () => {
+  if (!this.controls) return;
+
+  this.controls.enabled = true;
+
+  // PointerLockControls создан на document.body,
+  // поэтому проверяем реальное состояние браузера.
+  if (document.pointerLockElement !== document.body) {
+    this.controls.lock();
+  }
+},
+
       onReset: (options) => this.resetScene(options),
-
+onSectorLoadedFromMenu: (levelId) => {
+  this.saveProgress(levelId);
+},
       onRestartCurrentRoom: () => {
         this.resetScene({
           levelId: this.currentLevelId,
@@ -455,17 +496,15 @@ getCurrentSector: () => {
     // Логика захвата курсора
 document.addEventListener("click", (e) => {
   const btnStart = e.target.closest("#btn-start-game");
-  const btnResume = e.target.closest("#btn-resume-game");
   const btnConfirmYes = e.target.closest("#btn-confirm-yes");
 
   // Pointer Lock включаем:
-  // 1. при "Продолжить";
-  // 2. при подтверждении новой игры;
-  // 3. при первой новой игре, когда сохранения ещё нет.
-  const shouldLockForGameStart =
-    btnResume ||
-    btnConfirmYes ||
-    (btnStart && !this.savedProgress?.hasSave);
+const highestUnlockedSector =
+  this.savedProgress?.highestUnlockedSector ?? 1;
+
+const shouldLockForGameStart =
+  btnConfirmYes ||
+  (btnStart && highestUnlockedSector < 2);
 
   if (shouldLockForGameStart) {
     if (!this.isElevatorSequenceActive && !this.controls.isLocked) {
@@ -482,13 +521,16 @@ document.addEventListener("click", (e) => {
   }
 
       // 2. Если кликаем по остальному меню, настройкам или HUD — игнорируем захват
-      if (
-        e.target.closest("#holo-wrapper") ||
-        e.target.closest("#hud-controls") ||
-        e.target.closest("#loader-doors") ||
-        e.target.tagName === "INPUT"
-      )
-        return;
+    if (
+  e.target.closest("#holo-wrapper") ||
+  e.target.closest("#hud-controls") ||
+  e.target.closest("#loader-doors") ||
+  e.target.closest("#confirm-modal") ||
+  e.target.closest("#pause-overlay") ||
+  e.target.tagName === "INPUT"
+) {
+  return;
+}
 
       // 3. Во всех остальных случаях (клик по самой игре) — захватываем мышь,
       // но не во время кат-сцен.
@@ -501,21 +543,25 @@ document.addEventListener("click", (e) => {
       }
     });
 
-    this.controls.addEventListener("unlock", () => {
-      // Теперь мы правильно обращаемся к кнопкам внутри контроллера!
-      if (this.playerController) {
-        for (const key in this.playerController.keys) {
-          this.playerController.keys[key] = false;
-        }
-      }
+this.controls.addEventListener("unlock", () => {
+  // Сбрасываем движение, чтобы шар не продолжал ехать
+  // после открытия паузы.
+  if (this.playerController?.keys) {
+    for (const key in this.playerController.keys) {
+      this.playerController.keys[key] = false;
+    }
+  }
 
-      // === МАГИЯ КНОПКИ "ПРОДОЛЖИТЬ" ===
-      // Обновляем кнопку ровно в тот момент, когда игрок выходит в меню
-      const resumeElement = document.getElementById("btn-resume-game");
-      if (this.hasStartedGame && resumeElement) {
-        resumeElement.classList.remove("locked-feature");
-      }
-    });
+  const shouldOpenPause =
+    this.hasStartedGame &&
+    this.isGameActive &&
+    !this.isElevatorSequenceActive &&
+    !this.isExitingToMenu;
+
+  if (shouldOpenPause) {
+    this.uiManager?.openPauseMenu();
+  }
+});
 
     const startPos = { x: 0, y: 0, z: 30 }; // Стартовая позиция переехала сюда
     this.playerController = new PlayerController(

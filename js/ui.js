@@ -8,7 +8,10 @@ export class UIManager {
   constructor(callbacks) {
     this.cb = callbacks;
     this.isMenuLocked = false;
-    this.currentLang = "RU";
+    const savedLanguage = localStorage.getItem("google-room-language");
+
+    this.currentLang =
+      savedLanguage === "RU" || savedLanguage === "EN" ? savedLanguage : "EN";
 
     // Инициализируем помощников
     this.menuManager = new MenuManager(this);
@@ -27,10 +30,33 @@ export class UIManager {
     this.elements = {
       doors: document.getElementById("loader-doors"),
       centerHub: document.querySelector(".loader-center-hub"),
+      pauseOverlay: document.getElementById("pause-overlay"),
     };
 
     this.initGlobalBindings();
     this.initStartMenu();
+    this.updateLanguage(this.currentLang);
+    const releaseInitialMainView = () => {
+  document.body.classList.remove(
+    "initial-main-view",
+  );
+};
+
+document
+  .getElementById("btn-open-settings")
+  ?.addEventListener(
+    "click",
+    releaseInitialMainView,
+    { once: true },
+  );
+
+document
+  .getElementById("btn-open-sectors")
+  ?.addEventListener(
+    "click",
+    releaseInitialMainView,
+    { once: true },
+  );
   }
 
   // --- МЕТОДЫ-ПРОКСИ ---
@@ -59,6 +85,171 @@ export class UIManager {
     }
   }
 
+  async enterImmersiveFullscreen() {
+    const htmlElem = document.documentElement;
+
+    try {
+      if (!document.fullscreenElement && htmlElem.requestFullscreen) {
+        await htmlElem.requestFullscreen({
+          navigationUI: "hide",
+        });
+      }
+
+      const supportsKeyboardLock =
+        "keyboard" in navigator &&
+        typeof navigator.keyboard?.lock === "function";
+
+      if (document.fullscreenElement && supportsKeyboardLock) {
+        await navigator.keyboard.lock(["Escape"]);
+
+        console.log("[FULLSCREEN] Escape locked");
+      }
+
+      return document.fullscreenElement !== null;
+    } catch (error) {
+      console.warn("[FULLSCREEN] Не удалось включить immersive-режим:", error);
+
+      return false;
+    }
+  }
+
+  async exitImmersiveFullscreen() {
+    const exitButton = document.getElementById("btn-exit");
+    const exitHint = exitButton?.querySelector(".exit-joke");
+
+    try {
+      // Сначала освобождаем Escape, иначе Keyboard Lock
+      // продолжит удерживать клавиатуру.
+      if (typeof navigator.keyboard?.unlock === "function") {
+        navigator.keyboard.unlock();
+      }
+
+      if (exitHint) {
+        exitHint.textContent =
+          this.currentLang === "EN"
+            ? "EXITING FULLSCREEN..."
+            : "ВЫХОД ИЗ ПОЛНОЭКРАННОГО РЕЖИМА...";
+      }
+
+      exitButton?.classList.add("show-joke");
+
+      if (document.fullscreenElement && document.exitFullscreen) {
+        await document.exitFullscreen();
+      }
+
+      if (exitHint) {
+        exitHint.textContent =
+          this.currentLang === "EN"
+            ? "YOU CAN NOW CLOSE THE TAB"
+            : "ТЕПЕРЬ МОЖНО ЗАКРЫТЬ ВКЛАДКУ";
+      }
+
+      // Оставляем подсказку немного дольше обычного.
+      clearTimeout(this.exitHintTimer);
+
+      this.exitHintTimer = setTimeout(() => {
+        exitButton?.classList.remove("show-joke");
+
+        // Возвращаем стандартный текст для следующего нажатия.
+        if (exitHint) {
+          const t = translations[this.currentLang];
+          exitHint.textContent = t.exitJoke;
+        }
+      }, 5000);
+
+      return true;
+    } catch (error) {
+      console.warn(
+        "[FULLSCREEN] Не удалось выйти из полноэкранного режима:",
+        error,
+      );
+
+      if (exitHint) {
+        exitHint.textContent =
+          this.currentLang === "EN"
+            ? "HOLD ESC TO EXIT FULLSCREEN"
+            : "УДЕРЖИВАЙТЕ ESC ДЛЯ ВЫХОДА";
+      }
+
+      return false;
+    }
+  }
+
+  isPauseMenuOpen() {
+    return this.elements.pauseOverlay?.classList.contains("is-open") === true;
+  }
+
+  openPauseMenu() {
+    const pauseOverlay = this.elements.pauseOverlay;
+
+    if (!pauseOverlay || this.isPauseMenuOpen()) {
+      return false;
+    }
+
+    const hasActiveSession = this.cb?.hasActiveSession?.() === true;
+
+    if (!hasActiveSession) {
+      return false;
+    }
+
+    const canOpen = !this.cb?.canOpenPause || this.cb.canOpenPause() === true;
+
+    if (!canOpen) {
+      return false;
+    }
+
+    const pauseAccepted = this.cb?.onSetPaused?.(true);
+
+    if (pauseAccepted === false) {
+      return false;
+    }
+
+    // Разрешаем управление кнопками паузы.
+    this.isMenuLocked = false;
+
+    pauseOverlay.classList.add("is-open");
+    pauseOverlay.setAttribute("aria-hidden", "false");
+
+    // Сначала показываем overlay, затем освобождаем мышь.
+    // Повторное событие unlock уже ничего не откроет,
+    // потому что isPauseMenuOpen() вернёт true.
+    this.cb?.onReleaseGameplayControls?.();
+
+    return true;
+  }
+
+  closePauseMenu({ resumeGameplay = true } = {}) {
+    const pauseOverlay = this.elements.pauseOverlay;
+
+    if (!pauseOverlay || !this.isPauseMenuOpen()) {
+      return false;
+    }
+
+    this.menuManager.hidePauseSettings();
+
+    pauseOverlay.classList.remove("is-open");
+    pauseOverlay.setAttribute("aria-hidden", "true");
+
+    if (!resumeGameplay) {
+      this.isMenuLocked = false;
+      return true;
+    }
+
+    this.cb?.onSetPaused?.(false);
+
+    // Во время игры обычное меню заблокировано.
+    this.isMenuLocked = true;
+
+    // Сначала возвращаем Pointer Lock, пока клик игрока
+    // остаётся активным пользовательским действием.
+    this.cb?.onResumeGameplayControls?.();
+
+    // Затем проверяем fullscreen и заново захватываем Escape.
+    this.enterImmersiveFullscreen();
+
+    return true;
+  }
+
   // --- ЛОГИКА СТАРТА И ВЫХОДА ИЗ ИГРЫ ---
   initStartMenu() {
     document.body.addEventListener(
@@ -81,6 +272,61 @@ export class UIManager {
 
     let preparationAnimFrame = null;
     let displayedPreparationPercent = 0;
+
+    const translatePreparationStage = (stage) => {
+      const t = translations[this.currentLang];
+
+      if (!t || typeof stage !== "string") {
+        return stage;
+      }
+
+      const directStages = {
+        "Запуск подготовки…": t.preparationStarting,
+
+        "Ошибка подготовки": t.preparationError,
+
+        "Быстрая подготовка…": t.preparationQuick,
+
+        "Проверка готовых шейдеров…": t.preparationShaderCheck,
+
+        "Система готова": t.preparationReady,
+
+        "Подготовка комнаты 1…": t.preparationRoom1,
+
+        "Подготовка комнаты 2…": t.preparationRoom2,
+
+        "Подготовка комнаты 3…": t.preparationRoom3,
+
+        "Возврат в комнату 1…": t.preparationReturnRoom1,
+      };
+
+      if (directStages[stage]) {
+        return directStages[stage];
+      }
+
+      const completedStages = [
+        ["Подготовка комнаты 1… готово", t.preparationRoom1],
+        ["Подготовка комнаты 2… готово", t.preparationRoom2],
+        ["Подготовка комнаты 3… готово", t.preparationRoom3],
+        ["Возврат в комнату 1… готово", t.preparationReturnRoom1],
+      ];
+
+      const completedStage = completedStages.find(
+        ([source]) => source === stage,
+      );
+
+      if (completedStage) {
+        const translatedBase = completedStage[1]
+          .replace(/…$/, "")
+          .replace(/\.\.\.$/, "");
+
+        return `${translatedBase}${t.preparationCompleteSuffix}`;
+      }
+
+      // Неизвестную новую строку не ломаем:
+      // показываем её как передал main.js.
+      return stage;
+    };
 
     const setPreparationVisualPercent = (percent) => {
       const safePercent = Math.max(0, Math.min(100, Math.round(percent)));
@@ -150,7 +396,8 @@ export class UIManager {
       }
 
       if (preparationElements.stage) {
-        preparationElements.stage.textContent = stage;
+        preparationElements.stage.textContent =
+          translatePreparationStage(stage);
       }
 
       animatePreparationPercent(percent);
@@ -166,9 +413,11 @@ export class UIManager {
       }
 
       if (preparationElements.startText) {
+        const t = translations[this.currentLang];
+
         preparationElements.startText.textContent = enabled
-          ? "ПОДГОТОВКА..."
-          : translations[this.currentLang].start;
+          ? t.preparationButton
+          : t.start;
       }
 
       if (!enabled) {
@@ -182,7 +431,8 @@ export class UIManager {
         setPreparationVisualPercent(0);
 
         if (preparationElements.stage) {
-          preparationElements.stage.textContent = "Ожидание запуска…";
+          preparationElements.stage.textContent =
+            translations[this.currentLang].preparationIdle;
         }
 
         const coreSubtext = document.querySelector(".core-subtext");
@@ -206,12 +456,11 @@ export class UIManager {
       this.isMenuLocked = true;
       this.clearAnimTimers();
 
-      if (audioManager?.resumeContext) audioManager.resumeContext();
-
-      const htmlElem = document.documentElement;
-      if (htmlElem.requestFullscreen && !document.fullscreenElement) {
-        htmlElem.requestFullscreen();
+      if (audioManager?.resumeContext) {
+        audioManager.resumeContext();
       }
+
+      this.enterImmersiveFullscreen();
 
       this.menuManager.hideMenu();
 
@@ -261,15 +510,13 @@ export class UIManager {
         audioManager.resumeContext();
       }
 
-      const htmlElem = document.documentElement;
-
-      if (htmlElem.requestFullscreen && !document.fullscreenElement) {
-        htmlElem.requestFullscreen();
-      }
+      await this.enterImmersiveFullscreen();
 
       // Показываем индикатор, но пока не скрываем меню.
-      setPreparationMode(true);
-      updatePreparationStatus("Запуск подготовки…", 0);
+      updatePreparationStatus(
+        translations[this.currentLang].preparationStarting,
+        0,
+      );
 
       try {
         if (this.cb?.onPrepareNewGame) {
@@ -282,7 +529,10 @@ export class UIManager {
       } catch (error) {
         console.error("[PREPARE] Ошибка подготовки игры:", error);
 
-        updatePreparationStatus("Ошибка подготовки", 0);
+        updatePreparationStatus(
+          translations[this.currentLang].preparationError,
+          0,
+        );
 
         await new Promise((resolve) => setTimeout(resolve, 1200));
 
@@ -291,26 +541,26 @@ export class UIManager {
         return;
       }
 
-    if (eraseSave && this.cb?.onDeleteSavedProgress) {
-  this.cb.onDeleteSavedProgress();
-}
+      if (eraseSave && this.cb?.onDeleteSavedProgress) {
+        this.cb.onDeleteSavedProgress();
+      }
 
-// Сначала возвращаем общее состояние атмосферы.
-// Оно может менять цвета общих материалов комнаты.
-if (store?.update) {
-  store.update({
-    mode: "lab",
-    playerName: "Dev",
-  });
-}
+      // Сначала возвращаем общее состояние атмосферы.
+      // Оно может менять цвета общих материалов комнаты.
+      if (store?.update) {
+        store.update({
+          mode: "lab",
+          playerName: "Dev",
+        });
+      }
 
-// И только после этого строим выбранный сектор,
-// чтобы его собственные материалы и цвета применились последними.
-if (this.cb?.onReset) {
-  this.cb.onReset({ levelId });
-}
+      // И только после этого строим выбранный сектор,
+      // чтобы его собственные материалы и цвета применились последними.
+      if (this.cb?.onReset) {
+        this.cb.onReset({ levelId });
+      }
 
-this.hudManager.resetWordInput();
+      this.hudManager.resetWordInput();
 
       // Теперь меню можно скрыть.
       this.menuManager.hideMenu();
@@ -379,9 +629,36 @@ this.hudManager.resetWordInput();
       this.unlockFeature("feature-physics");
     };
 
+    this.loadSectorFromMenu = (sectorId) => {
+      const highestUnlockedSector = this.cb?.getHighestUnlockedSector?.() ?? 1;
+
+      const safeSectorId = Number(sectorId);
+
+      const isValidSector =
+        Number.isInteger(safeSectorId) &&
+        safeSectorId >= 1 &&
+        safeSectorId <= highestUnlockedSector;
+
+      if (!isValidSector) {
+        console.warn(
+          `[LOAD] Попытка загрузить недоступный сектор: ${sectorId}`,
+        );
+
+        return false;
+      }
+
+      this.cb?.onSectorLoadedFromMenu?.(safeSectorId);
+
+      executePreparedGame({
+        levelId: safeSectorId,
+        eraseSave: false,
+      });
+
+      return true;
+    };
+
     // Биндим кнопки меню, которые вызывают запуск игры
     const btnStart = document.getElementById("btn-start-game");
-    const btnResume = document.getElementById("btn-resume-game");
     const btnRestartSector = document.getElementById("btn-restart-sector");
 
     const btnSectors = document.getElementById("btn-open-sectors");
@@ -391,90 +668,82 @@ this.hudManager.resetWordInput();
     const btnConfirmNo = document.getElementById("btn-confirm-no");
     const confirmModal = document.getElementById("confirm-modal");
     const btnInGameMenu = document.getElementById("btn-in-game-menu");
+    const btnPauseResume = document.getElementById("btn-pause-resume");
+
+    const btnPauseRestart = document.getElementById("btn-pause-restart");
+
+    const btnPauseSettings = document.getElementById("btn-pause-settings");
+
+    const btnPauseMainMenu = document.getElementById("btn-pause-main-menu");
 
     const updateSessionButtons = () => {
       const hasActiveSession = this.cb?.hasActiveSession?.() === true;
 
-      const hasSavedProgress = this.cb?.hasSavedProgress?.() === true;
+      const highestUnlockedSector = this.cb?.getHighestUnlockedSector?.() ?? 1;
 
-      // "Продолжить":
-      // показываем либо для живой паузы,
-      // либо для загрузки сохранённого сектора.
-      if (btnResume) {
-        btnResume.style.display =
-          hasActiveSession || hasSavedProgress ? "flex" : "none";
-      }
-
-      // Только внутри живой сессии.
+      // Старые кнопки дверного меню пока оставляем скрытыми.
+      // Настоящая пауза теперь находится в pause-overlay.
       if (btnRestartSector) {
-        btnRestartSector.style.display = hasActiveSession ? "flex" : "none";
+        btnRestartSector.style.display = "none";
       }
 
-      // В меню паузы новую игру не показываем.
+      if (btnReturnTitle) {
+        btnReturnTitle.style.display = "none";
+      }
+
       if (btnStart) {
         btnStart.style.display = hasActiveSession ? "none" : "flex";
       }
 
-      // В меню паузы список секторов тоже скрываем.
+      // "Загрузить" появляется только после открытия сектора 2.
       if (btnSectors) {
-        btnSectors.style.display = hasActiveSession ? "none" : "flex";
-      }
+        const canLoadSector = !hasActiveSession && highestUnlockedSector >= 2;
 
-      // Эта кнопка существует только в меню паузы.
-      if (btnReturnTitle) {
-        btnReturnTitle.style.display = hasActiveSession ? "flex" : "none";
+        btnSectors.style.display = canLoadSector ? "flex" : "none";
       }
     };
+
+    this.updateMainMenuButtons = updateSessionButtons;
 
     // При первом открытии страницы активной сессии ещё нет.
     updateSessionButtons();
 
     const startFreshGame = () => {
+      if (audioManager?.playUI) {
+        audioManager.playUI("start");
+      }
+      // Сразу сбрасываем старый прогресс,
+      // включая highestUnlockedSector.
+      if (this.cb?.onDeleteSavedProgress) {
+        this.cb.onDeleteSavedProgress();
+      }
+
+      // Немедленно обновляем главное меню:
+      // кнопка "Загрузить" должна исчезнуть.
+      this.updateMainMenuButtons?.();
+
       executePreparedGame({
         levelId: 1,
-        eraseSave: true,
+        eraseSave: false,
       });
-    };
-
-    const continueGame = () => {
-      const hasActiveSession = this.cb?.hasActiveSession?.() === true;
-
-      // Esc-пауза: возвращаемся в ту же живую сцену.
-      if (hasActiveSession) {
-        enterGame();
-        return;
-      }
-
-      const hasSavedProgress = this.cb?.hasSavedProgress?.() === true;
-
-      // Запуск игры после закрытия вкладки:
-      // строим сохранённый сектор заново.
-      if (hasSavedProgress) {
-        const savedSector = this.cb?.getSavedSector?.() ?? 1;
-
-        executePreparedGame({
-          levelId: savedSector,
-          eraseSave: false,
-        });
-      }
     };
 
     if (btnStart) {
       btnStart.addEventListener("click", () => {
-        const hasSavedProgress = this.cb?.hasSavedProgress?.() === true;
+        const highestUnlockedSector =
+          this.cb?.getHighestUnlockedSector?.() ?? 1;
 
-        // Существующее сохранение будет заменено.
-        if (hasSavedProgress && confirmModal) {
+        const hasMeaningfulProgress = highestUnlockedSector >= 2;
+
+        // Предупреждаем только при действительно
+        // достигнутом втором секторе или выше.
+        if (hasMeaningfulProgress && confirmModal) {
           confirmModal.classList.remove("hidden");
           return;
         }
 
         startFreshGame();
       });
-    }
-
-    if (btnResume) {
-      btnResume.addEventListener("click", continueGame);
     }
 
     if (btnRestartSector) {
@@ -509,13 +778,8 @@ this.hudManager.resetWordInput();
     if (btnConfirmNo) {
       btnConfirmNo.addEventListener("click", () => {
         confirmModal?.classList.add("hidden");
-
-        if (audioManager?.playUI) {
-          audioManager.playUI("click");
-        }
       });
     }
-
     let pendingMenuFrame = null;
     const returnToMainMenu = () => {
       if (pendingMenuFrame) {
@@ -605,6 +869,72 @@ this.hudManager.resetWordInput();
       pendingMenuFrame = requestAnimationFrame(waitForElevator);
     };
 
+    if (btnPauseResume) {
+      btnPauseResume.addEventListener("click", () => {
+        this.closePauseMenu();
+      });
+    }
+
+    if (btnPauseRestart) {
+      btnPauseRestart.addEventListener("click", () => {
+        if (this.cb?.onRestartCurrentRoom) {
+          this.cb.onRestartCurrentRoom();
+        }
+
+        this.closePauseMenu();
+      });
+    }
+
+    if (btnPauseSettings) {
+      btnPauseSettings.addEventListener("click", () => {
+        this.menuManager.showPauseSettings();
+      });
+    }
+
+    if (btnPauseMainMenu) {
+      btnPauseMainMenu.addEventListener("click", async () => {
+        // Страховка для браузеров без Keyboard Lock:
+        // если Esc уже вывел страницу из fullscreen,
+        // возвращаем fullscreen по клику игрока.
+        await this.enterImmersiveFullscreen();
+
+        // Убираем overlay, но не возвращаем управление игроку.
+        this.closePauseMenu({
+          resumeGameplay: false,
+        });
+
+        if (this.cb?.onReturnToTitle) {
+          this.cb.onReturnToTitle();
+        }
+
+        // Большие двери закрываются уже внутри fullscreen.
+        requestReturnToMainMenu();
+      });
+    }
+
+    const pauseButtons = [
+      { button: btnPauseResume, sound: "start" },
+      { button: btnPauseRestart, sound: "start" },
+      { button: btnPauseSettings, sound: "click" },
+      { button: btnPauseMainMenu, sound: "click" },
+    ];
+
+    pauseButtons.forEach(({ button, sound }) => {
+      if (!button) return;
+
+      button.addEventListener("mouseenter", () => {
+        if (audioManager?.ctx?.state === "running" && !this.blockHoverSound) {
+          audioManager.playUI("mouse_menu");
+        }
+      });
+
+      button.addEventListener("click", () => {
+        if (audioManager?.playUI) {
+          audioManager.playUI(sound);
+        }
+      });
+    });
+
     if (btnInGameMenu) {
       btnInGameMenu.addEventListener("click", () => {
         requestReturnToMainMenu();
@@ -618,9 +948,21 @@ this.hudManager.resetWordInput();
     document.addEventListener("fullscreenchange", () => {
       if (
         !document.fullscreenElement &&
+        typeof navigator.keyboard?.unlock === "function"
+      ) {
+        navigator.keyboard.unlock();
+      }
+
+      const hasActiveSession = this.cb?.hasActiveSession?.() === true;
+
+      if (
+        !document.fullscreenElement &&
+        hasActiveSession &&
         el.doors?.classList.contains("loaded")
       ) {
-        requestReturnToMainMenu();
+        // Если игрок удержал Esc и реально вышел из fullscreen,
+        // оставляем игру на паузе.
+        this.openPauseMenu();
       }
     });
   }
@@ -628,27 +970,102 @@ this.hudManager.resetWordInput();
   // --- ОБНОВЛЕНИЕ ЯЗЫКА ---
 
   updateLanguage(lang) {
-    this.currentLang = lang;
-    const t = translations[lang];
+    const safeLang = translations[lang] ? lang : "EN";
+
+    this.currentLang = safeLang;
+
+    localStorage.setItem("google-room-language", safeLang);
+
+    document.documentElement.lang = safeLang.toLowerCase();
+
+    document.documentElement.dataset.uiLang = safeLang;
+
+    const t = translations[safeLang];
+
+    document.querySelectorAll(".lang-btn").forEach((button) => {
+      const isCurrentLanguage = button.dataset.lang === safeLang;
+
+      button.classList.toggle("active-lang", isCurrentLanguage);
+
+      button.setAttribute("aria-pressed", String(isCurrentLanguage));
+    });
 
     const updateText = (id, text) => {
       const el = document.getElementById(id);
-      if (el) el.textContent = text;
+
+      if (!el || el.querySelector("[data-lang-text]")) {
+        return;
+      }
+
+      el.textContent = text;
     };
+
     const updateBtnText = (id, text) => {
       const el = document.getElementById(id)?.querySelector(".btn-text");
-      if (el) el.textContent = text;
+
+      if (!el || el.querySelector("[data-lang-text]")) {
+        return;
+      }
+
+      el.textContent = text;
     };
 
     updateBtnText("btn-start-game", t.start);
-    updateBtnText("btn-resume-game", t.resume);
     updateBtnText("btn-restart-sector", t.restartSector);
-    updateBtnText("btn-open-sectors", t.sectors);
+    updateBtnText("btn-open-sectors", t.load);
     updateBtnText("btn-open-settings", t.settings);
     updateBtnText("btn-exit", t.exit);
-    updateBtnText("btn-back-main", t.back);
+    const settingsOpenedFromPause =
+      this.menuManager?.settingsView?.dataset.context === "pause";
+
+    updateBtnText(
+      "btn-back-main",
+      settingsOpenedFromPause ? t.backToPause : t.back,
+    );
     updateBtnText("btn-in-game-menu", t.inGameMenu);
     updateBtnText("btn-return-title", t.titleMenu);
+    updateText("pause-system-label", t.pauseSystemLabel);
+
+    updateText("pause-title", t.pauseTitle);
+
+    updateBtnText("btn-pause-resume", t.pauseResume);
+
+    updateBtnText("btn-pause-restart", t.pauseRestart);
+
+    updateBtnText("btn-pause-settings", t.pauseSettings);
+
+    updateBtnText("btn-pause-main-menu", t.pauseMainMenu);
+
+    updateText("pause-footer-text", t.pauseFooter);
+
+    updateText("preparation-title", t.preparationTitle);
+
+    const preparationStage = document.getElementById("preparation-stage");
+
+    const isPreparing =
+      this.elements.doors?.classList.contains("is-preparing") === true;
+
+    if (preparationStage && !isPreparing) {
+      preparationStage.textContent = t.preparationIdle;
+    }
+
+    const confirmText = document.getElementById("confirm-new-game-text");
+
+    const confirmYesText = document.querySelector("#btn-confirm-yes .btn-text");
+
+    const confirmNoText = document.querySelector("#btn-confirm-no .btn-text");
+
+    if (confirmText && t.newGameWarning) {
+      confirmText.innerHTML = t.newGameWarning;
+    }
+
+    if (confirmYesText && t.confirmYes) {
+      confirmYesText.textContent = t.confirmYes;
+    }
+
+    if (confirmNoText && t.confirmNo) {
+      confirmNoText.textContent = t.confirmNo;
+    }
 
     const exitJokeEl = document.querySelector("#btn-exit .exit-joke");
     if (exitJokeEl) exitJokeEl.textContent = t.exitJoke;
@@ -664,6 +1081,11 @@ this.hudManager.resetWordInput();
       "#btn-toggle-lang .slider-header .btn-text",
     );
     if (langTitle) langTitle.textContent = t.langTitle;
+    const languageStatus = document.getElementById("current-language-status");
+
+    if (languageStatus) {
+      languageStatus.textContent = t.languageCode;
+    }
 
     updateText("btn-what-now", t.btnWhatNow);
     updateText("btn-accept-friend", t.btnAcceptFriend);
@@ -675,18 +1097,47 @@ this.hudManager.resetWordInput();
       ".registration-form .section-title",
     );
     if (regTitle) regTitle.textContent = t.regTerminalTitle;
+    this.menuManager?.updateSectorsView();
   }
 
   // --- ГЛОБАЛЬНЫЕ ГОРЯЧИЕ КЛАВИШИ ---
   initGlobalBindings() {
     window.addEventListener("keydown", (e) => {
-      if (document.activeElement.tagName === "INPUT") return;
+      if (document.activeElement?.tagName === "INPUT") {
+        return;
+      }
+
       switch (e.code) {
+        case "Escape": {
+          const hasActiveSession = this.cb?.hasActiveSession?.() === true;
+
+          if (!hasActiveSession) {
+            return;
+          }
+
+          e.preventDefault();
+
+          if (this.isPauseMenuOpen()) {
+            this.closePauseMenu();
+          } else {
+            this.openPauseMenu();
+          }
+
+          break;
+        }
+
         case "KeyR":
-          if (this.cb?.onRestartCurrentRoom) {
+          // R работает только непосредственно во время игры,
+          // но не поверх открытого меню паузы.
+          if (
+            this.cb?.hasActiveSession?.() === true &&
+            !this.isPauseMenuOpen() &&
+            this.cb?.onRestartCurrentRoom
+          ) {
             this.cb.onRestartCurrentRoom();
           }
           break;
+
         case "KeyH":
           document.body.classList.toggle("ui-hidden");
           this.hudManager.closePalette();

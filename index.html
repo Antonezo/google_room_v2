@@ -1,10 +1,21 @@
 <!doctype html>
-<html lang="en">
+<html lang="en" data-ui-lang="EN">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Google Room - Final Clean</title>
     <meta name="theme-color" content="#0b0f17" />
+    <script>
+      (() => {
+        const savedLanguage = localStorage.getItem("google-room-language");
+
+        const language = savedLanguage === "RU" ? "RU" : "EN";
+
+        document.documentElement.dataset.uiLang = language;
+
+        document.documentElement.lang = language.toLowerCase();
+      })();
+    </script>
     <link
       rel="icon"
       href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Cdefs%3E%3CradialGradient id='blueGrad' cx='30%25' cy='30%25' r='70%25'%3E%3Cstop offset='0%25' stop-color='%23fff'/%3E%3Cstop offset='100%25' stop-color='%234285F4'/%3E%3C/radialGradient%3E%3CradialGradient id='redGrad' cx='30%25' cy='30%25' r='70%25'%3E%3Cstop offset='0%25' stop-color='%23fff'/%3E%3Cstop offset='100%25' stop-color='%23EA4335'/%3E%3C/radialGradient%3E%3CradialGradient id='yellowGrad' cx='30%25' cy='30%25' r='70%25'%3E%3Cstop offset='0%25' stop-color='%23fff'/%3E%3Cstop offset='100%25' stop-color='%23FBBC05'/%3E%3C/radialGradient%3E%3C/defs%3E%3Ccircle cx='50' cy='45' r='40' fill='url(%23blueGrad)'/%3E%3Ccircle cx='72' cy='68' r='26' fill='url(%23redGrad)'/%3E%3Ccircle cx='38' cy='72' r='20' fill='url(%23yellowGrad)'/%3E%3C/svg%3E"
@@ -21,7 +32,7 @@
       rel="stylesheet"
     />
   </head>
-  <body class="loading hide-sandbox-ui">
+<body class="loading hide-sandbox-ui initial-main-view">
     <div id="game-monitor">
       <div id="canvas-container"></div>
     </div>
@@ -40,35 +51,35 @@
         <div id="futuristic-start-menu" class="futuristic-start-menu">
           <div id="view-main" class="menu-view active">
             <button
-              id="btn-resume-game"
-              class="sk-btn resume-highlight-cyan"
-              style="display: none"
-            >
-              <span class="btn-text">ПРОДОЛЖИТЬ</span>
-              <span class="btn-dec">&gt;&gt;</span>
-              <div class="resume-energy-field"></div>
-            </button>
-
-            <button
               id="btn-restart-sector"
               class="sk-btn"
               style="display: none"
             >
-              <span class="btn-text">ПЕРЕЗАПУСТИТЬ СЕКТОР</span>
+              <span class="btn-text">
+                <span data-lang-text="EN">RESTART SECTOR</span>
+                <span data-lang-text="RU">ПЕРЕЗАПУСТИТЬ СЕКТОР</span>
+              </span>
             </button>
 
             <button id="btn-start-game" class="sk-btn pulse-glow-volumetric">
-              <span class="btn-text">НОВАЯ ИГРА</span>
+              <span class="btn-text">
+                <span data-lang-text="EN">NEW GAME</span>
+                <span data-lang-text="RU">НОВАЯ ИГРА</span>
+              </span>
               <span class="btn-dec">&gt;&gt;</span>
             </button>
+            <!-- ЗДЕСЬ ЗАКРЫВАЕМ КНОПКУ СТАРТА -->
 
+            <!-- Блок подготовки теперь идет следом, А НЕ ВНУТРИ кнопки -->
             <div
               id="game-preparation-status"
               class="game-preparation-status"
               aria-live="polite"
             >
               <div class="preparation-header">
-                <span class="preparation-title">ПОДГОТОВКА СИСТЕМЫ</span>
+                <span id="preparation-title" class="preparation-title">
+                  SYSTEM PREPARATION
+                </span>
                 <span id="preparation-percent" class="preparation-percent"
                   >0%</span
                 >
@@ -82,81 +93,93 @@
               </div>
 
               <div id="preparation-stage" class="preparation-stage">
-                Ожидание запуска…
+                Waiting to start...
               </div>
             </div>
 
-            <button id="btn-open-sectors" class="sk-btn">
-              <span class="btn-text">СЕКТОРЫ</span>
+            <button id="btn-open-sectors" class="sk-btn" style="display: none">
+              <span class="btn-text">
+                <span data-lang-text="EN">LOAD</span>
+                <span data-lang-text="RU">ЗАГРУЗИТЬ</span>
+              </span>
             </button>
 
-<button
-  id="btn-return-title"
-  class="sk-btn"
-  style="display: none"
->
-  <span class="btn-text">ГЛАВНОЕ МЕНЮ</span>
-</button>
+            <button id="btn-return-title" class="sk-btn" style="display: none">
+              <span class="btn-text">
+                <span data-lang-text="EN">MAIN MENU</span>
+                <span data-lang-text="RU">ГЛАВНОЕ МЕНЮ</span>
+              </span>
+            </button>
 
             <button id="btn-open-settings" class="sk-btn">
-              <span class="btn-text">НАСТРОЙКИ</span>
+              <span class="btn-text">
+                <span data-lang-text="EN">SETTINGS</span>
+                <span data-lang-text="RU">НАСТРОЙКИ</span>
+              </span>
             </button>
 
             <button id="btn-exit" class="sk-btn exit-btn">
-              <span class="btn-text btn-text-default">ВЫХОД</span>
-              <span class="exit-joke">просто закрой вкладку :)</span>
+              <span class="btn-text btn-text-default">
+                <span data-lang-text="EN">EXIT</span>
+                <span data-lang-text="RU">ВЫХОД</span>
+              </span>
+              <span class="exit-joke">
+                <span data-lang-text="EN">LEAVE FULLSCREEN</span>
+                <span data-lang-text="RU">ВЫЙТИ ИЗ ПОЛНОЭКРАННОГО РЕЖИМА</span>
+              </span>
             </button>
           </div>
+          <!-- ЗДЕСЬ ЗАКРЫВАЕТСЯ #view-main -->
 
-<div id="view-sectors" class="menu-view">
-  <button id="btn-back-sectors" class="holo-back-tab">
-    <span class="btn-dec">&lt;&lt;</span>
-    <span class="btn-text">ГЛАВНОЕ МЕНЮ</span>
-  </button>
+          <div id="view-sectors" class="menu-view">
+            <button id="btn-back-sectors" class="holo-back-tab">
+              <span class="btn-dec">&lt;&lt;</span>
 
-  <div class="sectors-list">
-    <button
-      class="sector-card"
-      data-sector-id="1"
-      type="button"
-    >
-      <span class="sector-number">01</span>
+              <span class="btn-text">
+                <span data-lang-text="EN">MAIN MENU</span>
+                <span data-lang-text="RU">ГЛАВНОЕ МЕНЮ</span>
+              </span>
+            </button>
 
-      <span class="sector-info">
-        <span class="sector-title">СЕКТОР 1</span>
-        <span class="sector-status">ДОСТУПЕН</span>
-      </span>
-    </button>
+            <div class="sectors-list">
+              <button class="sector-card" data-sector-id="1" type="button">
+                <span class="sector-number">01</span>
 
-    <button
-      class="sector-card"
-      data-sector-id="2"
-      type="button"
-      hidden
-    >
-      <span class="sector-number">02</span>
+                <span class="sector-info">
+                  <span class="sector-title">SECTOR 1</span>
+                  <span class="sector-status">CURRENT SECTOR</span>
+                </span>
+              </button>
 
-      <span class="sector-info">
-        <span class="sector-title">СЕКТОР 2</span>
-        <span class="sector-status">ДОСТУПЕН</span>
-      </span>
-    </button>
+              <button
+                class="sector-card"
+                data-sector-id="2"
+                type="button"
+                hidden
+              >
+                <span class="sector-number">02</span>
 
-    <button
-      class="sector-card"
-      data-sector-id="3"
-      type="button"
-      hidden
-    >
-      <span class="sector-number">03</span>
+                <span class="sector-info">
+                  <span class="sector-title">SECTOR 2</span>
+                  <span class="sector-status">AVAILABLE</span>
+                </span>
+              </button>
 
-      <span class="sector-info">
-        <span class="sector-title">СЕКТОР 3</span>
-        <span class="sector-status">ДОСТУПЕН</span>
-      </span>
-    </button>
-  </div>
-</div>
+              <button
+                class="sector-card"
+                data-sector-id="3"
+                type="button"
+                hidden
+              >
+                <span class="sector-number">03</span>
+
+                <span class="sector-info">
+                  <span class="sector-title">SECTOR 3</span>
+                  <span class="sector-status">AVAILABLE</span>
+                </span>
+              </button>
+            </div>
+          </div>
 
           <div id="view-settings" class="menu-view">
             <button id="btn-back-main" class="holo-back-tab">
@@ -167,7 +190,7 @@
             <div class="settings-list">
               <div class="slider-group">
                 <div class="slider-header">
-                  <span class="btn-text">ГРОМКОСТЬ ЭФФЕКТОВ</span>
+                  <span class="btn-text">SFX VOLUME</span>
                   <span class="slider-value" id="val-sfx">70%</span>
                 </div>
                 <input
@@ -182,7 +205,7 @@
 
               <div class="slider-group">
                 <div class="slider-header">
-                  <span class="btn-text">ГРОМКОСТЬ МУЗЫКИ</span>
+                  <span class="btn-text">MUSIC VOLUME</span>
                   <span class="slider-value" id="val-music">40%</span>
                 </div>
                 <input
@@ -197,14 +220,24 @@
 
               <div id="btn-toggle-lang" class="lang-group slider-group">
                 <div class="slider-header lang-header-style">
-                  <span class="btn-text">ЯЗЫК</span>
-                  <span class="status slider-value">RU</span>
+                  <span class="btn-text">LANGUAGE</span>
+                  <span
+                    id="current-language-status"
+                    class="status slider-value"
+                  >
+                    EN
+                  </span>
                 </div>
                 <div class="lang-options">
-                  <button class="lang-btn" data-lang="EN">
+                  <button
+                    class="lang-btn active-lang"
+                    data-lang="EN"
+                    aria-pressed="true"
+                  >
                     <span class="btn-text">ENGLISH</span>
                   </button>
-                  <button class="lang-btn active-lang" data-lang="RU">
+
+                  <button class="lang-btn" data-lang="RU" aria-pressed="false">
                     <span class="btn-text">РУССКИЙ</span>
                   </button>
                 </div>
@@ -237,6 +270,60 @@
           </div>
         </div>
       </div>
+    </div>
+
+    <!-- =====================================================
+         БЫСТРОЕ МЕНЮ ПАУЗЫ ПОВЕРХ ИГРЫ
+         ===================================================== -->
+    <div id="pause-overlay" class="pause-overlay" aria-hidden="true">
+      <section
+        class="pause-panel"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="pause-title"
+      >
+        <header class="pause-header">
+          <div id="pause-system-label" class="pause-system-label">
+            SYSTEM PAUSED
+          </div>
+
+          <h2 id="pause-title" class="pause-title">PAUSE</h2>
+
+          <div class="pause-divider">
+            <span></span>
+          </div>
+        </header>
+
+        <div class="pause-menu">
+          <button
+            id="btn-pause-resume"
+            class="sk-btn pause-primary"
+            type="button"
+          >
+            <span class="btn-text">RESUME</span>
+            <span class="btn-dec">&gt;&gt;</span>
+          </button>
+
+          <button id="btn-pause-restart" class="sk-btn" type="button">
+            <span class="btn-text">RESTART SECTOR</span>
+          </button>
+
+          <button id="btn-pause-settings" class="sk-btn" type="button">
+            <span class="btn-text">SETTINGS</span>
+          </button>
+
+          <button id="btn-pause-main-menu" class="sk-btn" type="button">
+            <span class="btn-text">MAIN MENU</span>
+          </button>
+        </div>
+
+        <div id="pause-settings-host" class="pause-settings-host" hidden></div>
+
+        <div class="pause-footer">
+          <span>ESC</span>
+          <span id="pause-footer-text">RETURN TO GAME</span>
+        </div>
+      </section>
     </div>
 
     <div id="hud-controls" class="hud-hidden">
@@ -450,36 +537,30 @@
         }
       }
     </script>
-    <script>
-  (() => {
-    try {
-      const rawSave = localStorage.getItem("google-room-save-v1");
 
-      if (!rawSave) return;
-
-      const savedProgress = JSON.parse(rawSave);
-      const resumeButton = document.getElementById("btn-resume-game");
-
-      if (savedProgress?.hasSave === true && resumeButton) {
-        resumeButton.style.display = "flex";
-      }
-    } catch (error) {
-      console.warn("[SAVE BOOTSTRAP] Не удалось проверить сохранение:", error);
-    }
-  })();
-</script>
-
-<script type="module" src="js/main.js"></script>
     <script type="module" src="js/main.js"></script>
-
     <div id="confirm-modal" class="modal-overlay hidden">
-      <div class="cyber-modal">
-        <div class="modal-text">Are you sure?<br /></div>
+      <div
+        class="cyber-modal"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="confirm-new-game-text"
+      >
+        <div id="confirm-new-game-text" class="modal-text">
+          PROGRESS WILL BE RESET.<br />
+          ARE YOU SURE?
+        </div>
+
         <div class="modal-actions">
-          <button id="btn-confirm-yes" class="holo-btn active-state">
+          <button
+            id="btn-confirm-yes"
+            class="holo-btn active-state"
+            type="button"
+          >
             <span class="btn-text">YES</span>
           </button>
-          <button id="btn-confirm-no" class="holo-btn">
+
+          <button id="btn-confirm-no" class="holo-btn" type="button">
             <span class="btn-text">CANCEL</span>
           </button>
         </div>

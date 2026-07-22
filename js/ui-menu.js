@@ -9,8 +9,14 @@ export class MenuManager {
     this.startMenu = document.getElementById("futuristic-start-menu");
     this.mainView = document.getElementById("view-main");
     this.sectorsView = document.getElementById("view-sectors");
-    this.settingsView = document.getElementById("view-settings");
-    this.settingsHomeParent = this.settingsView?.parentElement ?? null;
+ this.settingsView = document.getElementById("view-settings");
+
+this.settingsMainPanel = document.getElementById("settings-main-panel");
+this.settingsControlsPanel = document.getElementById(
+  "settings-controls-panel",
+);
+
+this.settingsHomeParent = this.settingsView?.parentElement ?? null;
 
     this.settingsHomeNextSibling =
       this.settingsView?.nextElementSibling ?? null;
@@ -22,9 +28,11 @@ export class MenuManager {
     this.btnSettings = document.getElementById("btn-open-settings");
 
     this.btnBackSectors = document.getElementById("btn-back-sectors");
-    this.btnBackMain = document.getElementById("btn-back-main");
-    this.btnExit = document.getElementById("btn-exit");
-    this.btnLang = document.getElementById("btn-toggle-lang");
+this.btnBackMain = document.getElementById("btn-back-main");
+this.btnOpenControls = document.getElementById("btn-open-controls");
+this.btnBackControls = document.getElementById("btn-back-controls");
+this.btnExit = document.getElementById("btn-exit");
+this.btnLang = document.getElementById("btn-toggle-lang");
 
     // Ползунки
     this.sliderSfx = document.getElementById("slider-sfx");
@@ -154,9 +162,12 @@ export class MenuManager {
     pauseMenu?.removeAttribute("hidden");
     pauseFooter?.removeAttribute("hidden");
 
-    this.btnLang?.classList.remove("open");
+  this.btnLang?.classList.remove("open");
 
-    return true;
+this.settingsControlsPanel?.classList.remove("active");
+this.settingsMainPanel?.classList.add("active");
+
+return true;
   }
 
   initBindings() {
@@ -171,6 +182,8 @@ export class MenuManager {
       { id: "btn-exit", clickSound: "click" },
       { id: "btn-back-sectors", clickSound: "click" },
       { id: "btn-back-main", clickSound: "click" },
+      { id: "btn-open-controls", clickSound: "click" },
+{ id: "btn-back-controls", clickSound: "click" },
     ];
 
     menuButtons.forEach((item) => {
@@ -285,6 +298,26 @@ export class MenuManager {
       );
     }
 
+if (this.btnOpenControls) {
+  this.btnOpenControls.addEventListener("click", () => {
+    this.btnLang?.classList.remove("open");
+
+    toggleView(
+      this.settingsMainPanel,
+      this.settingsControlsPanel,
+    );
+  });
+}
+
+if (this.btnBackControls) {
+  this.btnBackControls.addEventListener("click", () => {
+    toggleView(
+      this.settingsControlsPanel,
+      this.settingsMainPanel,
+    );
+  });
+}
+
     if (this.btnBackMain) {
       this.btnBackMain.addEventListener("click", () => {
         const isPauseContext = this.settingsView?.dataset.context === "pause";
@@ -294,9 +327,12 @@ export class MenuManager {
           return;
         }
 
-        toggleView(this.settingsView, this.mainView);
+       toggleView(this.settingsView, this.mainView);
 
-        this.btnLang?.classList.remove("open");
+this.settingsControlsPanel?.classList.remove("active");
+this.settingsMainPanel?.classList.add("active");
+
+this.btnLang?.classList.remove("open");
       });
     }
 

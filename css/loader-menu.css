@@ -262,6 +262,221 @@ body.initial-main-view #view-main.menu-view.active {
   gap: 25px;
 }
 
+/* ==========================================================================
+   ВЛОЖЕННЫЕ СТРАНИЦЫ НАСТРОЕК
+   ========================================================================== */
+
+.settings-panel {
+  display: none;
+  flex-direction: column;
+  width: 100%;
+}
+
+.settings-panel.active {
+  display: flex;
+  animation: fadeInMenu 0.35s ease forwards;
+}
+
+#view-settings .settings-navigation-btn {
+  flex-shrink: 0;
+  width: 100%;
+  height: 80px;
+  min-height: 80px;
+  box-sizing: border-box;
+  font-size: 13px;
+}
+
+#view-settings .settings-navigation-btn .btn-text {
+  margin-right: 35px;
+  font-size: 13px;
+  letter-spacing: 2px;
+}
+
+#view-settings .settings-navigation-btn .btn-dec {
+  margin-right: 15px;
+}
+
+/* ==========================================================================
+   РАЗДЕЛ "УПРАВЛЕНИЕ"
+   ========================================================================== */
+
+.controls-header {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  margin: 0 28px 28px 28px;
+  font-family: "Orbitron", sans-serif;
+  text-align: right;
+}
+
+.controls-title {
+  color: #fff;
+  font-size: 18px;
+  font-weight: 700;
+  letter-spacing: 4px;
+  text-shadow: 0 0 10px var(--neon-blue);
+}
+
+
+.controls-list {
+  display: flex;
+  flex-direction: column;
+  gap: 22px;
+  padding: 8px 28px 0 28px;
+}
+
+.control-row {
+  min-height: 42px;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 28px;
+  font-family: "Orbitron", sans-serif;
+}
+
+.control-action {
+  flex: 1;
+  color: rgba(255, 255, 255, 0.92);
+  font-size: 12px;
+  letter-spacing: 2px;
+  text-align: left;
+  text-shadow: 0 0 5px rgba(var(--neon-blue-rgb), 0.55);
+}
+
+.control-bindings {
+  min-width: 150px;
+  display: flex;
+  justify-content: flex-end;
+  gap: 6px;
+}
+
+.control-bindings kbd,
+.control-device {
+  min-width: 30px;
+  min-height: 28px;
+  padding: 0 8px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  border: 1px solid rgba(var(--neon-blue-rgb), 0.75);
+  background: rgba(0, 10, 18, 0.72);
+  color: var(--neon-blue);
+  font-family: "Orbitron", sans-serif;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 1px;
+  text-shadow: 0 0 6px var(--neon-blue);
+  box-shadow:
+    inset 0 0 8px rgba(var(--neon-blue-rgb), 0.15),
+    0 0 6px rgba(var(--neon-blue-rgb), 0.12);
+}
+
+.control-device {
+  min-width: 150px;
+  white-space: nowrap;
+}
+
+/* Движение: WASD + мышь */
+
+.control-row-movement {
+  min-height: 62px;
+}
+
+.movement-controls {
+  min-width: 190px;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
+}
+
+.wasd-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 30px);
+  grid-template-rows: repeat(2, 27px);
+  gap: 4px;
+}
+
+.wasd-grid kbd {
+  min-width: 30px;
+  width: 30px;
+  min-height: 27px;
+  height: 27px;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  border: 1px solid rgba(var(--neon-blue-rgb), 0.75);
+  background: rgba(0, 10, 18, 0.72);
+  color: var(--neon-blue);
+  font-family: "Orbitron", sans-serif;
+  font-size: 10px;
+  font-weight: 700;
+  text-shadow: 0 0 6px var(--neon-blue);
+  box-shadow:
+    inset 0 0 8px rgba(var(--neon-blue-rgb), 0.15),
+    0 0 6px rgba(var(--neon-blue-rgb), 0.12);
+}
+
+.wasd-grid .key-w {
+  grid-column: 2;
+  grid-row: 1;
+}
+
+.wasd-grid .key-a {
+  grid-column: 1;
+  grid-row: 2;
+}
+
+.wasd-grid .key-s {
+  grid-column: 2;
+  grid-row: 2;
+}
+
+.wasd-grid .key-d {
+  grid-column: 3;
+  grid-row: 2;
+}
+
+.movement-plus {
+  color: rgba(var(--neon-blue-rgb), 0.75);
+  font-family: "Orbitron", sans-serif;
+  font-size: 15px;
+  text-shadow: 0 0 6px var(--neon-blue);
+}
+
+.mouse-control {
+  min-width: 62px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  color: var(--neon-blue);
+  font-family: "Orbitron", sans-serif;
+  font-size: 8px;
+  font-weight: 700;
+  letter-spacing: 1px;
+  text-shadow: 0 0 6px var(--neon-blue);
+}
+
+.mouse-control-icon {
+  width: 22px;
+  height: 30px;
+  overflow: visible;
+  fill: rgba(0, 10, 18, 0.72);
+  stroke: var(--neon-blue);
+  stroke-width: 1.5;
+  filter: drop-shadow(0 0 4px rgba(var(--neon-blue-rgb), 0.65));
+}
+
+.mouse-control-icon line:last-child {
+  stroke-width: 3;
+  stroke-linecap: round;
+}
+
 .sk-btn {
   position: relative;
   width: 100%;
@@ -359,6 +574,10 @@ body.initial-main-view #view-main.menu-view.active {
   outline: none;
   z-index: 1;
   margin-bottom: 20px;
+}
+
+#view-settings #btn-back-main {
+  margin-bottom: 38px;
 }
 .holo-back-tab::before {
   content: "";

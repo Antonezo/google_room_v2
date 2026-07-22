@@ -1080,8 +1080,20 @@ document
     const langTitle = document.querySelector(
       "#btn-toggle-lang .slider-header .btn-text",
     );
-    if (langTitle) langTitle.textContent = t.langTitle;
-    const languageStatus = document.getElementById("current-language-status");
+ if (langTitle) langTitle.textContent = t.langTitle;
+
+updateBtnText("btn-open-controls", t.controls);
+updateBtnText("btn-back-controls", t.controlsBack);
+
+updateText("controls-title", t.controls);
+updateText("control-action-movement", t.controlMovement);
+updateText("control-action-jump", t.controlJump);
+updateText("control-action-pause", t.controlPause);
+updateText("control-action-restart", t.controlRestart);
+
+updateText("control-binding-mouse-text", t.controlMouse);
+
+const languageStatus = document.getElementById("current-language-status");
 
     if (languageStatus) {
       languageStatus.textContent = t.languageCode;

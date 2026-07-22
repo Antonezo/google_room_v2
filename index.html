@@ -32,7 +32,7 @@
       rel="stylesheet"
     />
   </head>
-<body class="loading hide-sandbox-ui initial-main-view">
+  <body class="loading hide-sandbox-ui initial-main-view">
     <div id="game-monitor">
       <div id="canvas-container"></div>
     </div>
@@ -182,64 +182,162 @@
           </div>
 
           <div id="view-settings" class="menu-view">
-            <button id="btn-back-main" class="holo-back-tab">
-              <span class="btn-dec">&lt;&lt;</span>
-              <span class="btn-text">ГЛАВНОЕ МЕНЮ</span>
-            </button>
+            <!-- Главная страница настроек -->
+            <div id="settings-main-panel" class="settings-panel active">
+              <button id="btn-back-main" class="holo-back-tab">
+                <span class="btn-dec">&lt;&lt;</span>
+                <span class="btn-text">MAIN MENU</span>
+              </button>
 
-            <div class="settings-list">
-              <div class="slider-group">
-                <div class="slider-header">
-                  <span class="btn-text">SFX VOLUME</span>
-                  <span class="slider-value" id="val-sfx">70%</span>
+              <div class="settings-list">
+                <div class="slider-group">
+                  <div class="slider-header">
+                    <span class="btn-text">SFX VOLUME</span>
+                    <span class="slider-value" id="val-sfx">70%</span>
+                  </div>
+
+                  <input
+                    type="range"
+                    id="slider-sfx"
+                    class="cyber-slider"
+                    min="0"
+                    max="100"
+                    value="70"
+                  />
                 </div>
-                <input
-                  type="range"
-                  id="slider-sfx"
-                  class="cyber-slider"
-                  min="0"
-                  max="100"
-                  value="70"
-                />
+
+                <div class="slider-group">
+                  <div class="slider-header">
+                    <span class="btn-text">MUSIC VOLUME</span>
+                    <span class="slider-value" id="val-music">40%</span>
+                  </div>
+
+                  <input
+                    type="range"
+                    id="slider-music"
+                    class="cyber-slider"
+                    min="0"
+                    max="100"
+                    value="40"
+                  />
+                </div>
+
+                <button
+                  id="btn-open-controls"
+                  class="sk-btn settings-navigation-btn"
+                >
+                  <span class="btn-text">CONTROLS</span>
+                  <span class="btn-dec">&gt;&gt;</span>
+                </button>
+
+                <div id="btn-toggle-lang" class="lang-group slider-group">
+                  <div class="slider-header lang-header-style">
+                    <span class="btn-text">LANGUAGE</span>
+
+                    <span
+                      id="current-language-status"
+                      class="status slider-value"
+                    >
+                      EN
+                    </span>
+                  </div>
+
+                  <div class="lang-options">
+                    <button
+                      class="lang-btn active-lang"
+                      data-lang="EN"
+                      aria-pressed="true"
+                    >
+                      <span class="btn-text">ENGLISH</span>
+                    </button>
+
+                    <button
+                      class="lang-btn"
+                      data-lang="RU"
+                      aria-pressed="false"
+                    >
+                      <span class="btn-text">РУССКИЙ</span>
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Вложенная страница управления -->
+            <div id="settings-controls-panel" class="settings-panel">
+              <button id="btn-back-controls" class="holo-back-tab">
+                <span class="btn-dec">&lt;&lt;</span>
+                <span class="btn-text">BACK TO SETTINGS</span>
+              </button>
+
+              <div class="controls-header">
+                <div id="controls-title" class="controls-title">CONTROLS</div>
               </div>
 
-              <div class="slider-group">
-                <div class="slider-header">
-                  <span class="btn-text">MUSIC VOLUME</span>
-                  <span class="slider-value" id="val-music">40%</span>
-                </div>
-                <input
-                  type="range"
-                  id="slider-music"
-                  class="cyber-slider"
-                  min="0"
-                  max="100"
-                  value="40"
-                />
-              </div>
+              <div class="controls-list">
+                <div class="control-row control-row-movement">
+                  <span id="control-action-movement" class="control-action">
+                    MOVEMENT
+                  </span>
 
-              <div id="btn-toggle-lang" class="lang-group slider-group">
-                <div class="slider-header lang-header-style">
-                  <span class="btn-text">LANGUAGE</span>
-                  <span
-                    id="current-language-status"
-                    class="status slider-value"
-                  >
-                    EN
+                  <span class="movement-controls">
+                    <span class="wasd-grid" aria-label="W A S D">
+                      <kbd class="key-w">W</kbd>
+                      <kbd class="key-a">A</kbd>
+                      <kbd class="key-s">S</kbd>
+                      <kbd class="key-d">D</kbd>
+                    </span>
+
+                    <span class="movement-plus" aria-hidden="true">+</span>
+
+                    <span
+                      id="control-binding-mouse"
+                      class="mouse-control"
+                      aria-label="Mouse"
+                    >
+                      <svg
+                        class="mouse-control-icon"
+                        viewBox="0 0 32 44"
+                        aria-hidden="true"
+                      >
+                        <rect x="5" y="2" width="22" height="40" rx="11"></rect>
+                        <line x1="16" y1="3" x2="16" y2="15"></line>
+                        <line x1="16" y1="8" x2="16" y2="13"></line>
+                      </svg>
+
+                      <span id="control-binding-mouse-text">MOUSE</span>
+                    </span>
                   </span>
                 </div>
-                <div class="lang-options">
-                  <button
-                    class="lang-btn active-lang"
-                    data-lang="EN"
-                    aria-pressed="true"
-                  >
-                    <span class="btn-text">ENGLISH</span>
-                  </button>
 
-                  <button class="lang-btn" data-lang="RU" aria-pressed="false">
-                    <span class="btn-text">РУССКИЙ</span>
-                  </button>
+                <div class="control-row">
+                  <span id="control-action-jump" class="control-action">
+                    JUMP
+                  </span>
+
+                  <span class="control-bindings">
+                    <kbd>SPACE</kbd>
+                  </span>
+                </div>
+
+                <div class="control-row">
+                  <span id="control-action-pause" class="control-action">
+                    PAUSE
+                  </span>
+
+                  <span class="control-bindings">
+                    <kbd>ESC</kbd>
+                  </span>
+                </div>
+
+                <div class="control-row">
+                  <span id="control-action-restart" class="control-action">
+                    RESTART SECTOR
+                  </span>
+
+                  <span class="control-bindings">
+                    <kbd>R</kbd>
+                  </span>
                 </div>
               </div>
             </div>

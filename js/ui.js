@@ -2,7 +2,6 @@ import { store } from "./state.js";
 import { audioManager } from "./audio.js";
 import { translations } from "./i18n.js";
 import { MenuManager } from "./ui-menu.js";
-import { GameHudManager } from "./ui-hud.js";
 
 export class UIManager {
   constructor(callbacks) {
@@ -13,9 +12,8 @@ export class UIManager {
     this.currentLang =
       savedLanguage === "RU" || savedLanguage === "EN" ? savedLanguage : "EN";
 
-    // Инициализируем помощников
-    this.menuManager = new MenuManager(this);
-    this.hudManager = new GameHudManager(this);
+   // Инициализируем помощников
+this.menuManager = new MenuManager(this);
 
     // Централизованное хранилище таймеров
     this.animTimers = {
@@ -37,52 +35,16 @@ export class UIManager {
     this.initStartMenu();
     this.updateLanguage(this.currentLang);
     const releaseInitialMainView = () => {
-  document.body.classList.remove(
-    "initial-main-view",
-  );
-};
+      document.body.classList.remove("initial-main-view");
+    };
 
-document
-  .getElementById("btn-open-settings")
-  ?.addEventListener(
-    "click",
-    releaseInitialMainView,
-    { once: true },
-  );
+    document
+      .getElementById("btn-open-settings")
+      ?.addEventListener("click", releaseInitialMainView, { once: true });
 
-document
-  .getElementById("btn-open-sectors")
-  ?.addEventListener(
-    "click",
-    releaseInitialMainView,
-    { once: true },
-  );
-  }
-
-  // --- МЕТОДЫ-ПРОКСИ ---
-  updateBeadCounter(current, max) {
-    this.hudManager.updateBeadCounter(current, max);
-  }
-  updateFanProgress(level) {
-    this.hudManager.updateFanProgress(level);
-  }
-  setLettersActive(isActive) {
-    this.hudManager.setLettersActive(isActive);
-  }
-  lockLetters(isLocked) {
-    this.hudManager.lockLetters(isLocked);
-  }
-  resetUIState(lettersEnabled) {
-    this.hudManager.setLettersActive(lettersEnabled);
-    this.hudManager.updateFanProgress(0);
-  }
-
-  unlockFeature(featureId) {
-    const el = document.getElementById(featureId);
-    if (el && el.classList.contains("locked-feature")) {
-      el.classList.remove("locked-feature");
-      el.classList.add("feature-reveal");
-    }
+    document
+      .getElementById("btn-open-sectors")
+      ?.addEventListener("click", releaseInitialMainView, { once: true });
   }
 
   async enterImmersiveFullscreen() {
@@ -117,6 +79,12 @@ document
     const exitButton = document.getElementById("btn-exit");
     const exitHint = exitButton?.querySelector(".exit-joke");
 
+    clearTimeout(this.exitHintTimer);
+    clearTimeout(this.exitHintResetTimer);
+
+    this.exitHintTimer = null;
+    this.exitHintResetTimer = null;
+
     try {
       // Сначала освобождаем Escape, иначе Keyboard Lock
       // продолжит удерживать клавиатуру.
@@ -144,17 +112,26 @@ document
             : "ТЕПЕРЬ МОЖНО ЗАКРЫТЬ ВКЛАДКУ";
       }
 
-      // Оставляем подсказку немного дольше обычного.
+      // Оставляем финальную подсказку немного дольше обычного.
       clearTimeout(this.exitHintTimer);
+      clearTimeout(this.exitHintResetTimer);
 
       this.exitHintTimer = setTimeout(() => {
+        // Сначала запускаем плавное исчезновение текущей фразы.
         exitButton?.classList.remove("show-joke");
 
-        // Возвращаем стандартный текст для следующего нажатия.
-        if (exitHint) {
-          const t = translations[this.currentLang];
-          exitHint.textContent = t.exitJoke;
-        }
+        // Текст возвращаем только после завершения CSS-перехода.
+        // Иначе стандартная фраза успевает мелькнуть во время затухания.
+        this.exitHintResetTimer = setTimeout(() => {
+          if (exitHint) {
+            const t = translations[this.currentLang];
+            exitHint.textContent = t.exitJoke;
+          }
+
+          this.exitHintResetTimer = null;
+        }, 350);
+
+        this.exitHintTimer = null;
       }, 5000);
 
       return true;
@@ -480,17 +457,6 @@ document
             }
 
             document.body.classList.remove("loading");
-
-            if (document.body.classList.contains("lights-on")) {
-              // Игрок вернулся через "Продолжить"
-              if (this.hudManager.elements.hudControls) {
-                this.hudManager.elements.hudControls.classList.remove(
-                  "hud-hidden",
-                );
-              }
-              const userBadge = document.getElementById("hud-user-status");
-              if (userBadge) userBadge.classList.remove("hidden");
-            }
           }, 600);
         }, 500);
       }
@@ -560,7 +526,6 @@ document
         this.cb.onReset({ levelId });
       }
 
-      this.hudManager.resetWordInput();
 
       // Теперь меню можно скрыть.
       this.menuManager.hideMenu();
@@ -609,24 +574,6 @@ document
 
       // Включаем свет
       document.body.classList.add("lights-on");
-
-      // Показываем боковые панели HUD
-      if (this.hudManager.elements.hudControls) {
-        this.hudManager.elements.hudControls.classList.remove("hud-hidden");
-      }
-
-      // Выводим бейджик игрока (опционально, если хочешь видеть имя)
-      const userBadge = document.getElementById("hud-user-status");
-      const userNameText = document.getElementById("hud-user-name");
-      if (userBadge && userNameText) {
-        userNameText.innerText = `USER: DEV`;
-        userBadge.classList.remove("hidden");
-      }
-
-      // Разблокируем интерфейс (Кнопки слева и справа)
-      this.unlockFeature("feature-equipment");
-      this.unlockFeature("feature-word");
-      this.unlockFeature("feature-physics");
     };
 
     this.loadSectorFromMenu = (sectorId) => {
@@ -800,13 +747,6 @@ document
       this.clearAnimTimers();
 
       document.body.classList.add("loading");
-
-      if (this.hudManager.elements.hudControls) {
-        this.hudManager.elements.hudControls.classList.add("hud-hidden");
-      }
-
-      const userBadge = document.getElementById("hud-user-status");
-      if (userBadge) userBadge.classList.add("hidden");
 
       if (audioManager?.fadeOut) audioManager.fadeOut(1.4);
       if (el.doors) el.doors.classList.remove("loaded");
@@ -1080,20 +1020,20 @@ document
     const langTitle = document.querySelector(
       "#btn-toggle-lang .slider-header .btn-text",
     );
- if (langTitle) langTitle.textContent = t.langTitle;
+    if (langTitle) langTitle.textContent = t.langTitle;
 
-updateBtnText("btn-open-controls", t.controls);
-updateBtnText("btn-back-controls", t.controlsBack);
+    updateBtnText("btn-open-controls", t.controls);
+    updateBtnText("btn-back-controls", t.controlsBack);
 
-updateText("controls-title", t.controls);
-updateText("control-action-movement", t.controlMovement);
-updateText("control-action-jump", t.controlJump);
-updateText("control-action-pause", t.controlPause);
-updateText("control-action-restart", t.controlRestart);
+    updateText("controls-title", t.controls);
+    updateText("control-action-movement", t.controlMovement);
+    updateText("control-action-jump", t.controlJump);
+    updateText("control-action-pause", t.controlPause);
+    updateText("control-action-restart", t.controlRestart);
 
-updateText("control-binding-mouse-text", t.controlMouse);
+    updateText("control-binding-mouse-text", t.controlMouse);
 
-const languageStatus = document.getElementById("current-language-status");
+    const languageStatus = document.getElementById("current-language-status");
 
     if (languageStatus) {
       languageStatus.textContent = t.languageCode;
@@ -1148,11 +1088,6 @@ const languageStatus = document.getElementById("current-language-status");
           ) {
             this.cb.onRestartCurrentRoom();
           }
-          break;
-
-        case "KeyH":
-          document.body.classList.toggle("ui-hidden");
-          this.hudManager.closePalette();
           break;
       }
     });

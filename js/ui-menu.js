@@ -174,7 +174,6 @@ return true;
     // === ЗВУКИ НАВЕДЕНИЯ И КЛИКОВ ДЛЯ ВСЕХ КНОПОК ===
     const menuButtons = [
       { id: "btn-start-game", clickSound: null },
-      { id: "btn-resume-game", clickSound: "start" },
       { id: "btn-restart-sector", clickSound: "start" },
       { id: "btn-open-sectors", clickSound: "click" },
       { id: "btn-open-settings", clickSound: "click" },

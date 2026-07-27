@@ -537,22 +537,7 @@ body.initial-main-view #view-main.menu-view.active {
   text-shadow: 0 0 10px var(--neon-blue);
   transform: translateX(-5px);
 }
-.sk-btn.resume-highlight::before {
-  border-right-color: var(--neon-green);
-  background: linear-gradient(
-    90deg,
-    transparent 0%,
-    rgba(var(--neon-green-rgb), 0.05) 40%,
-    rgba(var(--neon-green-rgb), 0.2) 100%
-  );
-}
-.sk-btn.resume-highlight .btn-text {
-  text-shadow: 0 0 10px var(--neon-green);
-  color: #fff;
-}
-.sk-btn.resume-highlight .btn-dec {
-  color: var(--neon-green);
-}
+
 
 .holo-back-tab {
   position: relative;

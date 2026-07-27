@@ -216,43 +216,43 @@ export class GoogleRoomApp {
       hasActiveSession: () => {
         return this.hasStartedGame;
       },
-  hasSavedProgress: () => {
-  return this.savedProgress?.hasSave === true;
-},
+      hasSavedProgress: () => {
+        return this.savedProgress?.hasSave === true;
+      },
 
-getSavedSector: () => {
-  return this.savedProgress?.currentSector ?? 1;
-},
+      getSavedSector: () => {
+        return this.savedProgress?.currentSector ?? 1;
+      },
 
-onDeleteSavedProgress: () => {
-  this.deleteSavedProgress();
-},
+      onDeleteSavedProgress: () => {
+        this.deleteSavedProgress();
+      },
 
-onReturnToTitle: () => {
-  // Сохраняем достигнутый сектор, но не положение предметов.
-  this.saveProgress(this.currentLevelId);
+      onReturnToTitle: () => {
+        // Сохраняем достигнутый сектор, но не положение предметов.
+        this.saveProgress(this.currentLevelId);
 
-  // Живая игровая сессия закончена.
-  // При следующем "Продолжить" сектор будет построен заново.
-  this.hasStartedGame = false;
-  this.isGameActive = false;
-  this.isPaused = true;
-  this.isExitingToMenu = false;
+        // Живая игровая сессия закончена.
+        // При следующем "Продолжить" сектор будет построен заново.
+        this.hasStartedGame = false;
+        this.isGameActive = false;
+        this.isPaused = true;
+        this.isExitingToMenu = false;
 
-  this.lastTime = performance.now();
-},
+        this.lastTime = performance.now();
+      },
 
-getHighestUnlockedSector: () => {
-  return this.savedProgress?.highestUnlockedSector ?? 1;
-},
+      getHighestUnlockedSector: () => {
+        return this.savedProgress?.highestUnlockedSector ?? 1;
+      },
 
-getCurrentSector: () => {
-  if (this.hasStartedGame) {
-    return this.currentLevelId;
-  }
+      getCurrentSector: () => {
+        if (this.hasStartedGame) {
+          return this.currentLevelId;
+        }
 
-  return this.savedProgress?.currentSector ?? 1;
-},
+        return this.savedProgress?.currentSector ?? 1;
+      },
       onEnableGameplayControls: () => {
         if (this.controls) {
           this.controls.enabled = true;
@@ -261,124 +261,75 @@ getCurrentSector: () => {
         this.isIntroPlaying = false;
       },
 
- canOpenPause: () => {
-  return (
-    this.hasStartedGame &&
-    this.isGameActive &&
-    !this.isElevatorSequenceActive &&
-    !this.isExitingToMenu
-  );
-},
+      canOpenPause: () => {
+        return (
+          this.hasStartedGame &&
+          this.isGameActive &&
+          !this.isElevatorSequenceActive &&
+          !this.isExitingToMenu
+        );
+      },
 
-onSetPaused: (paused) => {
-  // Поставить игру на паузу во время лифтовой кат-сцены нельзя.
-  if (
-    paused &&
-    (this.isElevatorSequenceActive || this.isExitingToMenu)
-  ) {
-    return false;
-  }
+      onSetPaused: (paused) => {
+        // Поставить игру на паузу во время лифтовой кат-сцены нельзя.
+        if (paused && (this.isElevatorSequenceActive || this.isExitingToMenu)) {
+          return false;
+        }
 
-  this.isPaused = paused;
+        this.isPaused = paused;
 
-  if (paused) {
-    if (audioManager?.stopOpenDoor) {
-      audioManager.stopOpenDoor();
-    }
+        if (paused) {
+          if (audioManager?.stopOpenDoor) {
+            audioManager.stopOpenDoor();
+          }
 
-    if (audioManager?.stopBoxSlide) {
-      audioManager.stopBoxSlide();
-    }
+          if (audioManager?.stopBoxSlide) {
+            audioManager.stopBoxSlide();
+          }
 
-    // Сбрасываем зажатые клавиши движения,
-    // чтобы после паузы шар сам не продолжал ехать.
-    if (this.playerController?.keys) {
-      for (const key in this.playerController.keys) {
-        this.playerController.keys[key] = false;
-      }
-    }
-  } else {
-    // После паузы не допускаем большого скачка физики по времени.
-    this.lastTime = performance.now();
-  }
+          // Сбрасываем зажатые клавиши движения,
+          // чтобы после паузы шар сам не продолжал ехать.
+          if (this.playerController?.keys) {
+            for (const key in this.playerController.keys) {
+              this.playerController.keys[key] = false;
+            }
+          }
+        } else {
+          // После паузы не допускаем большого скачка физики по времени.
+          this.lastTime = performance.now();
+        }
 
-  return true;
-},
+        return true;
+      },
 
-onReleaseGameplayControls: () => {
-  if (this.controls?.isLocked) {
-    this.controls.unlock();
-  }
-},
+      onReleaseGameplayControls: () => {
+        if (this.controls?.isLocked) {
+          this.controls.unlock();
+        }
+      },
 
-onResumeGameplayControls: () => {
-  if (!this.controls) return;
+      onResumeGameplayControls: () => {
+        if (!this.controls) return;
 
-  this.controls.enabled = true;
+        this.controls.enabled = true;
 
-  // PointerLockControls создан на document.body,
-  // поэтому проверяем реальное состояние браузера.
-  if (document.pointerLockElement !== document.body) {
-    this.controls.lock();
-  }
-},
+        // PointerLockControls создан на document.body,
+        // поэтому проверяем реальное состояние браузера.
+        if (document.pointerLockElement !== document.body) {
+          this.controls.lock();
+        }
+      },
 
       onReset: (options) => this.resetScene(options),
-onSectorLoadedFromMenu: (levelId) => {
-  this.saveProgress(levelId);
-},
+      onSectorLoadedFromMenu: (levelId) => {
+        this.saveProgress(levelId);
+      },
       onRestartCurrentRoom: () => {
         this.resetScene({
           levelId: this.currentLevelId,
         });
       },
-      onFlickerLights: () => this.flickerLights(),
-      onSpawnBalls: () => {
-        if (!this.isPaused) this.spawnBalls();
-      },
-      onShrinkBalls: () => {
-        if (!this.isPaused) this.startShrinkingBalls();
-      },
-      onToggleFans: () => {
-        if (!this.isPaused) {
-          this.fansActive = !this.fansActive;
-          if (
-            this.fansActive &&
-            typeof audioManager !== "undefined" &&
-            audioManager.playFansWhoosh
-          ) {
-            audioManager.playFansWhoosh(isSlowMo());
-          }
-        }
-      },
-
-      onToggleLetters: () => {
-        if (this.isPaused) return this.wordManager.lettersEnabled;
-
-        this.wordManager.lettersEnabled = !this.wordManager.lettersEnabled;
-
-        if (this.wordManager.lettersEnabled) {
-          this.wordManager.setLettersVisibility(true);
-          this.wordManager.showLettersSmoothly();
-        } else {
-          this.wordManager.hideLettersSmoothly();
-          clearTimeout(this.lettersToggleTimeout);
-          this.lettersToggleTimeout = setTimeout(() => {
-            if (!this.wordManager.lettersEnabled) {
-              this.wordManager.setLettersVisibility(false);
-            }
-          }, 300);
-        }
-        return this.wordManager.lettersEnabled;
-      },
-      onReturnLetters: () => {
-        if (!this.isPaused) this.wordManager.returnLettersToStart();
-      },
-      onApplyWord: (word) => {
-        if (!this.isPaused) {
-          this.wordManager.changeWordSmoothly(word);
-        }
-      },
+      
       onForceLightsOff: () => {
         this.currentExposure = 0;
         this.renderer.toneMappingExposure = 0;
@@ -494,43 +445,40 @@ onSectorLoadedFromMenu: (levelId) => {
     // =========================================
 
     // Логика захвата курсора
-document.addEventListener("click", (e) => {
-  const btnStart = e.target.closest("#btn-start-game");
-  const btnConfirmYes = e.target.closest("#btn-confirm-yes");
+    document.addEventListener("click", (e) => {
+      const btnStart = e.target.closest("#btn-start-game");
+      const btnConfirmYes = e.target.closest("#btn-confirm-yes");
 
-  // Pointer Lock включаем:
-const highestUnlockedSector =
-  this.savedProgress?.highestUnlockedSector ?? 1;
+      // Pointer Lock включаем:
+      const highestUnlockedSector =
+        this.savedProgress?.highestUnlockedSector ?? 1;
 
-const shouldLockForGameStart =
-  btnConfirmYes ||
-  (btnStart && highestUnlockedSector < 2);
+      const shouldLockForGameStart =
+        btnConfirmYes || (btnStart && highestUnlockedSector < 2);
 
-  if (shouldLockForGameStart) {
-    if (!this.isElevatorSequenceActive && !this.controls.isLocked) {
-      this.controls.lock();
-    }
+      if (shouldLockForGameStart) {
+        if (!this.isElevatorSequenceActive && !this.controls.isLocked) {
+          this.controls.lock();
+        }
 
-    return;
-  }
+        return;
+      }
 
-  // При наличии сохранения первый клик по "Новая игра"
-  // только открывает окно подтверждения.
-  if (btnStart) {
-    return;
-  }
+      // При наличии сохранения первый клик по "Новая игра"
+      // только открывает окно подтверждения.
+      if (btnStart) {
+        return;
+      }
 
       // 2. Если кликаем по остальному меню, настройкам или HUD — игнорируем захват
-    if (
-  e.target.closest("#holo-wrapper") ||
-  e.target.closest("#hud-controls") ||
-  e.target.closest("#loader-doors") ||
-  e.target.closest("#confirm-modal") ||
-  e.target.closest("#pause-overlay") ||
-  e.target.tagName === "INPUT"
-) {
-  return;
-}
+      if (
+        e.target.closest("#loader-doors") ||
+        e.target.closest("#confirm-modal") ||
+        e.target.closest("#pause-overlay") ||
+        e.target.tagName === "INPUT"
+      ) {
+        return;
+      }
 
       // 3. Во всех остальных случаях (клик по самой игре) — захватываем мышь,
       // но не во время кат-сцен.
@@ -543,25 +491,25 @@ const shouldLockForGameStart =
       }
     });
 
-this.controls.addEventListener("unlock", () => {
-  // Сбрасываем движение, чтобы шар не продолжал ехать
-  // после открытия паузы.
-  if (this.playerController?.keys) {
-    for (const key in this.playerController.keys) {
-      this.playerController.keys[key] = false;
-    }
-  }
+    this.controls.addEventListener("unlock", () => {
+      // Сбрасываем движение, чтобы шар не продолжал ехать
+      // после открытия паузы.
+      if (this.playerController?.keys) {
+        for (const key in this.playerController.keys) {
+          this.playerController.keys[key] = false;
+        }
+      }
 
-  const shouldOpenPause =
-    this.hasStartedGame &&
-    this.isGameActive &&
-    !this.isElevatorSequenceActive &&
-    !this.isExitingToMenu;
+      const shouldOpenPause =
+        this.hasStartedGame &&
+        this.isGameActive &&
+        !this.isElevatorSequenceActive &&
+        !this.isExitingToMenu;
 
-  if (shouldOpenPause) {
-    this.uiManager?.openPauseMenu();
-  }
-});
+      if (shouldOpenPause) {
+        this.uiManager?.openPauseMenu();
+      }
+    });
 
     const startPos = { x: 0, y: 0, z: 30 }; // Стартовая позиция переехала сюда
     this.playerController = new PlayerController(
@@ -580,135 +528,87 @@ this.controls.addEventListener("unlock", () => {
       this.sceneManager,
     );
 
-    // === ТЕСТОВОЕ УПРАВЛЕНИЕ ЛИФТОМ ===
-    window.addEventListener("keydown", (e) => {
-      if (document.activeElement.tagName === "INPUT") return;
-
-      // Клавишу C отключили:
-      // она принудительно закрывала двери и могла запереть игрока в лифте.
-
-      // Временный тест финального лифта уровня 2.
-      // Работает только на уровне 2 и только рядом с финальным выходом.
-      if (e.code === "KeyL") {
-        if (
-          !this.levelBuilder ||
-          this.currentLevelId !== 2 ||
-          !this.playerController
-        ) {
-          return;
-        }
-
-        const p = this.playerController.body.position;
-        const trigger = this.levelConfigs[2].exitTrigger;
-
-        const isNearRoom2Exit =
-          p.x > trigger.xMin &&
-          p.x < trigger.xMax &&
-          p.z > trigger.zMin &&
-          p.z < trigger.zMax;
-
-        if (!isNearRoom2Exit) {
-          return;
-        }
-
-        if ((this.levelBuilder.targetRoom2ExitOpenState || 0) > 0.5) {
-          this.levelBuilder.closeRoom2Exit();
-        } else {
-          this.levelBuilder.openRoom2Exit();
-        }
-      }
-    });
-
-    requestAnimationFrame(this.tick); // <--- ВОТ ЭТО МЫ ПОТЕРЯЛИ
+    requestAnimationFrame(this.tick);
   }
 
-loadSavedProgress() {
-  try {
-    const rawSave = localStorage.getItem(SAVE_KEY);
+  loadSavedProgress() {
+    try {
+      const rawSave = localStorage.getItem(SAVE_KEY);
 
-    if (!rawSave) {
+      if (!rawSave) {
+        return {
+          hasSave: false,
+          currentSector: 1,
+          highestUnlockedSector: 1,
+        };
+      }
+
+      const parsedSave = JSON.parse(rawSave);
+
+      const currentSector = Number(parsedSave.currentSector);
+      const highestUnlockedSector = Number(parsedSave.highestUnlockedSector);
+
+      const safeCurrentSector =
+        Number.isInteger(currentSector) && this.levelConfigs[currentSector]
+          ? currentSector
+          : 1;
+
+      const safeHighestUnlockedSector =
+        Number.isInteger(highestUnlockedSector) &&
+        highestUnlockedSector >= safeCurrentSector
+          ? highestUnlockedSector
+          : safeCurrentSector;
+
+      return {
+        hasSave: true,
+        currentSector: safeCurrentSector,
+        highestUnlockedSector: safeHighestUnlockedSector,
+      };
+    } catch (error) {
+      console.warn("[SAVE] Не удалось прочитать сохранение:", error);
+
       return {
         hasSave: false,
         currentSector: 1,
         highestUnlockedSector: 1,
       };
     }
+  }
 
-    const parsedSave = JSON.parse(rawSave);
+  saveProgress(sectorId = this.currentLevelId) {
+    const safeSectorId = this.levelConfigs[sectorId] ? sectorId : 1;
 
-    const currentSector = Number(parsedSave.currentSector);
-    const highestUnlockedSector = Number(
-      parsedSave.highestUnlockedSector,
-    );
+    const previousHighest = this.savedProgress?.highestUnlockedSector ?? 1;
 
-    const safeCurrentSector =
-      Number.isInteger(currentSector) && this.levelConfigs[currentSector]
-        ? currentSector
-        : 1;
-
-    const safeHighestUnlockedSector =
-      Number.isInteger(highestUnlockedSector) &&
-      highestUnlockedSector >= safeCurrentSector
-        ? highestUnlockedSector
-        : safeCurrentSector;
-
-    return {
+    this.savedProgress = {
       hasSave: true,
-      currentSector: safeCurrentSector,
-      highestUnlockedSector: safeHighestUnlockedSector,
+      currentSector: safeSectorId,
+      highestUnlockedSector: Math.max(previousHighest, safeSectorId),
     };
-  } catch (error) {
-    console.warn("[SAVE] Не удалось прочитать сохранение:", error);
 
-    return {
+    try {
+      localStorage.setItem(SAVE_KEY, JSON.stringify(this.savedProgress));
+
+      console.log("[SAVE] Progress saved:", this.savedProgress);
+    } catch (error) {
+      console.warn("[SAVE] Не удалось сохранить прогресс:", error);
+    }
+  }
+
+  deleteSavedProgress() {
+    this.savedProgress = {
       hasSave: false,
       currentSector: 1,
       highestUnlockedSector: 1,
     };
+
+    try {
+      localStorage.removeItem(SAVE_KEY);
+      console.log("[SAVE] Progress deleted");
+    } catch (error) {
+      console.warn("[SAVE] Не удалось удалить сохранение:", error);
+    }
   }
-}
-
-saveProgress(sectorId = this.currentLevelId) {
-  const safeSectorId = this.levelConfigs[sectorId] ? sectorId : 1;
-
-  const previousHighest =
-    this.savedProgress?.highestUnlockedSector ?? 1;
-
-  this.savedProgress = {
-    hasSave: true,
-    currentSector: safeSectorId,
-    highestUnlockedSector: Math.max(
-      previousHighest,
-      safeSectorId,
-    ),
-  };
-
-  try {
-    localStorage.setItem(
-      SAVE_KEY,
-      JSON.stringify(this.savedProgress),
-    );
-
-    console.log("[SAVE] Progress saved:", this.savedProgress);
-  } catch (error) {
-    console.warn("[SAVE] Не удалось сохранить прогресс:", error);
-  }
-}
-
-deleteSavedProgress() {
-  this.savedProgress = {
-    hasSave: false,
-    currentSector: 1,
-    highestUnlockedSector: 1,
-  };
-
-  try {
-    localStorage.removeItem(SAVE_KEY);
-    console.log("[SAVE] Progress deleted");
-  } catch (error) {
-    console.warn("[SAVE] Не удалось удалить сохранение:", error);
-  }
-}
 
   async prepareNewGame(onProgress = () => {}) {
     if (this.isPreparingGame) {
@@ -953,15 +853,15 @@ deleteSavedProgress() {
     this.lastTime = performance.now();
   }
 
-startGameplaySession() {
-  this.hasStartedGame = true;
+  startGameplaySession() {
+    this.hasStartedGame = true;
 
-  if (!this.savedProgress?.hasSave) {
-    this.saveProgress(this.currentLevelId);
-  }
+    if (!this.savedProgress?.hasSave) {
+      this.saveProgress(this.currentLevelId);
+    }
 
-  // Новая игра или продолжение реально начались.
-  this.isGameActive = true;
+    // Новая игра или продолжение реально начались.
+    this.isGameActive = true;
     this.isExitingToMenu = false;
     this.isPaused = false;
 
@@ -1053,7 +953,7 @@ startGameplaySession() {
     // buildRoom(levelId);
     this.currentLevelId = levelId;
     this.targetLevelId = null;
-  this.saveProgress(levelId);
+    this.saveProgress(levelId);
     console.log(`[LEVEL] Loaded level ${levelId}`);
   }
 
@@ -1387,11 +1287,6 @@ startGameplaySession() {
     this.ballInstancedMesh.instanceMatrix.needsUpdate = true;
     this.activeBallsCount = 0;
     this.ballSpawnIndex = 0;
-
-    this.uiManager.updateBeadCounter(
-      this.activeBallsCount,
-      CONFIG.PHYSICS.MAX_BALLS,
-    );
   }
 
   flickerLights() {
@@ -1499,13 +1394,6 @@ startGameplaySession() {
     }
     this.fanLevel = 0.0;
 
-    if (
-      this.uiManager &&
-      typeof this.uiManager.updateFanProgress === "function"
-    ) {
-      this.uiManager.updateFanProgress(0);
-    }
-
     this.startShrinkingBalls();
 
     // Сбрасываем цвета букв через новый WordManager
@@ -1530,7 +1418,6 @@ startGameplaySession() {
       if (state.mode !== lastMode) {
         this.fansActive = false;
         this.fanLevel = 0.0;
-        this.uiManager.updateFanProgress(0);
         lastMode = state.mode;
       }
       this.sceneManager.setAtmosphere(state.mode, CONFIG.COLORS);
@@ -1559,8 +1446,6 @@ startGameplaySession() {
         const isMagnet = state.currentTool !== -1;
 
         if (wasMagnet !== isMagnet) {
-          this.uiManager.lockLetters(isMagnet);
-
           if (isMagnet) {
             if (this.wordManager.lettersEnabled) {
               this.wordManager.hideLettersSmoothly();
@@ -1568,7 +1453,6 @@ startGameplaySession() {
             }
           } else {
             if (this.lettersHiddenByMagnet) {
-              this.uiManager.setLettersActive(true);
               this.wordManager.showLettersSmoothly();
               this.lettersHiddenByMagnet = false;
             }
@@ -1625,7 +1509,6 @@ startGameplaySession() {
 
     this.activeBallsCount = 0;
     this.ballSpawnIndex = 0;
-    this.uiManager.updateBeadCounter(0, CONFIG.PHYSICS.MAX_BALLS);
 
     this.updateBeadsBlinking();
   }
@@ -1716,10 +1599,7 @@ startGameplaySession() {
     }
 
     this.setBallGlow(isNight());
-    this.uiManager.updateBeadCounter(
-      this.activeBallsCount,
-      CONFIG.PHYSICS.MAX_BALLS,
-    );
+
     this.updateBeadsBlinking();
   }
 
@@ -2602,7 +2482,6 @@ startGameplaySession() {
       this.fanLevel -= dt / (this.isResetting ? 0.8 : 2.0);
     }
     this.fanLevel = Math.max(0, Math.min(1, this.fanLevel));
-    this.uiManager.updateFanProgress(this.fanLevel);
 
     const env = -(Math.cos(Math.PI * this.fanLevel) - 1) / 2;
     if (env > 0) {

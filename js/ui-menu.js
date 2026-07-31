@@ -9,14 +9,14 @@ export class MenuManager {
     this.startMenu = document.getElementById("futuristic-start-menu");
     this.mainView = document.getElementById("view-main");
     this.sectorsView = document.getElementById("view-sectors");
- this.settingsView = document.getElementById("view-settings");
+    this.settingsView = document.getElementById("view-settings");
 
-this.settingsMainPanel = document.getElementById("settings-main-panel");
-this.settingsControlsPanel = document.getElementById(
-  "settings-controls-panel",
-);
+    this.settingsMainPanel = document.getElementById("settings-main-panel");
+    this.settingsControlsPanel = document.getElementById(
+      "settings-controls-panel",
+    );
 
-this.settingsHomeParent = this.settingsView?.parentElement ?? null;
+    this.settingsHomeParent = this.settingsView?.parentElement ?? null;
 
     this.settingsHomeNextSibling =
       this.settingsView?.nextElementSibling ?? null;
@@ -28,11 +28,11 @@ this.settingsHomeParent = this.settingsView?.parentElement ?? null;
     this.btnSettings = document.getElementById("btn-open-settings");
 
     this.btnBackSectors = document.getElementById("btn-back-sectors");
-this.btnBackMain = document.getElementById("btn-back-main");
-this.btnOpenControls = document.getElementById("btn-open-controls");
-this.btnBackControls = document.getElementById("btn-back-controls");
-this.btnExit = document.getElementById("btn-exit");
-this.btnLang = document.getElementById("btn-toggle-lang");
+    this.btnBackMain = document.getElementById("btn-back-main");
+    this.btnOpenControls = document.getElementById("btn-open-controls");
+    this.btnBackControls = document.getElementById("btn-back-controls");
+    this.btnExit = document.getElementById("btn-exit");
+    this.btnLang = document.getElementById("btn-toggle-lang");
 
     // Ползунки
     this.sliderSfx = document.getElementById("slider-sfx");
@@ -107,6 +107,34 @@ this.btnLang = document.getElementById("btn-toggle-lang");
       backText.textContent = t.backToPause;
     }
 
+    // В паузе управление вынесено отдельной кнопкой,
+    // поэтому внутри настроек его повторно не показываем.
+   if (this.btnOpenControls) {
+  this.btnOpenControls.style.display = "none";
+}
+
+    return true;
+  }
+
+  showPauseControls() {
+    if (!this.showPauseSettings()) {
+      return false;
+    }
+
+    // Отмечаем, что памятка была открыта непосредственно из паузы.
+    this.settingsView.dataset.context = "pause-controls";
+
+    // Сразу показываем экран управления, минуя главную страницу настроек.
+    this.settingsMainPanel?.classList.remove("active");
+    this.settingsControlsPanel?.classList.add("active");
+
+    const backText = this.btnBackControls?.querySelector(".btn-text");
+    const t = translations[this.ui.currentLang];
+
+    if (backText && t) {
+      backText.textContent = t.backToPause;
+    }
+
     return true;
   }
 
@@ -162,10 +190,21 @@ this.btnLang = document.getElementById("btn-toggle-lang");
     pauseMenu?.removeAttribute("hidden");
     pauseFooter?.removeAttribute("hidden");
 
-  this.btnLang?.classList.remove("open");
+   this.btnLang?.classList.remove("open");
 
 this.settingsControlsPanel?.classList.remove("active");
 this.settingsMainPanel?.classList.add("active");
+
+// В обычных настройках главного меню кнопка снова должна быть видна.
+if (this.btnOpenControls) {
+  this.btnOpenControls.style.display = "";
+}
+
+const controlsBackText = this.btnBackControls?.querySelector(".btn-text");
+
+if (controlsBackText && t) {
+  controlsBackText.textContent = t.controlsBack;
+}
 
 return true;
   }
@@ -182,7 +221,7 @@ return true;
       { id: "btn-back-sectors", clickSound: "click" },
       { id: "btn-back-main", clickSound: "click" },
       { id: "btn-open-controls", clickSound: "click" },
-{ id: "btn-back-controls", clickSound: "click" },
+      { id: "btn-back-controls", clickSound: "click" },
     ];
 
     menuButtons.forEach((item) => {
@@ -297,19 +336,28 @@ return true;
       );
     }
 
-if (this.btnOpenControls) {
-  this.btnOpenControls.addEventListener("click", () => {
-    this.btnLang?.classList.remove("open");
+    if (this.btnOpenControls) {
+      this.btnOpenControls.addEventListener("click", () => {
+        this.btnLang?.classList.remove("open");
 
-    toggleView(
-      this.settingsMainPanel,
-      this.settingsControlsPanel,
-    );
-  });
-}
+        toggleView(this.settingsMainPanel, this.settingsControlsPanel);
+      });
+    }
 
-if (this.btnBackControls) {
+   if (this.btnBackControls) {
   this.btnBackControls.addEventListener("click", () => {
+    const isDirectPauseControls =
+      this.settingsView?.dataset.context === "pause-controls";
+
+    // Памятка была открыта отдельной кнопкой из паузы:
+    // возвращаемся сразу в меню паузы.
+    if (isDirectPauseControls) {
+      this.hidePauseSettings();
+      return;
+    }
+
+    // Обычный путь из главного меню:
+    // Управление → Настройки.
     toggleView(
       this.settingsControlsPanel,
       this.settingsMainPanel,
@@ -326,12 +374,12 @@ if (this.btnBackControls) {
           return;
         }
 
-       toggleView(this.settingsView, this.mainView);
+        toggleView(this.settingsView, this.mainView);
 
-this.settingsControlsPanel?.classList.remove("active");
-this.settingsMainPanel?.classList.add("active");
+        this.settingsControlsPanel?.classList.remove("active");
+        this.settingsMainPanel?.classList.add("active");
 
-this.btnLang?.classList.remove("open");
+        this.btnLang?.classList.remove("open");
       });
     }
 

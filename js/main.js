@@ -123,6 +123,10 @@ export class GoogleRoomApp {
     // Пока используется только финальный лифт уровня 2.
     this.activeRoomExitElevatorId = null;
 
+    // Сколько времени шар непрерывно находится в полном покое
+    // перед началом лифтовой кат-сцены.
+    this.elevatorStopStableTime = 0;
+
     // === ИНИЦИАЛИЗАЦИЯ МЕНЕДЖЕРОВ ===
     this.sceneManager = new SceneManager();
 
@@ -270,6 +274,17 @@ export class GoogleRoomApp {
         );
       },
 
+      canRestartCurrentRoom: () => {
+        return (
+          this.hasStartedGame &&
+          this.isGameActive &&
+          !this.isResetting &&
+          !this.isElevatorSequenceActive &&
+          !this.isExitingToMenu &&
+          !this.isPreparingGame
+        );
+      },
+
       onSetPaused: (paused) => {
         // Поставить игру на паузу во время лифтовой кат-сцены нельзя.
         if (paused && (this.isElevatorSequenceActive || this.isExitingToMenu)) {
@@ -324,12 +339,34 @@ export class GoogleRoomApp {
       onSectorLoadedFromMenu: (levelId) => {
         this.saveProgress(levelId);
       },
+
       onRestartCurrentRoom: () => {
-        this.resetScene({
-          levelId: this.currentLevelId,
-        });
+        const canRestart =
+          this.hasStartedGame &&
+          this.isGameActive &&
+          !this.isResetting &&
+          !this.isElevatorSequenceActive &&
+          !this.isExitingToMenu &&
+          !this.isPreparingGame;
+
+        if (!canRestart) {
+          console.warn("[RESTART] Restart blocked during unsafe game state.");
+          return false;
+        }
+
+        this.isResetting = true;
+
+        try {
+          this.resetScene({
+            levelId: this.currentLevelId,
+          });
+
+          return true;
+        } finally {
+          this.isResetting = false;
+        }
       },
-      
+
       onForceLightsOff: () => {
         this.currentExposure = 0;
         this.renderer.toneMappingExposure = 0;
@@ -775,6 +812,7 @@ export class GoogleRoomApp {
     this.elevatorEntryDoor = null;
     this.elevatorHoldPos = null;
     this.roomExitHoldPos = null;
+    this.elevatorStopStableTime = 0;
     this.isExitDoorClosingPending = false;
 
     if (this.playerController) {
@@ -822,6 +860,7 @@ export class GoogleRoomApp {
     this.elevatorEntryDoor = null;
     this.elevatorHoldPos = null;
     this.roomExitHoldPos = null;
+    this.elevatorStopStableTime = 0;
     this.isExitDoorClosingPending = false;
 
     if (this.playerController) {
@@ -1928,54 +1967,21 @@ export class GoogleRoomApp {
             this.targetLevelId = nextLevelId;
             this.elevatorEntryDoor = this.getCurrentExitDoor();
 
-            // Если это финальный выход уровня 2, у него свои отдельные створки.
-            // Сначала открываем их, потом запускаем затемнение и переход.
-            if (this.elevatorEntryDoor === "none") {
-              this.isElevatorSequenceActive = true;
-              this.elevatorPhase = "room_exit_opening";
-              this.roomExitHoldPos = null;
+            // Сначала отбираем управление, но НЕ обнуляем скорость.
+            // Шар должен самостоятельно приземлиться, докатиться
+            // и полностью погасить инерцию.
+            this.isElevatorSequenceActive = true;
+            this.elevatorPhase = "waiting_for_elevator_stop";
+            this.elevatorStopStableTime = 0;
 
-              this.playerController.isLocked = true;
-              this.lockGameplayCamera();
+            this.elevatorHoldPos = null;
+            this.roomExitHoldPos = null;
 
-              this.playerController.body.velocity.set(0, 0, 0);
-              this.playerController.body.angularVelocity.set(0, 0, 0);
+            this.playerController.isLocked = true;
+            this.lockGameplayCamera();
 
-              // Сбрасываем таймер закрытия, если вдруг он остался от предыдущей попытки.
-              if (this.roomExitCloseTimer) {
-                clearTimeout(this.roomExitCloseTimer);
-                this.roomExitCloseTimer = null;
-              }
-
-              if (
-                this.currentLevelId === 2 &&
-                this.levelBuilder.openRoom2Exit
-              ) {
-                this.activeRoomExitElevatorId = "room2_exit";
-
-                if (this.levelBuilder.openRoomElevator) {
-                  this.levelBuilder.openRoomElevator(
-                    this.activeRoomExitElevatorId,
-                  );
-                } else if (this.levelBuilder.openRoom2Exit) {
-                  // Временный fallback, чтобы старый код не сломался.
-                  this.levelBuilder.openRoom2Exit();
-                }
-              }
-            } else {
-              this.isElevatorSequenceActive = true;
-              this.elevatorPhase = "waiting_entrance_open";
-              this.elevatorHoldPos = null;
-
-              this.playerController.isLocked = true;
-              this.lockGameplayCamera();
-
-              if (this.elevatorEntryDoor === "exit") {
-                this.levelBuilder.openExit();
-              } else if (this.elevatorEntryDoor === "entrance") {
-                this.levelBuilder.openEntrance();
-              }
-            }
+            // На этом этапе двери ещё не открываем.
+            // Переход к конкретной кат-сцене произойдёт только после остановки.
           }
         } else {
           this.noNextLevelWarningShown = false;
@@ -1990,6 +1996,101 @@ export class GoogleRoomApp {
         this.levelBuilder
       ) {
         const playerRef = this.playerController;
+
+        // === ОЖИДАНИЕ ПОЛНОЙ ОСТАНОВКИ ПЕРЕД КАТ-СЦЕНОЙ ===
+        if (
+          this.elevatorPhase === "waiting_for_elevator_stop" &&
+          playerRef &&
+          playerRef.body
+        ) {
+          const body = playerRef.body;
+          const pPos = body.position;
+          const exitTrigger = this.getCurrentExitTrigger();
+
+          const isStillInsideExit =
+            pPos.x > exitTrigger.xMin &&
+            pPos.x < exitTrigger.xMax &&
+            pPos.z > exitTrigger.zMin &&
+            pPos.z < exitTrigger.zMax;
+
+          // Если шар по инерции выкатился из зоны,
+          // отменяем запуск кат-сцены и возвращаем управление.
+          if (!isStillInsideExit) {
+            this.isElevatorSequenceActive = false;
+            this.elevatorPhase = "";
+            this.elevatorStopStableTime = 0;
+            this.targetLevelId = null;
+            this.elevatorEntryDoor = null;
+
+            playerRef.isLocked = false;
+            this.unlockGameplayCamera();
+          } else {
+            const horizontalSpeed = Math.hypot(
+              body.velocity.x,
+              body.velocity.z,
+            );
+
+            const verticalSpeed = Math.abs(body.velocity.y);
+            const angularSpeed = body.angularVelocity.length();
+
+            const isFullyStopped =
+              playerRef.isGrounded === true &&
+              horizontalSpeed < 0.35 &&
+              verticalSpeed < 0.25 &&
+              angularSpeed < 0.8;
+
+            // Остановка должна сохраняться несколько кадров подряд.
+            if (isFullyStopped) {
+              this.elevatorStopStableTime += dt;
+            } else {
+              this.elevatorStopStableTime = 0;
+            }
+
+            if (this.elevatorStopStableTime >= 0.25) {
+              this.elevatorStopStableTime = 0;
+
+              // Убираем только остаточное физическое микродвижение.
+              body.velocity.set(0, 0, 0);
+              body.angularVelocity.set(0, 0, 0);
+
+              // Отдельный финальный лифт уровня 2.
+              if (this.elevatorEntryDoor === "none") {
+                this.elevatorPhase = "room_exit_opening";
+                this.roomExitHoldPos = null;
+
+                if (this.roomExitCloseTimer) {
+                  clearTimeout(this.roomExitCloseTimer);
+                  this.roomExitCloseTimer = null;
+                }
+
+                if (
+                  this.currentLevelId === 2 &&
+                  this.levelBuilder.openRoom2Exit
+                ) {
+                  this.activeRoomExitElevatorId = "room2_exit";
+
+                  if (this.levelBuilder.openRoomElevator) {
+                    this.levelBuilder.openRoomElevator(
+                      this.activeRoomExitElevatorId,
+                    );
+                  } else {
+                    this.levelBuilder.openRoom2Exit();
+                  }
+                }
+              } else {
+                // Обычный лифт первого сектора.
+                this.elevatorPhase = "waiting_entrance_open";
+                this.elevatorHoldPos = null;
+
+                if (this.elevatorEntryDoor === "exit") {
+                  this.levelBuilder.openExit();
+                } else if (this.elevatorEntryDoor === "entrance") {
+                  this.levelBuilder.openEntrance();
+                }
+              }
+            }
+          }
+        }
 
         // === ФИНАЛЬНЫЙ ЛИФТ УРОВНЯ 2 ===
         // Фазы:

@@ -617,9 +617,11 @@ this.menuManager = new MenuManager(this);
     const btnInGameMenu = document.getElementById("btn-in-game-menu");
     const btnPauseResume = document.getElementById("btn-pause-resume");
 
-    const btnPauseRestart = document.getElementById("btn-pause-restart");
+   const btnPauseRestart = document.getElementById("btn-pause-restart");
 
-    const btnPauseSettings = document.getElementById("btn-pause-settings");
+const btnPauseControls = document.getElementById("btn-pause-controls");
+
+const btnPauseSettings = document.getElementById("btn-pause-settings");
 
     const btnPauseMainMenu = document.getElementById("btn-pause-main-menu");
 
@@ -815,15 +817,30 @@ this.menuManager = new MenuManager(this);
       });
     }
 
-    if (btnPauseRestart) {
-      btnPauseRestart.addEventListener("click", () => {
-        if (this.cb?.onRestartCurrentRoom) {
-          this.cb.onRestartCurrentRoom();
-        }
+   if (btnPauseRestart) {
+  btnPauseRestart.addEventListener("click", () => {
+    const canRestart =
+      !this.cb?.canRestartCurrentRoom ||
+      this.cb.canRestartCurrentRoom() === true;
 
-        this.closePauseMenu();
-      });
+    if (!canRestart || !this.cb?.onRestartCurrentRoom) {
+      return;
     }
+
+    const restarted = this.cb.onRestartCurrentRoom();
+
+    // Закрываем паузу только после успешного рестарта.
+    if (restarted !== false) {
+      this.closePauseMenu();
+    }
+  });
+}
+
+if (btnPauseControls) {
+  btnPauseControls.addEventListener("click", () => {
+    this.menuManager.showPauseControls();
+  });
+}
 
     if (btnPauseSettings) {
       btnPauseSettings.addEventListener("click", () => {
@@ -852,12 +869,13 @@ this.menuManager = new MenuManager(this);
       });
     }
 
-    const pauseButtons = [
-      { button: btnPauseResume, sound: "start" },
-      { button: btnPauseRestart, sound: "start" },
-      { button: btnPauseSettings, sound: "click" },
-      { button: btnPauseMainMenu, sound: "click" },
-    ];
+   const pauseButtons = [
+  { button: btnPauseResume, sound: "start" },
+  { button: btnPauseRestart, sound: "start" },
+  { button: btnPauseControls, sound: "click" },
+  { button: btnPauseSettings, sound: "click" },
+  { button: btnPauseMainMenu, sound: "click" },
+];
 
     pauseButtons.forEach(({ button, sound }) => {
       if (!button) return;
@@ -970,9 +988,11 @@ this.menuManager = new MenuManager(this);
 
     updateBtnText("btn-pause-resume", t.pauseResume);
 
-    updateBtnText("btn-pause-restart", t.pauseRestart);
+  updateBtnText("btn-pause-restart", t.pauseRestart);
 
-    updateBtnText("btn-pause-settings", t.pauseSettings);
+updateBtnText("btn-pause-controls", t.controls);
+
+updateBtnText("btn-pause-settings", t.pauseSettings);
 
     updateBtnText("btn-pause-main-menu", t.pauseMainMenu);
 
@@ -1078,17 +1098,26 @@ this.menuManager = new MenuManager(this);
           break;
         }
 
-        case "KeyR":
-          // R работает только непосредственно во время игры,
-          // но не поверх открытого меню паузы.
-          if (
-            this.cb?.hasActiveSession?.() === true &&
-            !this.isPauseMenuOpen() &&
-            this.cb?.onRestartCurrentRoom
-          ) {
-            this.cb.onRestartCurrentRoom();
-          }
-          break;
+case "KeyR":
+  // Удержание клавиши не должно запускать серию рестартов.
+  if (e.repeat) break;
+
+  // Во время лифта, перехода, подготовки или другого рестарта
+  // сбрасывать комнату небезопасно.
+  const canRestart =
+    !this.cb?.canRestartCurrentRoom ||
+    this.cb.canRestartCurrentRoom() === true;
+
+  if (
+    canRestart &&
+    this.cb?.hasActiveSession?.() === true &&
+    !this.isPauseMenuOpen() &&
+    this.cb?.onRestartCurrentRoom
+  ) {
+    this.cb.onRestartCurrentRoom();
+  }
+
+  break;
       }
     });
   }

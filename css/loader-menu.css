@@ -233,6 +233,16 @@
   gap: 12px;
 }
 
+/* Начальное состояние кнопки «Загрузить» определяется
+   сохранением ещё до запуска основных JS-модулей. */
+#btn-open-sectors {
+  display: none;
+}
+
+html[data-can-load="true"] #btn-open-sectors {
+  display: flex;
+}
+
 .menu-view.active {
   display: flex;
   animation: fadeInMenu 0.4s ease forwards;

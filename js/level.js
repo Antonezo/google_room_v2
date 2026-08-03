@@ -4244,6 +4244,53 @@ this.exitSolidWallBody = createSolidWallBody(cabinBackZ);
     return elevator ? elevator.openState : 0.0;
   }
 
+// === ЕДИНЫЙ API ДВЕРЕЙ ВСЕХ ЛИФТОВ ===
+//
+// Центральный лифт пока физически остаётся старой системой,
+// но снаружи управляется так же, как создаваемые комнатные лифты.
+//
+// Известные id:
+// "main_entrance" — сторона центрального лифта у комнаты 1;
+// "main_exit"     — сторона центрального лифта у комнат 2/3;
+// "room2_exit"    — финальный боковой лифт комнаты 2.
+
+setElevatorOpen(id, isOpen) {
+  const targetState = isOpen ? 1.0 : 0.0;
+
+  if (id === "main_entrance") {
+    this.targetEntranceOpenState = targetState;
+    return;
+  }
+
+  if (id === "main_exit") {
+    this.targetExitOpenState = targetState;
+    return;
+  }
+
+  // Все новые комнатные лифты уже хранятся в roomElevators.
+  this.setRoomElevatorOpen(id, isOpen);
+}
+
+openElevator(id) {
+  this.setElevatorOpen(id, true);
+}
+
+closeElevator(id) {
+  this.setElevatorOpen(id, false);
+}
+
+getElevatorOpenState(id) {
+  if (id === "main_entrance") {
+    return this.entranceOpenState ?? 0.0;
+  }
+
+  if (id === "main_exit") {
+    return this.exitOpenState ?? 0.0;
+  }
+
+  return this.getRoomElevatorOpenState(id);
+}
+
   updateRoomElevators(dt, doorSpeed = 1.6) {
     if (!this.roomElevators || this.roomElevators.size === 0) return;
 
@@ -4277,30 +4324,36 @@ this.exitSolidWallBody = createSolidWallBody(cabinBackZ);
     }
   }
 
-  openEntrance() {
-    this.targetEntranceOpenState = 1.0;
-  }
-  closeEntrance() {
-    this.targetEntranceOpenState = 0.0;
-  }
+// === СТАРЫЕ ИМЕНА ДЛЯ ВРЕМЕННОЙ СОВМЕСТИМОСТИ ===
+//
+// main.js пока продолжает вызывать эти методы.
+// После перевода кат-сцены на общий API их можно будет удалить.
 
-  openExit() {
-    this.targetExitOpenState = 1.0;
-  }
-  closeExit() {
-    this.targetExitOpenState = 0.0;
-  }
-  openRoom2Exit() {
-    // Старое имя метода оставляем для совместимости с main.js.
-    this.targetRoom2ExitOpenState = 1.0;
-    this.openRoomElevator("room2_exit");
-  }
+openEntrance() {
+  this.openElevator("main_entrance");
+}
 
-  closeRoom2Exit() {
-    // Старое имя метода оставляем для совместимости с main.js.
-    this.targetRoom2ExitOpenState = 0.0;
-    this.closeRoomElevator("room2_exit");
-  }
+closeEntrance() {
+  this.closeElevator("main_entrance");
+}
+
+openExit() {
+  this.openElevator("main_exit");
+}
+
+closeExit() {
+  this.closeElevator("main_exit");
+}
+
+openRoom2Exit() {
+  this.targetRoom2ExitOpenState = 1.0;
+  this.openElevator("room2_exit");
+}
+
+closeRoom2Exit() {
+  this.targetRoom2ExitOpenState = 0.0;
+  this.closeElevator("room2_exit");
+}
 
   updateDoors(dt) {
     this.syncPushableObjects();

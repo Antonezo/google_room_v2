@@ -74,6 +74,50 @@ export class GoogleRoomApp {
           zMax: 19.0,
         },
 
+        // Единая конфигурация выходного лифта.
+        exitElevator: {
+          doorId: "main_entrance",
+
+          // Точка мягкого подхвата перед дверями.
+          approachPoint: {
+            x: 0,
+            z: 17.0,
+          },
+
+          // Конечная точка внутри кабины.
+          cabinPoint: {
+            x: 0,
+            z: 11.25,
+          },
+
+    // Через какую дверь игрок выйдет в следующем секторе.
+arrivalDoorId: "main_exit",
+
+// Круглая зона запуска кат-сцены.
+// markerRadius специально больше radius:
+// игрок сначала въезжает в свечение и только затем активирует лифт.
+activationZone: {
+  x: 0,
+  z: 18.2,
+  radius: 1.45,
+  markerRadius: 2.5,
+},
+
+// Постановочная камера внутри комнаты.
+cameraPoint: {
+            x: 0,
+            y: 9.0,
+            z: 29.0,
+          },
+
+          // Точка, на которую камера смотрит.
+          cameraLookPoint: {
+            x: 0,
+            y: 1.8,
+            z: 14.0,
+          },
+        },
+
         entryDoor: "entrance",
         nextLevelId: 2,
       },
@@ -88,6 +132,47 @@ export class GoogleRoomApp {
           xMax: 15.5,
           zMin: -35.0,
           zMax: -27.0,
+        },
+
+        exitElevator: {
+          doorId: "room2_exit",
+
+          // Точка перед боковым лифтом, ещё внутри комнаты.
+          approachPoint: {
+            x: 11.8,
+            z: -31.15,
+          },
+
+     // Конечная точка внутри кабины.
+cabinPoint: {
+  x: 17.6,
+  z: -31.15,
+},
+
+// Через какую дверь игрок выйдет в следующем секторе.
+arrivalDoorId: "main_exit",
+
+// Зона смещена внутрь комнаты, дальше от створок.
+// Для бокового лифта направление от дверей — по уменьшению X.
+activationZone: {
+  x: 11.2,
+  z: -31.15,
+  radius: 1.55,
+  markerRadius: 2.55,
+},
+
+// Камера остаётся внутри комнаты и смотрит на боковой лифт.
+cameraPoint: {
+  x: -5.8,
+  y: 7.2,
+  z: -31.15,
+},
+
+cameraLookPoint: {
+  x: 14.0,
+  y: 1.6,
+  z: -31.15,
+},
         },
 
         // Это временный финальный выход-заглушка,
@@ -116,8 +201,25 @@ export class GoogleRoomApp {
 
     this.savedProgress = this.loadSavedProgress();
 
-    this.currentLevelId = 1;
-    this.targetLevelId = null;
+  this.currentLevelId = 1;
+this.targetLevelId = null;
+
+// Конфигурация выходного лифта, запомненная на время кат-сцены.
+this.activeExitElevator = null;
+
+// Визуальный маркер зоны активации лифта.
+this.exitElevatorMarker = null;
+this.exitElevatorMarkerFloor = null;
+this.exitElevatorMarkerFloorRing = null;
+this.exitElevatorMarkerBeam = null;
+    // Время устойчивой остановки шара перед въездом в лифт.
+    this.elevatorSettlingTime = 0;
+    // Камера ещё не была отделена от игрового слежения
+    // для текущей лифтовой кат-сцены.
+    this.elevatorCameraInitialized = false;
+
+    // Вспомогательный объект для плавного расчёта поворота камеры.
+    this.elevatorCameraTarget = new THREE.Object3D();
 
     // id комнатного лифта, который сейчас участвует в кат-сцене.
     // Пока используется только финальный лифт уровня 2.
@@ -808,9 +910,12 @@ export class GoogleRoomApp {
     this.isElevatorSequenceActive = false;
     this.elevatorPhase = "";
     this.targetLevelId = null;
+    this.activeExitElevator = null;
+    this.elevatorCameraInitialized = false;
     this.activeRoomExitElevatorId = null;
     this.elevatorEntryDoor = null;
     this.elevatorHoldPos = null;
+    this.elevatorSettlingTime = 0;
     this.roomExitHoldPos = null;
     this.elevatorStopStableTime = 0;
     this.isExitDoorClosingPending = false;
@@ -856,9 +961,12 @@ export class GoogleRoomApp {
     this.isElevatorSequenceActive = false;
     this.elevatorPhase = "";
     this.targetLevelId = null;
+    this.activeExitElevator = null;
+    this.elevatorCameraInitialized = false;
     this.activeRoomExitElevatorId = null;
     this.elevatorEntryDoor = null;
     this.elevatorHoldPos = null;
+    this.elevatorSettlingTime = 0;
     this.roomExitHoldPos = null;
     this.elevatorStopStableTime = 0;
     this.isExitDoorClosingPending = false;
@@ -978,6 +1086,95 @@ export class GoogleRoomApp {
         zMax: 19.0,
       }
     );
+  }
+
+getCurrentExitActivationZone(levelId = this.currentLevelId) {
+  const config = this.levelConfigs[levelId];
+
+  if (
+    !config ||
+    !config.nextLevelId ||
+    !config.exitElevator?.activationZone
+  ) {
+    return null;
+  }
+
+  return config.exitElevator.activationZone;
+}
+
+updateExitElevatorMarker(timeSec = 0) {
+ if (
+  !this.exitElevatorMarker ||
+  !this.exitElevatorMarkerFloor ||
+  !this.exitElevatorMarkerFloorRing ||
+  !this.exitElevatorMarkerBeam
+) {
+  return;
+}
+
+  const zone = this.getCurrentExitActivationZone();
+
+  const shouldShow =
+    this.isGameActive &&
+    !this.isPaused &&
+    !this.isExitingToMenu &&
+    !this.isElevatorSequenceActive &&
+    !!zone;
+
+  this.exitElevatorMarker.visible = shouldShow;
+
+  if (!shouldShow) {
+    return;
+  }
+
+  const floorY = CONFIG.WORLD.FLOOR_LEVEL + 0.02;
+  const markerRadius = zone.markerRadius ?? zone.radius;
+
+  // Скорость оставляем спокойной, меняем только амплитуду.
+  const radiusPulse = 1.0 + Math.sin(timeSec * 2.4) * 0.035;
+ const outerHeight = 3.4 + Math.sin(timeSec * 2.0) * 0.55;
+
+  this.exitElevatorMarker.position.set(zone.x, floorY, zone.z);
+
+  // Пол: делаем немного заметнее, особенно для белого пола 1-й комнаты.
+  this.exitElevatorMarkerFloor.scale.set(
+    markerRadius * 1.04,
+    markerRadius * 1.04,
+    1,
+  );
+  this.exitElevatorMarkerFloor.material.opacity =
+    0.82 + Math.sin(timeSec * 2.0) * 0.05;
+
+  // Кольцо на полу
+  const shouldShowFloorRing = this.currentLevelId === 1;
+
+this.exitElevatorMarkerFloorRing.visible = shouldShowFloorRing;
+
+if (shouldShowFloorRing) {
+  this.exitElevatorMarkerFloorRing.scale.set(
+    markerRadius * 1.08,
+    markerRadius * 1.08,
+    1,
+  );
+
+  this.exitElevatorMarkerFloorRing.material.opacity =
+    0.55 + Math.sin(timeSec * 2.0 + 0.2) * 0.05;
+}
+
+  // Внешний луч
+  this.exitElevatorMarkerBeam.scale.set(
+    markerRadius * radiusPulse,
+    outerHeight,
+    markerRadius * radiusPulse,
+  );
+  this.exitElevatorMarkerBeam.position.y = outerHeight * 0.5;
+this.exitElevatorMarkerBeam.material.opacity =
+  0.20 + Math.sin(timeSec * 2.0) * 0.03;
+}
+
+  getCurrentExitElevator() {
+    const config = this.getCurrentLevelConfig();
+    return config.exitElevator || null;
   }
 
   getCurrentExitDoor() {
@@ -1118,6 +1315,10 @@ export class GoogleRoomApp {
 
     const playerRef = this.playerController;
 
+    // После перестройки комнаты текущая конфигурация уровня изменится,
+    // поэтому заранее запоминаем дверь, через которую игрок прибудет.
+    const arrivalDoorId = this.activeExitElevator?.arrivalDoorId || "main_exit";
+
     this.targetLevelId = nextLevelId;
     this.isElevatorSequenceActive = true;
     this.elevatorPhase = "level_direct_transition";
@@ -1153,13 +1354,12 @@ export class GoogleRoomApp {
         this.cameraController.targetZoom = 15.0;
       }
 
-      // Для уровней после первого игрок появляется внутри кабины,
-      // а затем выезжает через выходные двери в новую комнату.
       if (nextLevelId > 1 && this.levelBuilder) {
         this.levelBuilder.setElevatorMode("exiting");
 
-        // Двери сначала закрыты, чтобы игрок появился именно в лифте.
-        this.levelBuilder.closeExit();
+        // Двери прибытия сначала закрыты,
+        // чтобы игрок появился внутри кабины.
+        this.levelBuilder.closeElevator(arrivalDoorId);
       }
 
       this.elevatorPhase = "opening_doors";
@@ -1170,10 +1370,9 @@ export class GoogleRoomApp {
         });
       });
 
-      // Даём экрану немного "проявиться", затем открываем двери лифта.
       setTimeout(() => {
         if (this.levelBuilder) {
-          this.levelBuilder.openExit();
+          this.levelBuilder.openElevator(arrivalDoorId);
         }
 
         // Ждём, пока створки разъедутся, и только потом возвращаем управление.
@@ -1184,7 +1383,11 @@ export class GoogleRoomApp {
           this.isElevatorSequenceActive = false;
           this.elevatorPhase = "";
           this.targetLevelId = null;
+          this.activeExitElevator = null;
+          this.elevatorSettlingTime = 0;
+          this.elevatorCameraInitialized = false;
           this.activeRoomExitElevatorId = null;
+          this.elevatorHoldPos = null;
         }, 1200);
       }, 600);
     }, 2200);
@@ -1300,8 +1503,157 @@ export class GoogleRoomApp {
       this.ballInstancedMesh.setColorAt(i, new THREE.Color(0xffffff));
     }
 
-    this.interactivePlatforms = [];
-  }
+this.interactivePlatforms = [];
+
+// Визуальный зелёный маркер зоны активации лифта.
+this.createExitElevatorMarker();
+}
+
+createExitElevatorMarker() {
+  const markerGroup = new THREE.Group();
+  markerGroup.visible = false;
+
+  // =========================
+  // 1) МЯГКОЕ СВЕЧЕНИЕ НА ПОЛУ
+  // =========================
+  const floorCanvas = document.createElement("canvas");
+  floorCanvas.width = 256;
+  floorCanvas.height = 256;
+
+  const floorCtx = floorCanvas.getContext("2d");
+  const floorGradient = floorCtx.createRadialGradient(
+    128,
+    128,
+    8,
+    128,
+    128,
+    128,
+  );
+
+  floorGradient.addColorStop(0.0, "rgba(120,255,140,0.70)");
+  floorGradient.addColorStop(0.35, "rgba(80,255,110,0.38)");
+  floorGradient.addColorStop(0.72, "rgba(40,210,70,0.14)");
+  floorGradient.addColorStop(1.0, "rgba(0,0,0,0.0)");
+
+  floorCtx.clearRect(0, 0, 256, 256);
+  floorCtx.fillStyle = floorGradient;
+  floorCtx.fillRect(0, 0, 256, 256);
+
+  const floorTexture = new THREE.CanvasTexture(floorCanvas);
+  floorTexture.needsUpdate = true;
+
+  // =========================
+  // 2) ВЕРТИКАЛЬНЫЙ ALPHA-ГРАДИЕНТ
+  // =========================
+  const beamCanvas = document.createElement("canvas");
+  beamCanvas.width = 64;
+  beamCanvas.height = 256;
+
+  const beamCtx = beamCanvas.getContext("2d");
+const beamGradient = beamCtx.createLinearGradient(0, 0, 0, 256);
+
+// Для alphaMap:
+// чёрный = полностью прозрачно;
+// белый = полностью видно.
+//
+// У CylinderGeometry верх текстуры находится около y = 0,
+// низ — около y = 256.
+beamGradient.addColorStop(0.00, "rgb(0, 0, 0)");
+beamGradient.addColorStop(0.18, "rgb(0, 0, 0)");
+beamGradient.addColorStop(0.38, "rgb(18, 18, 18)");
+beamGradient.addColorStop(0.58, "rgb(75, 75, 75)");
+beamGradient.addColorStop(0.76, "rgb(165, 165, 165)");
+beamGradient.addColorStop(0.92, "rgb(235, 235, 235)");
+beamGradient.addColorStop(1.00, "rgb(255, 255, 255)");
+
+  beamCtx.clearRect(0, 0, 64, 256);
+  beamCtx.fillStyle = beamGradient;
+  beamCtx.fillRect(0, 0, 64, 256);
+
+  const beamTexture = new THREE.CanvasTexture(beamCanvas);
+  beamTexture.needsUpdate = true;
+
+  // =========================
+  // 3) МАТЕРИАЛЫ
+  // =========================
+  const floorMaterial = new THREE.MeshBasicMaterial({
+    color: 0x2fff57,
+    map: floorTexture,
+    transparent: true,
+    opacity: 0.82,
+    depthWrite: false,
+    side: THREE.DoubleSide,
+  });
+
+  // Кольцо на полу — чтобы на белом полу маркер не терялся.
+  const floorRingMaterial = new THREE.MeshBasicMaterial({
+    color: 0x32ff5a,
+    transparent: true,
+    opacity: 0.55,
+    depthWrite: false,
+    side: THREE.DoubleSide,
+  });
+
+  // Внешний слой — основной зелёный объём.
+const outerBeamMaterial = new THREE.MeshBasicMaterial({
+  color: 0x32ff5a,
+  alphaMap: beamTexture,
+  transparent: true,
+  opacity: 0.24,
+  depthWrite: false,
+  side: THREE.DoubleSide,
+});
+
+  // Внутренний слой — мягкий, но НЕ белый.
+  const innerBeamMaterial = new THREE.MeshBasicMaterial({
+    color: 0x7aff95,
+    alphaMap: beamTexture,
+    transparent: true,
+    opacity: 0.12,
+    depthWrite: false,
+    side: THREE.DoubleSide,
+  });
+
+  // =========================
+  // 4) ГЕОМЕТРИЯ
+  // =========================
+  const floorGlow = new THREE.Mesh(
+    new THREE.CircleGeometry(1.0, 64),
+    floorMaterial,
+  );
+  floorGlow.rotation.x = -Math.PI / 2;
+  floorGlow.position.y = 0.015;
+  floorGlow.renderOrder = 18;
+
+  const floorRing = new THREE.Mesh(
+    new THREE.RingGeometry(0.82, 1.0, 64),
+    floorRingMaterial,
+  );
+  floorRing.rotation.x = -Math.PI / 2;
+  floorRing.position.y = 0.02;
+  floorRing.renderOrder = 19;
+
+  const outerBeam = new THREE.Mesh(
+    new THREE.CylinderGeometry(1.0, 1.0, 1.0, 64, 1, true),
+    outerBeamMaterial,
+  );
+  outerBeam.renderOrder = 20;
+
+  const innerBeam = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.62, 0.62, 1.0, 64, 1, true),
+    innerBeamMaterial,
+  );
+markerGroup.add(floorGlow);
+markerGroup.add(floorRing);
+markerGroup.add(outerBeam);
+
+this.exitElevatorMarker = markerGroup;
+this.exitElevatorMarkerFloor = floorGlow;
+this.exitElevatorMarkerFloorRing = floorRing;
+this.exitElevatorMarkerBeam = outerBeam;
+
+  this.scene.add(markerGroup);
+}
 
   clearBalls() {
     if (this.activeBallsCount === 0) return;
@@ -1835,37 +2187,74 @@ export class GoogleRoomApp {
       if (!this.isIntroPlaying) {
         this.playerController.update(dt);
 
-        if (
-          !this.isElevatorSequenceActive ||
-          this.elevatorPhase === "opening_doors"
-        ) {
-          // ИГРОВОЙ РЕЖИМ:
-          // Финальный лифт уровня 2 не включаем сюда,
-          // потому что у него ниже есть своя постановочная камера.
-          this.cameraController.update(dt, this.playerController.mesh.position);
-        } else if (
-          this.elevatorPhase === "waiting_entrance_open" ||
-          this.elevatorPhase === "rolling" ||
-          this.elevatorPhase === "doors_closing"
-        ) {
-          // КИНЕМАТОГРАФИЧЕСКИЙ РЕЖИМ:
-          // камера плавно отъезжает и смотрит на лифт.
-          const targetCamPos = new THREE.Vector3(0, 6, 24);
-          this.cameraPivot.position.lerp(targetCamPos, dt * 2.0);
+        const activeElevatorCamera = this.activeExitElevator;
 
-          this.cameraPivot.rotation.x = THREE.MathUtils.lerp(
-            this.cameraPivot.rotation.x,
-            -0.1,
-            dt * 2.0,
+        if (
+          this.isElevatorSequenceActive &&
+          activeElevatorCamera?.cameraPoint &&
+          activeElevatorCamera?.cameraLookPoint &&
+          this.elevatorPhase !== "opening_doors"
+        ) {
+          // При первом кадре кат-сцены сохраняем фактическое мировое
+          // положение камеры. После этого отвязываем её от игрового плеча.
+          // Благодаря этому камера не телепортируется при начале сцены.
+          if (!this.elevatorCameraInitialized) {
+            const currentCameraWorldPosition = new THREE.Vector3();
+
+            this.camera.getWorldPosition(currentCameraWorldPosition);
+
+            this.cameraPivot.position.copy(currentCameraWorldPosition);
+
+            this.camera.position.set(0, 0, 0);
+            this.camera.rotation.set(0, 0, 0);
+
+            this.elevatorCameraInitialized = true;
+          }
+
+          const cameraPoint = activeElevatorCamera.cameraPoint;
+          const cameraLookPoint = activeElevatorCamera.cameraLookPoint;
+
+          const targetCameraPosition = new THREE.Vector3(
+            cameraPoint.x,
+            cameraPoint.y,
+            cameraPoint.z,
           );
 
-          this.cameraPivot.rotation.y = THREE.MathUtils.lerp(
-            this.cameraPivot.rotation.y,
-            0,
-            dt * 2.0,
+          const targetLookPosition = new THREE.Vector3(
+            cameraLookPoint.x,
+            cameraLookPoint.y,
+            cameraLookPoint.z,
+          );
+
+          // Камера плавно перелетает в постановочную точку.
+          const positionLerp = 1 - Math.exp(-2.2 * dt);
+
+          this.cameraPivot.position.lerp(targetCameraPosition, positionLerp);
+
+          // На вспомогательном объекте рассчитываем нужный поворот.
+          this.elevatorCameraTarget.position.copy(this.cameraPivot.position);
+
+          this.elevatorCameraTarget.quaternion.copy(
+            this.cameraPivot.quaternion,
+          );
+
+          this.elevatorCameraTarget.lookAt(targetLookPosition);
+
+          // Камера является дочерним объектом cameraPivot,
+          // поэтому для правильного направления нужен разворот на 180°.
+          this.elevatorCameraTarget.rotateY(Math.PI);
+
+          const rotationLerp = 1 - Math.exp(-3.0 * dt);
+
+          this.cameraPivot.quaternion.slerp(
+            this.elevatorCameraTarget.quaternion,
+            rotationLerp,
           );
 
           this.cameraPivot.rotation.z = 0;
+        } else {
+          // Обычная игровая камера и камера после прибытия в новый сектор.
+          this.cameraController.update(dt, this.playerController.mesh.position);
         }
       } else {
         // Синхронизируем графику падающего шара (Интро)
@@ -1941,13 +2330,17 @@ export class GoogleRoomApp {
       ) {
         const pPos = this.playerController.body.position;
 
-        const exitTrigger = this.getCurrentExitTrigger();
+       const exitZone = this.getCurrentExitActivationZone();
 
-        const isPlayerInLevelExit =
-          pPos.x > exitTrigger.xMin &&
-          pPos.x < exitTrigger.xMax &&
-          pPos.z > exitTrigger.zMin &&
-          pPos.z < exitTrigger.zMax;
+let isPlayerInLevelExit = false;
+
+if (exitZone) {
+  const dx = pPos.x - exitZone.x;
+  const dz = pPos.z - exitZone.z;
+
+  isPlayerInLevelExit =
+    dx * dx + dz * dz <= exitZone.radius * exitZone.radius;
+}
 
         if (isPlayerInLevelExit) {
           const nextLevelId = this.getNextLevelId();
@@ -1964,24 +2357,34 @@ export class GoogleRoomApp {
           } else {
             this.noNextLevelWarningShown = false;
 
-            this.targetLevelId = nextLevelId;
-            this.elevatorEntryDoor = this.getCurrentExitDoor();
+            const exitElevator = this.getCurrentExitElevator();
 
-            // Сначала отбираем управление, но НЕ обнуляем скорость.
-            // Шар должен самостоятельно приземлиться, докатиться
-            // и полностью погасить инерцию.
-            this.isElevatorSequenceActive = true;
-            this.elevatorPhase = "waiting_for_elevator_stop";
-            this.elevatorStopStableTime = 0;
+            if (!exitElevator) {
+              console.warn(
+                `[ELEVATOR] Missing exitElevator config for level ${this.currentLevelId}.`,
+              );
+            } else {
+              this.targetLevelId = nextLevelId;
 
-            this.elevatorHoldPos = null;
-            this.roomExitHoldPos = null;
+              // Запоминаем конфигурацию именно в момент запуска кат-сцены.
+              // После смены уровня getCurrentExitElevator() уже вернёт другой конфиг.
+              this.activeExitElevator = exitElevator;
 
-            this.playerController.isLocked = true;
-            this.lockGameplayCamera();
+              this.isElevatorSequenceActive = true;
+              this.elevatorPhase = "elevator_approaching";
 
-            // На этом этапе двери ещё не открываем.
-            // Переход к конкретной кат-сцене произойдёт только после остановки.
+              this.elevatorHoldPos = null;
+              this.elevatorCameraInitialized = false;
+              this.elevatorSettlingTime = 0;
+
+              // Управление блокируем сразу, но скорость шара не обнуляем.
+              // Если он вошёл в триггер в прыжке, физика спокойно завершит падение.
+              this.playerController.isLocked = true;
+              this.lockGameplayCamera();
+
+              // Двери начинают открываться одновременно с блокировкой управления.
+              this.levelBuilder.openElevator(exitElevator.doorId);
+            }
           }
         } else {
           this.noNextLevelWarningShown = false;
@@ -1997,416 +2400,224 @@ export class GoogleRoomApp {
       ) {
         const playerRef = this.playerController;
 
-        // === ОЖИДАНИЕ ПОЛНОЙ ОСТАНОВКИ ПЕРЕД КАТ-СЦЕНОЙ ===
-        if (
-          this.elevatorPhase === "waiting_for_elevator_stop" &&
-          playerRef &&
-          playerRef.body
-        ) {
+        // === ЕДИНАЯ ЛИФТОВАЯ КАТ-СЦЕНА ===
+        //
+        // Фазы:
+
+        // elevator_approaching    — естественное приземление и движение к точке перед дверями;
+        // elevator_settling       — короткая устойчивая остановка перед лифтом;
+        // elevator_entering       — въезд внутрь кабины;
+        // elevator_doors_closing  — фиксация шара и закрытие дверей;
+        // elevator_transition     — запуск перехода в следующий сектор.
+
+        const exitElevator = this.activeExitElevator;
+
+        if (exitElevator && playerRef && playerRef.body) {
           const body = playerRef.body;
-          const pPos = body.position;
-          const exitTrigger = this.getCurrentExitTrigger();
+          const radius = CONFIG.PLAYER.RADIUS || 1.5;
 
-          const isStillInsideExit =
-            pPos.x > exitTrigger.xMin &&
-            pPos.x < exitTrigger.xMax &&
-            pPos.z > exitTrigger.zMin &&
-            pPos.z < exitTrigger.zMax;
+          const moveHorizontallyTo = (
+            targetPoint,
+            stopDistance = 0.08,
+            maxSpeed = 6.2,
+          ) => {
+            const dx = targetPoint.x - body.position.x;
+            const dz = targetPoint.z - body.position.z;
+            const distance = Math.hypot(dx, dz);
 
-          // Если шар по инерции выкатился из зоны,
-          // отменяем запуск кат-сцены и возвращаем управление.
-          if (!isStillInsideExit) {
-            this.isElevatorSequenceActive = false;
-            this.elevatorPhase = "";
-            this.elevatorStopStableTime = 0;
-            this.targetLevelId = null;
-            this.elevatorEntryDoor = null;
+            if (distance <= stopDistance) {
+              body.velocity.x = 0;
+              body.velocity.z = 0;
 
-            playerRef.isLocked = false;
-            this.unlockGameplayCamera();
-          } else {
-            const horizontalSpeed = Math.hypot(
-              body.velocity.x,
-              body.velocity.z,
-            );
+              body.angularVelocity.x = 0;
+              body.angularVelocity.z = 0;
 
-            const verticalSpeed = Math.abs(body.velocity.y);
-            const angularSpeed = body.angularVelocity.length();
-
-            const isFullyStopped =
-              playerRef.isGrounded === true &&
-              horizontalSpeed < 0.35 &&
-              verticalSpeed < 0.25 &&
-              angularSpeed < 0.8;
-
-            // Остановка должна сохраняться несколько кадров подряд.
-            if (isFullyStopped) {
-              this.elevatorStopStableTime += dt;
-            } else {
-              this.elevatorStopStableTime = 0;
+              return true;
             }
 
-            if (this.elevatorStopStableTime >= 0.25) {
-              this.elevatorStopStableTime = 0;
+            const dirX = dx / distance;
+            const dirZ = dz / distance;
 
-              // Убираем только остаточное физическое микродвижение.
+            // Чем ближе шар к точке, тем мягче движение.
+            const speed = THREE.MathUtils.clamp(distance * 4.2, 0.75, maxSpeed);
+
+            const vx = dirX * speed;
+            const vz = dirZ * speed;
+
+            body.velocity.x = vx;
+            body.velocity.z = vz;
+
+            // Визуально и физически продолжаем катить шар,
+            // а не просто скользить им по полу.
+            body.angularVelocity.x = vz / radius;
+            body.angularVelocity.z = -vx / radius;
+
+            return false;
+          };
+
+          // === ФАЗА 1: ПОДХОД К ЛИФТУ ===
+          if (this.elevatorPhase === "elevator_approaching") {
+            // Пока шар находится в воздухе, горизонтальную и вертикальную
+            // скорость не трогаем. Он должен естественно приземлиться.
+            if (playerRef.isGrounded === true) {
+              const reachedApproach = moveHorizontallyTo(
+                exitElevator.approachPoint,
+                0.12,
+                5.2,
+              );
+
+              if (reachedApproach) {
+                // Шар дошёл до точки перед дверями.
+                // Теперь отдельно даём ему полностью успокоиться.
+                body.velocity.x = 0;
+                body.velocity.z = 0;
+
+                body.angularVelocity.x = 0;
+                body.angularVelocity.z = 0;
+
+                this.elevatorSettlingTime = 0;
+                this.elevatorPhase = "elevator_settling";
+              }
+            }
+          }
+
+          // === ФАЗА 2: СТАБИЛИЗАЦИЯ ПЕРЕД ЛИФТОМ ===
+          if (this.elevatorPhase === "elevator_settling") {
+            const approachPoint = exitElevator.approachPoint;
+
+            const dx = approachPoint.x - body.position.x;
+            const dz = approachPoint.z - body.position.z;
+            const distanceToApproach = Math.hypot(dx, dz);
+
+            // Если физика слегка сдвинула шар от точки,
+            // мягко возвращаем его, не телепортируя.
+            if (distanceToApproach > 0.1) {
+              moveHorizontallyTo(approachPoint, 0.08, 1.6);
+
+              this.elevatorSettlingTime = 0;
+            } else {
+              // Гасим только горизонтальное движение.
+              // Вертикальную физику не трогаем.
+              body.velocity.x = 0;
+              body.velocity.z = 0;
+
+              body.angularVelocity.x = 0;
+              body.angularVelocity.z = 0;
+
+              const horizontalSpeed = Math.hypot(
+                body.velocity.x,
+                body.velocity.z,
+              );
+
+              const angularSpeed = Math.hypot(
+                body.angularVelocity.x,
+                body.angularVelocity.z,
+              );
+
+              const isStable =
+                playerRef.isGrounded === true &&
+                horizontalSpeed < 0.05 &&
+                angularSpeed < 0.1;
+
+              if (isStable) {
+                this.elevatorSettlingTime += dt;
+              } else {
+                this.elevatorSettlingTime = 0;
+              }
+
+              const doorOpenState = this.levelBuilder.getElevatorOpenState(
+                exitElevator.doorId,
+              );
+
+              // Въезд начинается только при выполнении двух условий:
+              // шар устойчиво остановился, а двери достаточно открыты.
+              if (this.elevatorSettlingTime >= 0.3 && doorOpenState >= 0.82) {
+                this.elevatorSettlingTime = 0;
+                this.elevatorPhase = "elevator_entering";
+              }
+            }
+          }
+
+          // === ФАЗА 3: ВЪЕЗД В КАБИНУ ===
+          if (this.elevatorPhase === "elevator_entering") {
+            const reachedCabin = moveHorizontallyTo(
+              exitElevator.cabinPoint,
+              0.08,
+              6.2,
+            );
+
+            if (reachedCabin) {
               body.velocity.set(0, 0, 0);
               body.angularVelocity.set(0, 0, 0);
 
-              // Отдельный финальный лифт уровня 2.
-              if (this.elevatorEntryDoor === "none") {
-                this.elevatorPhase = "room_exit_opening";
-                this.roomExitHoldPos = null;
-
-                if (this.roomExitCloseTimer) {
-                  clearTimeout(this.roomExitCloseTimer);
-                  this.roomExitCloseTimer = null;
-                }
-
-                if (
-                  this.currentLevelId === 2 &&
-                  this.levelBuilder.openRoom2Exit
-                ) {
-                  this.activeRoomExitElevatorId = "room2_exit";
-
-                  if (this.levelBuilder.openRoomElevator) {
-                    this.levelBuilder.openRoomElevator(
-                      this.activeRoomExitElevatorId,
-                    );
-                  } else {
-                    this.levelBuilder.openRoom2Exit();
-                  }
-                }
-              } else {
-                // Обычный лифт первого сектора.
-                this.elevatorPhase = "waiting_entrance_open";
-                this.elevatorHoldPos = null;
-
-                if (this.elevatorEntryDoor === "exit") {
-                  this.levelBuilder.openExit();
-                } else if (this.elevatorEntryDoor === "entrance") {
-                  this.levelBuilder.openEntrance();
-                }
-              }
-            }
-          }
-        }
-
-        // === ФИНАЛЬНЫЙ ЛИФТ УРОВНЯ 2 ===
-        // Фазы:
-        // room_exit_opening       — камера выравнивается, двери открываются;
-        // room_exit_rolling       — шар подкатывается к проёму;
-        // room_exit_doors_closing — шар зафиксирован, двери закрываются, потом fade.
-        if (
-          (this.elevatorPhase === "room_exit_opening" ||
-            this.elevatorPhase === "room_exit_rolling" ||
-            this.elevatorPhase === "room_exit_doors_closing") &&
-          playerRef &&
-          playerRef.body
-        ) {
-          const pPos = playerRef.body.position;
-
-          // Центр финального лифта уровня 2.
-          const exitX = 14.55;
-          const exitZ = -31.15;
-
-          // === ПОСТАНОВОЧНАЯ КАМЕРА ===
-          // ВАЖНО: во время этой кат-сцены ставим сам cameraPivot
-          // в позицию камеры внутри комнаты, а camera держим в нуле.
-          // Так камера не улетает "за спину" pivot-а и не вылетает за текстуры.
-
-          const cameraWorldPos = new THREE.Vector3(
-            -11.0, // дальше от лифта, глубже в комнату
-            pPos.y + 11.0, // выше, почти под потолком
-            exitZ, // строго напротив лифта
-          );
-
-          const lookTarget = new THREE.Vector3(
-            13.0, // смотрим на область перед дверьми
-            pPos.y + 1.6, // ниже цели, чтобы камера смотрела вниз под углом
-            exitZ,
-          );
-
-          // Плавно двигаем сам pivot в позицию камеры.
-          this.cameraPivot.position.lerp(cameraWorldPos, dt * 2.5);
-
-          // Камера находится прямо в pivot-е.
-          this.camera.position.set(0, 0, 0);
-          this.camera.rotation.set(0, 0, 0);
-
-          // Поворачиваем pivot на цель.
-          // Так как камера сидит внутри cameraPivot как дочерний объект,
-          // направление получается зеркальным, поэтому разворачиваем pivot на 180°.
-          this.cameraPivot.lookAt(lookTarget);
-          this.cameraPivot.rotateY(Math.PI);
-          this.cameraPivot.rotation.z = 0;
-
-          // Точка остановки шара ВНУТРИ финального лифта уровня 2.
-          // Лифт стоит на правой стене, кабина уходит по +X.
-          const targetX = 17.6;
-          const targetZ = exitZ;
-
-          // 1. Ждём, пока двери финального лифта достаточно открылись.
-          if (this.elevatorPhase === "room_exit_opening") {
-            playerRef.body.velocity.set(0, 0, 0);
-            playerRef.body.angularVelocity.set(0, 0, 0);
-
-            const roomExitOpenState =
-              this.levelBuilder.getRoomElevatorOpenState?.(
-                this.activeRoomExitElevatorId,
-              ) ??
-              this.levelBuilder.room2ExitOpenState ??
-              0;
-
-            if (roomExitOpenState > 0.82) {
-              this.elevatorPhase = "room_exit_rolling";
-            }
-          }
-
-          // 2. Автоподкат шара к проёму.
-          if (this.elevatorPhase === "room_exit_rolling") {
-            const dir = new THREE.Vector3(
-              targetX - pPos.x,
-              0,
-              targetZ - pPos.z,
-            );
-            const dist = dir.length();
-
-            if (dist > 0.08) {
-              dir.normalize();
-
-              // Чем ближе к цели, тем мягче докатывание.
-              // Кривая скорости:
-              // далеко — быстро, ближе к цели — плавное замедление.
-              const speed = THREE.MathUtils.clamp(dist * 4.2, 0.75, 6.2);
-              const radius = CONFIG.PLAYER.RADIUS || 1.5;
-
-              const vx = dir.x * speed;
-              const vz = dir.z * speed;
-
-              playerRef.body.velocity.x = vx;
-              playerRef.body.velocity.z = vz;
-
-              playerRef.body.angularVelocity.x = vz / radius;
-              playerRef.body.angularVelocity.z = -vx / radius;
-            } else {
-              // Доехали: НЕ телепортируем шар в targetX/targetZ.
-              // Фиксируем его там, где он реально остановился.
-              playerRef.body.velocity.set(0, 0, 0);
-              playerRef.body.angularVelocity.set(0, 0, 0);
-
-              this.roomExitHoldPos = new THREE.Vector3(
-                playerRef.body.position.x,
-                playerRef.body.position.y,
-                playerRef.body.position.z,
+              // Запоминаем реальную позицию остановки.
+              // Шар не телепортируется точно в cabinPoint.
+              this.elevatorHoldPos = new CANNON.Vec3(
+                body.position.x,
+                body.position.y,
+                body.position.z,
               );
 
-              playerRef.body.previousPosition.copy(playerRef.body.position);
-              playerRef.body.interpolatedPosition.copy(playerRef.body.position);
+              body.previousPosition.copy(body.position);
+              body.interpolatedPosition.copy(body.position);
 
               if (playerRef.mesh) {
-                playerRef.mesh.position.copy(playerRef.body.position);
-                playerRef.mesh.quaternion.copy(playerRef.body.quaternion);
+                playerRef.mesh.position.copy(body.position);
+                playerRef.mesh.quaternion.copy(body.quaternion);
               }
 
-              this.elevatorPhase = "room_exit_doors_closing";
+              this.elevatorPhase = "elevator_doors_closing";
 
-              if (this.levelBuilder.closeRoomElevator) {
-                this.levelBuilder.closeRoomElevator(
-                  this.activeRoomExitElevatorId,
-                );
-              } else if (this.levelBuilder.closeRoom2Exit) {
-                // Временный fallback, чтобы старый код не сломался.
-                this.levelBuilder.closeRoom2Exit();
-              }
+              this.levelBuilder.closeElevator(exitElevator.doorId);
             }
           }
 
-          // 3. Пока двери закрываются, держим шар на месте.
-          if (this.elevatorPhase === "room_exit_doors_closing") {
-            playerRef.body.velocity.set(0, 0, 0);
-            playerRef.body.angularVelocity.set(0, 0, 0);
+          // === ФАЗА 4: ЗАКРЫТИЕ ДВЕРЕЙ ===
+          if (this.elevatorPhase === "elevator_doors_closing") {
+            body.velocity.set(0, 0, 0);
+            body.angularVelocity.set(0, 0, 0);
 
-            // Держим шар в той точке, где он реально остановился,
-            // а не телепортируем его в targetX/targetZ.
-            if (this.roomExitHoldPos) {
-              playerRef.body.position.copy(this.roomExitHoldPos);
+            if (this.elevatorHoldPos) {
+              body.position.copy(this.elevatorHoldPos);
             }
 
-            playerRef.body.previousPosition.copy(playerRef.body.position);
-            playerRef.body.interpolatedPosition.copy(playerRef.body.position);
+            body.previousPosition.copy(body.position);
+            body.interpolatedPosition.copy(body.position);
 
             if (playerRef.mesh) {
-              playerRef.mesh.position.copy(playerRef.body.position);
-              playerRef.mesh.quaternion.copy(playerRef.body.quaternion);
+              playerRef.mesh.position.copy(body.position);
+              playerRef.mesh.quaternion.copy(body.quaternion);
             }
 
-            // Ждём, пока двери почти закрылись, и только потом запускаем fade.
-            const roomExitOpenState =
-              this.levelBuilder.getRoomElevatorOpenState?.(
-                this.activeRoomExitElevatorId,
-              ) ??
-              this.levelBuilder.room2ExitOpenState ??
-              0;
-
-            if (roomExitOpenState < 0.12 && !this.roomExitCloseTimer) {
-              this.roomExitCloseTimer = setTimeout(() => {
-                this.roomExitCloseTimer = null;
-                this.startDirectLevelTransition(this.targetLevelId);
-              }, 250);
-            }
-          }
-        }
-
-        // ФАЗА 1: ждём, пока входные двери реально разъедутся.
-        // Иначе шар начинает ехать слишком рано и упирается в физические створки.
-        if (this.elevatorPhase === "waiting_entrance_open") {
-          playerRef.body.velocity.set(0, 0, 0);
-          playerRef.body.angularVelocity.set(0, 0, 0);
-
-          if (this.levelBuilder.entranceOpenState > 0.85) {
-            this.elevatorPhase = "rolling";
-          }
-        }
-
-        if (this.elevatorPhase === "rolling" && playerRef && playerRef.body) {
-          const pPos = playerRef.body.position;
-          const targetZ = 11.25; // Центр лифта
-          const targetX = 0;
-
-          const dir = new THREE.Vector3(targetX - pPos.x, 0, targetZ - pPos.z);
-          const dist = dir.length();
-
-          if (dist > 0.08) {
-            dir.normalize();
-
-            // Кривая скорости для лифта 1 → 2:
-            // сначала быстрее, потом плавно замедляется у центра.
-            const speed = THREE.MathUtils.clamp(dist * 4.2, 0.75, 6.2);
-
-            const radius = CONFIG.PLAYER.RADIUS || 1.5;
-
-            const vx = dir.x * speed;
-            const vz = dir.z * speed;
-
-            playerRef.body.velocity.x = vx;
-            playerRef.body.velocity.z = vz;
-
-            playerRef.body.angularVelocity.x = vz / radius;
-            playerRef.body.angularVelocity.z = -vx / radius;
-          } else {
-            // Доехали: НЕ телепортируем шар в центр.
-            // Фиксируем его там, где он реально остановился.
-            playerRef.body.velocity.set(0, 0, 0);
-            playerRef.body.angularVelocity.set(0, 0, 0);
-
-            this.elevatorHoldPos = new THREE.Vector3(
-              playerRef.body.position.x,
-              playerRef.body.position.y,
-              playerRef.body.position.z,
+            const doorOpenState = this.levelBuilder.getElevatorOpenState(
+              exitElevator.doorId,
             );
 
-            playerRef.body.previousPosition.copy(playerRef.body.position);
-            playerRef.body.interpolatedPosition.copy(playerRef.body.position);
-
-            if (playerRef.mesh) {
-              playerRef.mesh.position.copy(playerRef.body.position);
-              playerRef.mesh.quaternion.copy(playerRef.body.quaternion);
+            if (doorOpenState <= 0.12) {
+              this.elevatorPhase = "elevator_transition";
             }
+          }
 
-            this.elevatorPhase = "doors_closing";
+          // === ФАЗА 5: ПЕРЕХОД В СЛЕДУЮЩИЙ СЕКТОР ===
+          if (this.elevatorPhase === "elevator_transition") {
+            const nextLevelId = this.targetLevelId;
 
-            // === ОДНОВРЕМЕННО: ЗАКРЫВАЕМ ДВЕРЬ И ГАСИМ ЭКРАН ===
-            // Закрываем дверь, если выход привязан к текущему тестовому лифту.
-            // Для временного финального выхода уровня 2 может быть entryDoor: "none".
-            if (this.elevatorEntryDoor === "exit") {
-              this.levelBuilder.closeExit();
-            } else if (this.elevatorEntryDoor === "entrance") {
-              this.levelBuilder.closeEntrance();
+            if (!nextLevelId) {
+              console.warn("[ELEVATOR] Missing target level for transition.");
+
+              this.isElevatorSequenceActive = false;
+              this.elevatorPhase = "";
+              this.activeExitElevator = null;
+              this.elevatorHoldPos = null;
+              this.elevatorSettlingTime = 0;
+
+              playerRef.isLocked = false;
+              this.unlockGameplayCamera();
+            } else {
+              // Метод сразу сменит фазу на level_direct_transition,
+              // поэтому повторный запуск в следующем кадре не произойдёт.
+              this.startDirectLevelTransition(nextLevelId);
             }
-
-            this.fadeScreen.style.opacity = "1";
-
-            setTimeout(() => {
-              // === ФАЗА 3: МАГИЯ ПЕРЕСТРОЙКИ УРОВНЯ В ТЕМНОТЕ ===
-              this.levelBuilder.setElevatorMode("exiting");
-
-              // В ТЕМНОТЕ пересобираем активную комнату.
-              // Берём цель, которую запомнили в момент запуска лифта.
-              const nextLevelId = this.targetLevelId;
-
-              if (!nextLevelId) {
-                console.warn(
-                  "[LEVEL] No target level for elevator transition.",
-                );
-                this.fadeScreen.style.opacity = "0";
-                this.isElevatorSequenceActive = false;
-                this.elevatorPhase = "";
-                playerRef.isLocked = false;
-                this.unlockGameplayCamera();
-                return;
-              }
-
-              this.levelBuilder.buildRoom(nextLevelId);
-              this.loadLevel(nextLevelId);
-
-              const exitCameraZoom = 15.0;
-              const camTargetY = playerRef.body.position.y + 4.0;
-
-              // Сбрасываем кэш стен камеры после пересборки комнаты.
-              if (this.cameraController) {
-                this.cameraController.invalidateWallsCache();
-                this.cameraController.currentZoom = exitCameraZoom;
-                this.cameraController.targetZoom = exitCameraZoom;
-              }
-
-              // Пока экран чёрный, жёстко ставим камеру в безопасный ракурс.
-              this.cameraPivot.position.set(0, camTargetY, 11.25);
-              this.cameraPivot.rotation.set(-Math.PI / 6, 0, 0);
-
-              this.camera.position.set(0, 0, exitCameraZoom);
-              this.camera.rotation.set(0, 0, 0);
-
-              // Принудительно обновляем матрицы, чтобы следующий кадр уже был правильным.
-              this.cameraPivot.updateMatrixWorld(true);
-              this.camera.updateMatrixWorld(true);
-
-              // Прогреваем материалы и шейдеры новой комнаты,
-              // пока fadeScreen ещё чёрный
-              this.scene.updateMatrixWorld(true);
-              // Временно отключено для проверки стартового прогрева.
-              // this.renderer.compile(this.scene, this.camera);
-
-              this.elevatorPhase = "opening_doors";
-
-              // === ФАЗА 4: СВЕТЛЕЕТ... ===
-              // Не снимаем затемнение в этот же кадр.
-              // Даем браузеру 2 кадра, чтобы новая комната и камера точно применились.
-              requestAnimationFrame(() => {
-                requestAnimationFrame(() => {
-                  this.fadeScreen.style.opacity = "0";
-                });
-              });
-
-              // === ФАЗА 4: СВЕТЛЕЕТ... ===
-              this.fadeScreen.style.opacity = "0";
-
-              // Ждем 600 миллисекунд (чтобы свет немного зажегся)
-              // Ждем 600 миллисекунд (чтобы свет немного зажегся)
-              setTimeout(() => {
-                // ...И ТОЛЬКО ТЕПЕРЬ ОТКРЫВАЕМ ДВЕРИ
-                this.levelBuilder.openExit();
-
-                // Ждем еще 1.2 секунды, пока створки разъедутся
-                setTimeout(() => {
-                  playerRef.isLocked = false;
-                  this.unlockGameplayCamera();
-
-                  this.isElevatorSequenceActive = false;
-                  this.elevatorPhase = "";
-                }, 1200);
-              }, 600);
-            }, 2200);
           }
         }
       }
@@ -2454,8 +2665,9 @@ export class GoogleRoomApp {
       this.lastTime = currentTime;
     }
 
-    this.wordManager.updateAnimations(currentTime);
-    this.updateBallInstances(currentTime);
+ this.wordManager.updateAnimations(currentTime);
+this.updateBallInstances(currentTime);
+this.updateExitElevatorMarker(currentTime / 1000);
 
     // ==========================================
     // ЛОГИКА НЕЗАВИСИМОГО СВЕТА (ЛАБОРАТОРИЯ И КОРИДОР)

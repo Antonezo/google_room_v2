@@ -31,6 +31,10 @@ this.menuManager = new MenuManager(this);
       pauseOverlay: document.getElementById("pause-overlay"),
     };
 
+    if (this.elements.pauseOverlay) {
+  this.elements.pauseOverlay.inert = true;
+}
+
     this.initGlobalBindings();
     this.initStartMenu();
     this.updateLanguage(this.currentLang);
@@ -184,8 +188,11 @@ this.menuManager = new MenuManager(this);
     // Разрешаем управление кнопками паузы.
     this.isMenuLocked = false;
 
-    pauseOverlay.classList.add("is-open");
-    pauseOverlay.setAttribute("aria-hidden", "false");
+  // Возвращаем overlay в дерево доступности
+// до того, как покажем его пользователю.
+pauseOverlay.inert = false;
+pauseOverlay.setAttribute("aria-hidden", "false");
+pauseOverlay.classList.add("is-open");
 
     // Сначала показываем overlay, затем освобождаем мышь.
     // Повторное событие unlock уже ничего не откроет,
@@ -202,11 +209,24 @@ this.menuManager = new MenuManager(this);
       return false;
     }
 
-    this.menuManager.hidePauseSettings();
+  this.menuManager.hidePauseSettings();
 
-    pauseOverlay.classList.remove("is-open");
-    pauseOverlay.setAttribute("aria-hidden", "true");
+// Нельзя ставить aria-hidden родителю, пока одна из его
+// кнопок остаётся активным элементом документа.
+const activeElement = document.activeElement;
 
+if (
+  activeElement instanceof HTMLElement &&
+  pauseOverlay.contains(activeElement)
+) {
+  activeElement.blur();
+}
+
+// Сначала убираем фокус, затем исключаем overlay
+// из управления и дерева доступности.
+pauseOverlay.inert = true;
+pauseOverlay.classList.remove("is-open");
+pauseOverlay.setAttribute("aria-hidden", "true");
     if (!resumeGameplay) {
       this.isMenuLocked = false;
       return true;

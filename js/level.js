@@ -63,23 +63,18 @@ export class LevelBuilder {
     this.room2GoalMarkerMesh = null;
     this.room2GoalMarkerBody = null;
 
-    this.room2CorridorGate = null;
-    this.room2CorridorGateOpenState = 0;
-    this.targetRoom2CorridorGateOpenState = 0;
-    this.room2CorridorGateActivated = false;
-    this.room2CorridorGateIndicator = null;
-this.room2CorridorGateSoundPlayed = false;
+    // Отдельное состояние головоломки комнаты 2.
+    // Оно больше не связано со старой промежуточной дверью.
+    this.room2PuzzleSolved = false;
 
-// Текстура декоративной панели двери комнаты №2.
-this.room2CorridorGatePanelTexture = null;
+    // Комнатные лифты.
+    this.roomElevators = new Map();
 
-// Загружаем панель двери заранее.
-this.getRoom2CorridorGatePanelTexture();
+    // Callback завершения головоломки комнаты 2.
+    // Назначается снаружи, в main.js.
+    this.onRoom2PuzzleSolved = null;
 
-// Комнатные лифты.
-this.roomElevators = new Map();
-
-this.buildTarget = "static";
+    this.buildTarget = "static";
   }
 
   setBuildTarget(target) {
@@ -168,10 +163,10 @@ this.buildTarget = "static";
           ? child.material
           : [child.material];
 
-materials.forEach((material) => {
-  if (!material) return;
-  material.dispose();
-});
+        materials.forEach((material) => {
+          if (!material) return;
+          material.dispose();
+        });
       }
     });
   }
@@ -219,21 +214,16 @@ materials.forEach((material) => {
       this.pushableObjects.length = 0;
     }
 
-    this.room2GoalMarkerMesh = null;
-    this.room2GoalMarkerBody = null;
+this.room2GoalMarkerMesh = null;
+this.room2GoalMarkerBody = null;
 
-      this.room2CorridorGate = null;
-    this.room2CorridorGateOpenState = 0;
-    this.targetRoom2CorridorGateOpenState = 0;
-    this.room2CorridorGateActivated = false;
+// При полной перестройке комнаты её головоломка
+// снова считается нерешённой.
+this.room2PuzzleSolved = false;
 
-    this.stopRoom2CorridorGateSound();
-    if (audioManager?.stopBoxSlide) {
+if (audioManager?.stopBoxSlide) {
   audioManager.stopBoxSlide();
 }
-
-    this.room2CorridorGateIndicator = null;
-    this.room2CorridorGateSoundPlayed = false;
 
     // Все лифты, которые были частью текущей комнаты,
     // больше не должны обновляться после пересборки комнаты.
@@ -291,16 +281,16 @@ materials.forEach((material) => {
     const isVerticalWall = Math.abs(rot.x) < 0.01;
     const useTileTexture = color === 0xffffff && isVerticalWall;
 
-const mat = new THREE.MeshStandardMaterial({
-  color: color,
-  map: useTileTexture ? tileTex : null,
-  normalMap: useTileTexture ? tileNormalTex : null,
-  roughnessMap: useTileTexture ? tileRoughTex : null,
-  side: THREE.DoubleSide,
-  roughness: useTileTexture ? 0.35 : 0.7,
-  metalness: 0.0,
-  dithering: true,
-});
+    const mat = new THREE.MeshStandardMaterial({
+      color: color,
+      map: useTileTexture ? tileTex : null,
+      normalMap: useTileTexture ? tileNormalTex : null,
+      roughnessMap: useTileTexture ? tileRoughTex : null,
+      side: THREE.DoubleSide,
+      roughness: useTileTexture ? 0.35 : 0.7,
+      metalness: 0.0,
+      dithering: true,
+    });
 
     const mesh = this.sceneManager.createWallMesh(width, height, pos, rot, mat);
     this.registerMesh(mesh);
@@ -327,16 +317,16 @@ const mat = new THREE.MeshStandardMaterial({
     uvOffsetY = 0,
     color = 0xffffff,
   ) {
-const mat = new THREE.MeshStandardMaterial({
-  color,
-  map: tileTex,
-  normalMap: tileNormalTex,
-  roughnessMap: tileRoughTex,
-  side: THREE.DoubleSide,
-  roughness: 0.35,
-  metalness: 0.0,
-  dithering: true,
-});
+    const mat = new THREE.MeshStandardMaterial({
+      color,
+      map: tileTex,
+      normalMap: tileNormalTex,
+      roughnessMap: tileRoughTex,
+      side: THREE.DoubleSide,
+      roughness: 0.35,
+      metalness: 0.0,
+      dithering: true,
+    });
 
     const mesh = this.sceneManager.createWallMesh(width, height, pos, rot, mat);
     mesh.userData.skipWallMaterialUpdate = true;
@@ -394,7 +384,7 @@ const mat = new THREE.MeshStandardMaterial({
       roughnessMap: roughTex || null,
       roughness: 0.75,
       metalness: 0.0,
-    normalScale: new THREE.Vector2(1.6, 1.6),
+      normalScale: new THREE.Vector2(1.6, 1.6),
     });
 
     material.needsUpdate = true;
@@ -488,15 +478,15 @@ const mat = new THREE.MeshStandardMaterial({
       this.pushableObjects = [];
     }
 
-this.pushableObjects.push({
-  mesh,
-  body,
-  topBody,
-  halfY,
-  topThickness,
-  topGap,
-  slideSound: true,
-});
+    this.pushableObjects.push({
+      mesh,
+      body,
+      topBody,
+      halfY,
+      topThickness,
+      topGap,
+      slideSound: true,
+    });
     return { mesh, body, topBody };
   }
 
@@ -508,19 +498,19 @@ this.pushableObjects.push({
     const blockW = TILE * 2; // 5.0
     const blockD = TILE * 2; // 5.0
 
-const yellowMat = this.createPlasticBlockMaterial(
-  null,
-  plasticYellowNormalTex,
-  plasticYellowRoughTex,
-  0xf2c76b, // пастельный светло-жёлтый
-);
+    const yellowMat = this.createPlasticBlockMaterial(
+      null,
+      plasticYellowNormalTex,
+      plasticYellowRoughTex,
+      0xf2c76b, // пастельный светло-жёлтый
+    );
 
-const greenMat = this.createPlasticBlockMaterial(
-  null,
-  plasticGreenNormalTex,
-  plasticGreenRoughTex,
-  0x86c98a, // пастельный светло-зелёный
-);
+    const greenMat = this.createPlasticBlockMaterial(
+      null,
+      plasticGreenNormalTex,
+      plasticGreenRoughTex,
+      0x86c98a, // пастельный светло-зелёный
+    );
 
     // Маленький блок: высота 1 плитка
     this.createPushableBlock({
@@ -585,10 +575,7 @@ const greenMat = this.createPlasticBlockMaterial(
       // Звук волочения только для больших блоков-ступенек.
       // Красный маленький кубик не должен сюда попадать.
       if (obj.slideSound && obj.body) {
-        const slideSpeed = Math.hypot(
-          obj.body.velocity.x,
-          obj.body.velocity.z,
-        );
+        const slideSpeed = Math.hypot(obj.body.velocity.x, obj.body.velocity.z);
 
         maxSlideSpeed = Math.max(maxSlideSpeed, slideSpeed);
       }
@@ -690,6 +677,50 @@ const greenMat = this.createPlasticBlockMaterial(
       1.25,
       0,
     );
+
+    // Временная обучающая площадка комнаты 1.
+    // Позже её можно будет заменить настоящим заданием,
+    // сохранив тот же вызов unlockExitElevator(1).
+    this.buildRoom1UnlockPad();
+  }
+
+  buildRoom1UnlockPad() {
+    const padRadius = 2.0;
+
+    const material = new THREE.MeshStandardMaterial({
+      color: 0x5fc9e8,
+      emissive: 0x1687aa,
+      emissiveIntensity: 0.85,
+      transparent: true,
+      opacity: 0.82,
+      roughness: 0.55,
+      metalness: 0.05,
+      depthWrite: false,
+    });
+
+    const pad = new THREE.Mesh(
+      new THREE.CircleGeometry(padRadius, 48),
+      material,
+    );
+
+    pad.name = "Room1_UnlockPad";
+
+    // Дальний правый угол комнаты 1.
+    // Комната занимает x: -15...15 и z: 15...45.
+    pad.position.set(10.5, this.floorY + 0.025, 40.5);
+
+    pad.rotation.x = -Math.PI / 2;
+    pad.renderOrder = 2;
+
+    pad.userData.radius = padRadius;
+    pad.userData.activated = false;
+    pad.userData.baseOpacity = 0.82;
+    pad.userData.baseEmissiveIntensity = 0.85;
+    pad.userData.skipWallMaterialUpdate = true;
+
+    this.room1UnlockPad = pad;
+
+    this.registerMesh(pad);
   }
 
   buildElevatorCabinVisual() {
@@ -778,162 +809,148 @@ const greenMat = this.createPlasticBlockMaterial(
     );
 
     // === НЕВИДИМЫЕ ПЕРЕКРЫТИЯ ДЛЯ КАМЕРЫ НАД ДВЕРЯМИ ===
-//
-// Потолок кабины заканчивается раньше потолка комнаты.
-// Без этих мостиков камера может проскочить через верхнюю щель
-// между кабиной и дверной рамой и заглянуть в лифт снаружи.
+    //
+    // Потолок кабины заканчивается раньше потолка комнаты.
+    // Без этих мостиков камера может проскочить через верхнюю щель
+    // между кабиной и дверной рамой и заглянуть в лифт снаружи.
 
-const cameraBlockerMaterial = new THREE.MeshBasicMaterial({
-  transparent: true,
-  opacity: 0,
-  depthWrite: false,
-  colorWrite: false,
-});
-
-const addCameraCeilingBridge = (name, centerZ, depth) => {
-  const blocker = new THREE.Mesh(
-    new THREE.BoxGeometry(
-      8.1,  // немного шире самой кабины и проёма
-      0.16, // толщина невидимого перекрытия
-      depth,
-    ),
-    cameraBlockerMaterial,
-  );
-
-  blocker.name = name;
-
-  blocker.position.set(
-    0,
-    this.floorY + elH - 0.08,
-    centerZ,
-  );
-
-  blocker.userData.skipWallMaterialUpdate = true;
-  blocker.userData.isCameraBlocker = true;
-
-  this.registerMesh(blocker);
-
-  if (
-    this.sceneManager &&
-    Array.isArray(this.sceneManager.walls)
-  ) {
-    this.sceneManager.walls.push({
-      mesh: blocker,
-      isElevatorCabinWall: true,
-      isCameraBlocker: true,
-      skipMaterialUpdate: true,
+    const cameraBlockerMaterial = new THREE.MeshBasicMaterial({
+      transparent: true,
+      opacity: 0,
+      depthWrite: false,
+      colorWrite: false,
     });
-  }
 
-  return blocker;
-};
+    const addCameraCeilingBridge = (name, centerZ, depth) => {
+      const blocker = new THREE.Mesh(
+        new THREE.BoxGeometry(
+          8.1, // немного шире самой кабины и проёма
+          0.16, // толщина невидимого перекрытия
+          depth,
+        ),
+        cameraBlockerMaterial,
+      );
 
-// Границы основной кабины:
-// задняя сторона: z = 8.75
-// передняя сторона: z = 13.75
+      blocker.name = name;
 
-// Мостик между кабиной и стеной комнаты №1:
-// от z = 13.75 до z = 15.0
-this.elevatorEntranceCameraBridge = addCameraCeilingBridge(
-  "ElevatorEntranceCameraBridge",
-  (13.75 + 15.0) / 2,
-  15.0 - 13.75,
-);
+      blocker.position.set(0, this.floorY + elH - 0.08, centerZ);
 
-// Мостик между кабиной и стеной комнат №2/3:
-// от z = 7.5 до z = 8.75
-this.elevatorExitCameraBridge = addCameraCeilingBridge(
-  "ElevatorExitCameraBridge",
-  (7.5 + 8.75) / 2,
-  8.75 - 7.5,
-);
+      blocker.userData.skipWallMaterialUpdate = true;
+      blocker.userData.isCameraBlocker = true;
 
-// === НЕВИДИМЫЕ БОКОВЫЕ ПЕРЕКРЫТИЯ ДЛЯ КАМЕРЫ ===
-//
-// Боковые стены кабины заканчиваются на z = 8.75 и z = 13.75.
-// До стен комнат остаются короткие участки по 1.25 единицы.
-// Через эти щели камера могла обойти край кабины сбоку.
+      this.registerMesh(blocker);
 
-const addCameraSideBridge = (name, x, centerZ, depth) => {
-  const blocker = new THREE.Mesh(
-    new THREE.BoxGeometry(
-      0.24,       // толщина по X
-      elH + 0.2,  // немного выше полной высоты кабины
-      depth,      // длина участка между кабиной и комнатой
-    ),
-    cameraBlockerMaterial,
-  );
+      if (this.sceneManager && Array.isArray(this.sceneManager.walls)) {
+        this.sceneManager.walls.push({
+          mesh: blocker,
+          isElevatorCabinWall: true,
+          isCameraBlocker: true,
+          skipMaterialUpdate: true,
+        });
+      }
 
-  blocker.name = name;
+      return blocker;
+    };
 
-  blocker.position.set(
-    x,
-    elCenterY,
-    centerZ,
-  );
+    // Границы основной кабины:
+    // задняя сторона: z = 8.75
+    // передняя сторона: z = 13.75
 
-  blocker.userData.skipWallMaterialUpdate = true;
-  blocker.userData.isCameraBlocker = true;
+    // Мостик между кабиной и стеной комнаты №1:
+    // от z = 13.75 до z = 15.0
+    this.elevatorEntranceCameraBridge = addCameraCeilingBridge(
+      "ElevatorEntranceCameraBridge",
+      (13.75 + 15.0) / 2,
+      15.0 - 13.75,
+    );
 
-  this.registerMesh(blocker);
+    // Мостик между кабиной и стеной комнат №2/3:
+    // от z = 7.5 до z = 8.75
+    this.elevatorExitCameraBridge = addCameraCeilingBridge(
+      "ElevatorExitCameraBridge",
+      (7.5 + 8.75) / 2,
+      8.75 - 7.5,
+    );
 
-  if (
-    this.sceneManager &&
-    Array.isArray(this.sceneManager.walls)
-  ) {
-    this.sceneManager.walls.push({
-      mesh: blocker,
-      isElevatorCabinWall: true,
-      isCameraBlocker: true,
-      skipMaterialUpdate: true,
-    });
-  }
+    // === НЕВИДИМЫЕ БОКОВЫЕ ПЕРЕКРЫТИЯ ДЛЯ КАМЕРЫ ===
+    //
+    // Боковые стены кабины заканчиваются на z = 8.75 и z = 13.75.
+    // До стен комнат остаются короткие участки по 1.25 единицы.
+    // Через эти щели камера могла обойти край кабины сбоку.
 
-  return blocker;
-};
+    const addCameraSideBridge = (name, x, centerZ, depth) => {
+      const blocker = new THREE.Mesh(
+        new THREE.BoxGeometry(
+          0.24, // толщина по X
+          elH + 0.2, // немного выше полной высоты кабины
+          depth, // длина участка между кабиной и комнатой
+        ),
+        cameraBlockerMaterial,
+      );
 
-const cabinLeftX = -elW / 2;
-const cabinRightX = elW / 2;
+      blocker.name = name;
 
-// Со стороны комнаты №1:
-// кабина заканчивается на z = 13.75,
-// а стена комнаты находится на z = 15.
-const entranceBridgeCenterZ = (13.75 + 15.0) / 2;
-const entranceBridgeDepth = 15.0 - 13.75;
+      blocker.position.set(x, elCenterY, centerZ);
 
-this.elevatorEntranceLeftCameraBridge = addCameraSideBridge(
-  "ElevatorEntranceLeftCameraBridge",
-  cabinLeftX,
-  entranceBridgeCenterZ,
-  entranceBridgeDepth,
-);
+      blocker.userData.skipWallMaterialUpdate = true;
+      blocker.userData.isCameraBlocker = true;
 
-this.elevatorEntranceRightCameraBridge = addCameraSideBridge(
-  "ElevatorEntranceRightCameraBridge",
-  cabinRightX,
-  entranceBridgeCenterZ,
-  entranceBridgeDepth,
-);
+      this.registerMesh(blocker);
 
-// Со стороны комнат №2/3:
-// стена комнаты находится на z = 7.5,
-// а кабина начинается на z = 8.75.
-const exitBridgeCenterZ = (7.5 + 8.75) / 2;
-const exitBridgeDepth = 8.75 - 7.5;
+      if (this.sceneManager && Array.isArray(this.sceneManager.walls)) {
+        this.sceneManager.walls.push({
+          mesh: blocker,
+          isElevatorCabinWall: true,
+          isCameraBlocker: true,
+          skipMaterialUpdate: true,
+        });
+      }
 
-this.elevatorExitLeftCameraBridge = addCameraSideBridge(
-  "ElevatorExitLeftCameraBridge",
-  cabinLeftX,
-  exitBridgeCenterZ,
-  exitBridgeDepth,
-);
+      return blocker;
+    };
 
-this.elevatorExitRightCameraBridge = addCameraSideBridge(
-  "ElevatorExitRightCameraBridge",
-  cabinRightX,
-  exitBridgeCenterZ,
-  exitBridgeDepth,
-);
+    const cabinLeftX = -elW / 2;
+    const cabinRightX = elW / 2;
+
+    // Со стороны комнаты №1:
+    // кабина заканчивается на z = 13.75,
+    // а стена комнаты находится на z = 15.
+    const entranceBridgeCenterZ = (13.75 + 15.0) / 2;
+    const entranceBridgeDepth = 15.0 - 13.75;
+
+    this.elevatorEntranceLeftCameraBridge = addCameraSideBridge(
+      "ElevatorEntranceLeftCameraBridge",
+      cabinLeftX,
+      entranceBridgeCenterZ,
+      entranceBridgeDepth,
+    );
+
+    this.elevatorEntranceRightCameraBridge = addCameraSideBridge(
+      "ElevatorEntranceRightCameraBridge",
+      cabinRightX,
+      entranceBridgeCenterZ,
+      entranceBridgeDepth,
+    );
+
+    // Со стороны комнат №2/3:
+    // стена комнаты находится на z = 7.5,
+    // а кабина начинается на z = 8.75.
+    const exitBridgeCenterZ = (7.5 + 8.75) / 2;
+    const exitBridgeDepth = 8.75 - 7.5;
+
+    this.elevatorExitLeftCameraBridge = addCameraSideBridge(
+      "ElevatorExitLeftCameraBridge",
+      cabinLeftX,
+      exitBridgeCenterZ,
+      exitBridgeDepth,
+    );
+
+    this.elevatorExitRightCameraBridge = addCameraSideBridge(
+      "ElevatorExitRightCameraBridge",
+      cabinRightX,
+      exitBridgeCenterZ,
+      exitBridgeDepth,
+    );
 
     // Левая стенка
     createPanel(
@@ -1114,14 +1131,15 @@ this.elevatorExitRightCameraBridge = addCameraSideBridge(
     // Толкаемые блоки-ступеньки комнаты №2.
     this.buildRoom2PushableBlocks();
 
-    // Временный финальный лифт/выход уровня 2.
-    // Полка-цель в правом углу комнаты
+    // Финальная часть комнаты 2.
+    // Полка-цель в правом углу комнаты.
     this.buildRoom2GoalShelfVisual();
-    // Внутренняя перегородка перед лифтом 2 -> 3
-    this.buildRoom2ExitPartitionVisual();
-    // Закрытая заслонка прохода в коридор
-    this.buildRoom2CorridorGate();
-    // Ставим на правой стене ближе к дальнему углу.
+
+    // Перегородка, промежуточная дверь и её индикатор
+    // больше не создаются. После решения головоломки
+    // разблокируется непосредственно выходной лифт.
+
+    // Ставим выходной лифт на правой стене ближе к дальнему углу.
     this.buildRoom2ExitElevatorVisual();
   }
 
@@ -1138,8 +1156,8 @@ this.elevatorExitRightCameraBridge = addCameraSideBridge(
       // Высота самой полки: 1 плитка
       shelfH: TILE,
 
-   // Белый кубик-цель на полке: 0.9x0.9x0.9 плитки
-markerSize: TILE * 0.9,
+      // Белый кубик-цель на полке: 0.9x0.9x0.9 плитки
+      markerSize: TILE * 0.9,
 
       // Верх полки на той же высоте, где был "пол" у ниши.
       topY: this.floorY + TILE * 3, // = 2.5 при floorY = -5
@@ -1287,11 +1305,11 @@ markerSize: TILE * 0.9,
     const size = cfg.markerSize;
     const half = size / 2;
 
-   const markerMat = new THREE.MeshStandardMaterial({
-  color: 0xe53935, // красный кубик
-  roughness: 0.52,
-  metalness: 0.0,
-});
+    const markerMat = new THREE.MeshStandardMaterial({
+      color: 0xe53935, // красный кубик
+      roughness: 0.52,
+      metalness: 0.0,
+    });
 
     const marker = new THREE.Mesh(
       new THREE.BoxGeometry(size, size, size),
@@ -1387,436 +1405,6 @@ markerSize: TILE * 0.9,
     );
   }
 
-  getRoom2ExitPartitionConfig() {
-    const TILE = 2.5;
-
-    const rightWallX = 15.0;
-
-    // Перегородка стоит ровно в одну плитку по сетке.
-    const wallZ = -23.75;
-
-    // Толщина перегородки = 1 плитка.
-    const wallThickness = TILE;
-
-    // Перегородка начинается от правой стены и уходит в комнату.
-    // До левой стены не доходит на 2 плитки — там проход в коридор.
-    const leftWallX = -15.0;
-    const gapTiles = 2;
-    const gapW = TILE * gapTiles;
-
-    const wallEndX = leftWallX + gapW; // -10
-    const wallStartX = rightWallX; // 15
-
-    const wallLen = wallStartX - wallEndX;
-    const wallCenterX = (wallStartX + wallEndX) / 2;
-
-    return {
-      TILE,
-      wallZ,
-      wallThickness,
-      wallStartX,
-      wallEndX,
-      wallLen,
-      wallCenterX,
-    };
-  }
-
-  getRoom2CorridorGateConfig() {
-    const TILE = 2.5;
-    const partitionCfg = this.getRoom2ExitPartitionConfig();
-
-    const leftWallX = -15.0;
-    const openingRightX = partitionCfg.wallEndX; // -10
-    const openingLeftX = leftWallX;
-
-    // Ширина прохода = 2 плитки
-    const openingW = openingRightX - openingLeftX; // 5.0
-    const openingCenterX = (openingLeftX + openingRightX) / 2; // -12.5
-
-    // Высота проёма под дверь
-    const openingH = TILE * 4; // 10.0
-
-    const wallZ = partitionCfg.wallZ;
-    const partitionThickness = partitionCfg.wallThickness;
-    const partitionHalfT = partitionThickness / 2;
-
-    // Дверь не плоская
-    const gateD = 0.55;
-
-    // Дверь стоит СПЕРЕДИ перегородки (со стороны комнаты),
-    // чтобы потом уезжать вправо по поверхности стены.
-    const gateZ = wallZ + partitionHalfT + gateD / 2 + 0.03;
-
-    const closedX = openingCenterX;
-    const openX = closedX + openingW; // уезжает вправо поверх перегородки
-
-    const gateY = this.floorY + openingH / 2;
-
-    // Над дверью остаётся участок стены в 2 плитки высотой
-    const topWallH = this.ceilingY - (this.floorY + openingH);
-    const topWallCenterY = this.floorY + openingH + topWallH / 2;
-
-    return {
-      TILE,
-
-      openingLeftX,
-      openingRightX,
-      openingW,
-      openingH,
-      openingCenterX,
-
-      wallZ,
-      partitionThickness,
-      partitionHalfT,
-
-      gateD,
-      gateZ,
-      gateY,
-
-      closedX,
-      openX,
-
-      topWallH,
-      topWallCenterY,
-    };
-  }
-
-    getRoom2CorridorGatePanelTexture() {
-    if (this.room2CorridorGatePanelTexture) {
-      return this.room2CorridorGatePanelTexture;
-    }
-
-    const texture = new THREE.TextureLoader().load(
-      "Image/room2-door-panel.png",
-      (tex) => {
-        tex.colorSpace = THREE.SRGBColorSpace;
-        tex.wrapS = THREE.ClampToEdgeWrapping;
-        tex.wrapT = THREE.ClampToEdgeWrapping;
-        tex.anisotropy = 4;
-        tex.needsUpdate = true;
-
-        console.log("[ROOM 2] Door panel texture loaded.");
-      },
-      undefined,
-      () => {
-        console.warn(
-          "[ROOM 2] Door panel texture not found: Image/room2-door-panel.png",
-        );
-      },
-    );
-
-    texture.colorSpace = THREE.SRGBColorSpace;
-    texture.wrapS = THREE.ClampToEdgeWrapping;
-    texture.wrapT = THREE.ClampToEdgeWrapping;
-    texture.anisotropy = 4;
-
-    this.room2CorridorGatePanelTexture = texture;
-
-    return texture;
-  }
-
-  buildRoom2CorridorGate() {
-    const cfg = this.getRoom2CorridorGateConfig();
-
-    // === ВЕРХ НАД ДВЕРЬЮ ===
-    // Теперь над проходом не пустота, а продолжение перегородки в плитке.
-
-    // Лицевая сторона верхнего участка стены
-    this.addTiledWall(
-      cfg.openingW,
-      cfg.topWallH,
-      new THREE.Vector3(
-        cfg.openingCenterX,
-        cfg.topWallCenterY,
-        cfg.wallZ + cfg.partitionHalfT,
-      ),
-      new THREE.Vector3(0, Math.PI, 0),
-    );
-
-    // Обратная сторона верхнего участка стены
-    this.addTiledWall(
-      cfg.openingW,
-      cfg.topWallH,
-      new THREE.Vector3(
-        cfg.openingCenterX,
-        cfg.topWallCenterY,
-        cfg.wallZ - cfg.partitionHalfT,
-      ),
-      new THREE.Vector3(0, 0, 0),
-    );
-
-    // Нижняя поверхность верхней перемычки
-    this.addAlwaysTiledSurface(
-      cfg.openingW,
-      cfg.partitionThickness,
-      new THREE.Vector3(
-        cfg.openingCenterX,
-        this.floorY + cfg.openingH,
-        cfg.wallZ,
-      ),
-      new THREE.Vector3(Math.PI / 2, 0, 0),
-    );
-
-    // Физика верхней перемычки
-    this.createPhysicsWall(
-      cfg.openingCenterX,
-      cfg.topWallCenterY,
-      cfg.wallZ,
-      cfg.openingW / 2,
-      cfg.topWallH / 2,
-      cfg.partitionThickness / 2,
-      this.matStandard,
-    );
-
-    // === ДВЕРЬ ===
-    // Стиль двери делаем как у лифта.
-    const doorMat = new THREE.MeshStandardMaterial({
-      color: 0xdcdcdc,
-      roughness: 0.55,
-      metalness: 0.35,
-    });
-
-    const seamMat = new THREE.MeshStandardMaterial({
-      color: 0x121517,
-      roughness: 0.8,
-      metalness: 0.15,
-    });
-
-    const frameMat = new THREE.MeshStandardMaterial({
-      color: 0x333333,
-      roughness: 0.5,
-      metalness: 0.9,
-    });
-
-    const gateRoot = new THREE.Group();
-    gateRoot.name = "Room2CorridorGate";
-    gateRoot.position.set(cfg.closedX, cfg.gateY, cfg.gateZ);
-
-    // Основной объём двери
-    const gateBody = new THREE.Mesh(
-      new THREE.BoxGeometry(cfg.openingW, cfg.openingH, cfg.gateD),
-      [
-        frameMat, // +X
-        frameMat, // -X
-        frameMat, // +Y
-        frameMat, // -Y
-        doorMat, // +Z
-        doorMat, // -Z
-      ],
-    );
-    gateBody.castShadow = true;
-    gateBody.receiveShadow = true;
-    gateBody.userData.skipWallMaterialUpdate = true;
-    gateRoot.add(gateBody);
-
-    // Декоративная лицевая панель с картинкой.
-// Это отдельная плоскость поверх двери, а не материал всей коробки.
-const panelTex = this.getRoom2CorridorGatePanelTexture();
-
-const panelMat = new THREE.MeshStandardMaterial({
-  color: 0xffffff,
-  map: panelTex,
-  roughness: 0.78,
-  metalness: 0.04,
-  side: THREE.FrontSide,
-  transparent: false,
-});
-
-const panelW = cfg.openingW - 0.45;
-const panelH = cfg.openingH - 0.55;
-
-const doorPanel = new THREE.Mesh(
-  new THREE.PlaneGeometry(panelW, panelH),
-  panelMat,
-);
-
-// Лицевая сторона двери смотрит в +Z.
-// Панель ставим чуть впереди основной двери,
-// но оставляем тёмные боковые накладки и центральный шов поверх неё.
-doorPanel.position.set(0, 0, cfg.gateD / 2 + 0.012);
-
-doorPanel.castShadow = false;
-doorPanel.receiveShadow = true;
-doorPanel.userData.skipWallMaterialUpdate = true;
-
-gateRoot.add(doorPanel);
-
-    // Вертикальные боковые тёмные полосы, как у лифта
-    const sideTrimW = 0.12;
-
-    const leftTrim = new THREE.Mesh(
-      new THREE.BoxGeometry(sideTrimW, cfg.openingH, cfg.gateD + 0.02),
-      seamMat,
-    );
-    leftTrim.position.set(-cfg.openingW / 2 + sideTrimW / 2, 0, 0);
-    leftTrim.castShadow = true;
-    leftTrim.receiveShadow = true;
-    leftTrim.userData.skipWallMaterialUpdate = true;
-    gateRoot.add(leftTrim);
-
-    const rightTrim = new THREE.Mesh(
-      new THREE.BoxGeometry(sideTrimW, cfg.openingH, cfg.gateD + 0.02),
-      seamMat,
-    );
-    rightTrim.position.set(cfg.openingW / 2 - sideTrimW / 2, 0, 0);
-    rightTrim.castShadow = true;
-    rightTrim.receiveShadow = true;
-    rightTrim.userData.skipWallMaterialUpdate = true;
-    gateRoot.add(rightTrim);
-
-    // Центральный шов, чтобы дверь визуально читалась "лифтовой"
-    const centerSeam = new THREE.Mesh(
-      new THREE.BoxGeometry(0.08, cfg.openingH * 0.92, cfg.gateD + 0.03),
-      seamMat,
-    );
-    centerSeam.position.set(0, 0, 0);
-    centerSeam.castShadow = true;
-    centerSeam.receiveShadow = true;
-    centerSeam.userData.skipWallMaterialUpdate = true;
-    gateRoot.add(centerSeam);
-
-    this.registerMesh(gateRoot);
-
-    // === ФИЗИКА ДВЕРИ ===
-    const body = new CANNON.Body({
-      mass: 0,
-      type: CANNON.Body.KINEMATIC,
-      material: this.matStandard,
-      collisionFilterGroup: CONFIG.PHYSICS.GROUPS.SCENE,
-      collisionFilterMask:
-        CONFIG.PHYSICS.GROUPS.OBJECTS | CONFIG.PHYSICS.GROUPS.TINY,
-    });
-
-    body.addShape(
-      new CANNON.Box(
-        new CANNON.Vec3(cfg.openingW / 2, cfg.openingH / 2, cfg.gateD / 2),
-      ),
-    );
-
-    body.position.set(cfg.closedX, cfg.gateY, cfg.gateZ);
-    this.addBody(body);
-
-    this.room2CorridorGate = {
-      root: gateRoot,
-      body,
-      closedX: cfg.closedX,
-      openX: cfg.openX,
-      y: cfg.gateY,
-      z: cfg.gateZ,
-    };
-
-    this.room2CorridorGateOpenState = 0;
-    this.targetRoom2CorridorGateOpenState = 0;
-    this.room2CorridorGateActivated = false;
-    this.buildRoom2CorridorGateIndicator();
-    return this.room2CorridorGate;
-  }
-
-  buildRoom2CorridorGateIndicator() {
-    const cfg = this.getRoom2CorridorGateConfig();
-
-    const group = new THREE.Group();
-    group.name = "Room2CorridorGateIndicator";
-
-    // Ставим индикатор над дверью, на лицевой стороне перегородки.
-    group.position.set(
-      cfg.openingCenterX,
-      this.floorY + cfg.openingH + 1.25,
-      cfg.wallZ + cfg.partitionHalfT + 0.08,
-    );
-
-    const frameMat = new THREE.MeshStandardMaterial({
-      color: 0x15191c,
-      roughness: 0.65,
-      metalness: 0.45,
-    });
-
-    const lampMat = new THREE.MeshStandardMaterial({
-      color: 0xff3030,
-      emissive: 0xff1010,
-      emissiveIntensity: 1.2,
-      roughness: 0.35,
-      metalness: 0.0,
-    });
-
-    // Чёрная рамка
-    const frame = new THREE.Mesh(
-      new THREE.BoxGeometry(2.2, 0.75, 0.08),
-      frameMat,
-    );
-    frame.castShadow = true;
-    frame.receiveShadow = true;
-    frame.userData.skipWallMaterialUpdate = true;
-    group.add(frame);
-
-    // Светящаяся цветная вставка
-    const lamp = new THREE.Mesh(
-      new THREE.BoxGeometry(1.55, 0.34, 0.1),
-      lampMat,
-    );
-    lamp.position.z = 0.04;
-    lamp.castShadow = false;
-    lamp.receiveShadow = false;
-    lamp.userData.skipWallMaterialUpdate = true;
-    group.add(lamp);
-
-    // Маленький PointLight для мягкого свечения
-    const pointLight = new THREE.PointLight(0xff3030, 0.7, 5.0);
-    pointLight.position.set(0, 0, 0.35);
-    // Временно не добавляем свет в сцену для проверки шейдеров.
-// group.add(pointLight);
-
-    this.registerMesh(group);
-
-    this.room2CorridorGateIndicator = {
-      group,
-      lamp,
-      lampMat,
-      pointLight,
-    };
-
-    return this.room2CorridorGateIndicator;
-  }
-
-  setRoom2CorridorGateIndicatorActive(isActive) {
-    if (!this.room2CorridorGateIndicator) return;
-
-    const indicator = this.room2CorridorGateIndicator;
-
-    if (isActive) {
-      indicator.lampMat.color.setHex(0x38ff6a);
-      indicator.lampMat.emissive.setHex(0x20ff55);
-      indicator.lampMat.emissiveIntensity = 1.7;
-
-      indicator.pointLight.color.setHex(0x38ff6a);
-      indicator.pointLight.intensity = 1.15;
-    } else {
-      indicator.lampMat.color.setHex(0xff3030);
-      indicator.lampMat.emissive.setHex(0xff1010);
-      indicator.lampMat.emissiveIntensity = 1.2;
-
-      indicator.pointLight.color.setHex(0xff3030);
-      indicator.pointLight.intensity = 0.7;
-    }
-
-    indicator.lampMat.needsUpdate = true;
-  }
-
-    playRoom2CorridorGateSound() {
-    if (this.room2CorridorGateSoundPlayed) return;
-
-    this.room2CorridorGateSoundPlayed = true;
-
-    if (audioManager?.playOpenDoor) {
-      audioManager.playOpenDoor();
-    }
-  }
-
-  stopRoom2CorridorGateSound() {
-    if (audioManager?.stopOpenDoor) {
-      audioManager.stopOpenDoor();
-    }
-  }
 
   isRoom2GoalCubeInSocket() {
     if (!this.room2GoalMarkerBody) return false;
@@ -1836,107 +1424,35 @@ gateRoot.add(doorPanel);
     return insideX && insideZ && insideY;
   }
 
-  updateRoom2CorridorGate(dt) {
-    if (!this.room2CorridorGate) return;
-
-       if (!this.room2CorridorGateActivated && this.isRoom2GoalCubeInSocket()) {
-      this.room2CorridorGateActivated = true;
-      this.targetRoom2CorridorGateOpenState = 1.0;
-
-      this.setRoom2CorridorGateIndicatorActive(true);
-      this.playRoom2CorridorGateSound();
-
-      console.log("[ROOM 2] Cube socket activated. Corridor gate opening.");
-    }
-
-    // Чем меньше число, тем медленнее открывается дверь.
-// 0.65 должно лучше совпасть с длинным звуком open-door.mp3.
-const gateSpeed = 1.2;
-
-    this.room2CorridorGateOpenState = THREE.MathUtils.lerp(
-      this.room2CorridorGateOpenState,
-      this.targetRoom2CorridorGateOpenState,
-      dt * gateSpeed,
-    );
-
-    const gate = this.room2CorridorGate;
-
-    const x = THREE.MathUtils.lerp(
-      gate.closedX,
-      gate.openX,
-      this.room2CorridorGateOpenState,
-    );
-
-    gate.root.position.x = x;
-    gate.body.position.x = x;
-    gate.body.aabbNeedsUpdate = true;
+  updateRoom2Puzzle() {
+  if (this.currentRoomId !== 2) {
+    return;
   }
 
-  buildRoom2ExitPartitionVisual() {
-    const cfg = this.getRoom2ExitPartitionConfig();
+  // Callback должен сработать только один раз
+  // за текущее прохождение комнаты.
+  if (this.room2PuzzleSolved) {
+    return;
+  }
 
-    const wallH = this.ceilingY - this.floorY;
-    const wallCenterY = this.floorY + wallH / 2;
-    const halfT = cfg.wallThickness / 2;
+  if (!this.isRoom2GoalCubeInSocket()) {
+    return;
+  }
 
-    // Сторона, обращённая к игроку
-    // Подгоняем UV-смещение по мировым координатам,
-    // чтобы плитка на перегородке совпадала с общей сеткой комнаты.
-    const partitionUvOffsetX = cfg.wallEndX - -15.0;
+  this.room2PuzzleSolved = true;
 
-    // Сторона, обращённая к игроку
-    this.addTiledWall(
-      cfg.wallLen,
-      wallH,
-      new THREE.Vector3(cfg.wallCenterX, wallCenterY, cfg.wallZ + halfT),
-      new THREE.Vector3(0, Math.PI, 0),
-      partitionUvOffsetX,
-      0,
-    );
-
-    // Сторона, обращённая к лифту
-    this.addTiledWall(
-      cfg.wallLen,
-      wallH,
-      new THREE.Vector3(cfg.wallCenterX, wallCenterY, cfg.wallZ - halfT),
-      new THREE.Vector3(0, 0, 0),
-      partitionUvOffsetX,
-      0,
-    );
-
-    // Свободный торец перегородки возле прохода
-    this.addTiledWall(
-      cfg.wallThickness,
-      wallH,
-      new THREE.Vector3(cfg.wallEndX, wallCenterY, cfg.wallZ),
-      new THREE.Vector3(0, Math.PI / 2, 0),
-    );
-
-    // Торец у правой стены
-    this.addTiledWall(
-      cfg.wallThickness,
-      wallH,
-      new THREE.Vector3(cfg.wallStartX, wallCenterY, cfg.wallZ),
-      new THREE.Vector3(0, -Math.PI / 2, 0),
+  if (typeof this.onRoom2PuzzleSolved === "function") {
+    this.onRoom2PuzzleSolved();
+  } else {
+    console.warn(
+      "[ROOM 2] Puzzle solved, but onRoom2PuzzleSolved callback is missing.",
     );
   }
 
-  buildRoom2ExitPartitionPhysics() {
-    const cfg = this.getRoom2ExitPartitionConfig();
-
-    const wallH = this.ceilingY - this.floorY;
-    const wallCenterY = this.floorY + wallH / 2;
-
-    this.createPhysicsWall(
-      cfg.wallCenterX,
-      wallCenterY,
-      cfg.wallZ,
-      cfg.wallLen / 2,
-      wallH / 2,
-      cfg.wallThickness / 2,
-      this.matStandard,
-    );
-  }
+  console.log(
+    "[ROOM 2] Cube socket activated. Exit elevator unlocked.",
+  );
+}
 
   getRoom2LeftWallSocketConfig() {
     const TILE = 2.5;
@@ -2085,21 +1601,17 @@ const gateSpeed = 1.2;
       new THREE.Vector3(Math.PI / 2, 0, Math.PI / 2),
     );
 
-// Красный квадрат на полу внутри ячейки.
-// Это визуальная подсказка: сюда нужно задвинуть красный кубик.
-this.addTiledWall(
-  cfg.socketDepth,
-  cfg.socketSize,
-  new THREE.Vector3(
-    cfg.socketCenterX,
-    this.floorY + 0.01,
-    cfg.socketZ,
-  ),
-  new THREE.Vector3(-Math.PI / 2, 0, Math.PI / 2),
-  0,
-  0,
-  0xe53935,
-);
+    // Красный квадрат на полу внутри ячейки.
+    // Это визуальная подсказка: сюда нужно задвинуть красный кубик.
+    this.addTiledWall(
+      cfg.socketDepth,
+      cfg.socketSize,
+      new THREE.Vector3(cfg.socketCenterX, this.floorY + 0.01, cfg.socketZ),
+      new THREE.Vector3(-Math.PI / 2, 0, Math.PI / 2),
+      0,
+      0,
+      0xe53935,
+    );
   }
 
   buildRoom2LeftWallWithSocketPhysics(wallH, wallCenterY) {
@@ -2239,7 +1751,6 @@ this.addTiledWall(
       cabinCeilingColor: 0x1c2730,
     };
   }
-
 
   createElevatorMaterials(style = this.getElevatorStyle()) {
     return {
@@ -3242,7 +2753,7 @@ this.addTiledWall(
     this.buildRoom3DraftFiguresVisual();
   }
 
-    createRoom3ChalkTextMesh(text = "Coming soon...") {
+  createRoom3ChalkTextMesh(text = "Coming soon...") {
     const canvas = document.createElement("canvas");
     canvas.width = 1024;
     canvas.height = 512;
@@ -3307,10 +2818,7 @@ this.addTiledWall(
       depthWrite: false,
     });
 
-    const mesh = new THREE.Mesh(
-      new THREE.PlaneGeometry(7.2, 2.5),
-      material,
-    );
+    const mesh = new THREE.Mesh(new THREE.PlaneGeometry(7.2, 2.5), material);
 
     mesh.name = "Room3ChalkText";
     mesh.castShadow = false;
@@ -3348,7 +2856,7 @@ this.addTiledWall(
     );
     nicheBack.position.set(0, nicheY, backZ);
     group.add(nicheBack);
-        // Надпись мелом на доске
+    // Надпись мелом на доске
     const chalkText = this.createRoom3ChalkTextMesh("Coming soon...");
     chalkText.position.set(0, nicheY, backZ + 0.095);
     group.add(chalkText);
@@ -3629,9 +3137,6 @@ this.addTiledWall(
       0.1,
     );
 
-    // Физика внутренней перегородки перед лифтом 2 -> 3
-    this.buildRoom2ExitPartitionPhysics();
-
     this.createPhysicsWall(
       room2ExitCenterX,
       wallCenterY,
@@ -3714,65 +3219,65 @@ this.addTiledWall(
     this.addBody(cylApproxBody);
   }
 
-buildElevatorPhysics() {
-  this.setBuildTarget("elevator");
+  buildElevatorPhysics() {
+    this.setBuildTarget("elevator");
 
-  // Размеры должны совпадать с buildElevatorCabinVisual().
-  const elW = 7.5;
-  const elD = 5.0;
-  const elH = 10.0;
+    // Размеры должны совпадать с buildElevatorCabinVisual().
+    const elW = 7.5;
+    const elD = 5.0;
+    const elH = 10.0;
 
-  const elZ = 11.25;
-  const elCenterY = this.floorY + elH / 2;
+    const elZ = 11.25;
+    const elCenterY = this.floorY + elH / 2;
 
-  const wallThickness = 0.1;
-  const floorThickness = 0.1;
-  const ceilingThickness = 0.1;
+    const wallThickness = 0.1;
+    const floorThickness = 0.1;
+    const ceilingThickness = 0.1;
 
-  // === ПОЛ КАБИНЫ ===
-  this.createPhysicsWall(
-    0,
-    this.floorY - floorThickness,
-    elZ,
-    elW / 2,
-    floorThickness,
-    elD / 2,
-    this.matStandard,
-  );
+    // === ПОЛ КАБИНЫ ===
+    this.createPhysicsWall(
+      0,
+      this.floorY - floorThickness,
+      elZ,
+      elW / 2,
+      floorThickness,
+      elD / 2,
+      this.matStandard,
+    );
 
-  // === ЛЕВАЯ СТЕНА ===
-  this.createPhysicsWall(
-    -elW / 2,
-    elCenterY,
-    elZ,
-    wallThickness,
-    elH / 2,
-    elD / 2,
-    this.matSlippery,
-  );
+    // === ЛЕВАЯ СТЕНА ===
+    this.createPhysicsWall(
+      -elW / 2,
+      elCenterY,
+      elZ,
+      wallThickness,
+      elH / 2,
+      elD / 2,
+      this.matSlippery,
+    );
 
-  // === ПРАВАЯ СТЕНА ===
-  this.createPhysicsWall(
-    elW / 2,
-    elCenterY,
-    elZ,
-    wallThickness,
-    elH / 2,
-    elD / 2,
-    this.matSlippery,
-  );
+    // === ПРАВАЯ СТЕНА ===
+    this.createPhysicsWall(
+      elW / 2,
+      elCenterY,
+      elZ,
+      wallThickness,
+      elH / 2,
+      elD / 2,
+      this.matSlippery,
+    );
 
-  // === ПОТОЛОК КАБИНЫ ===
-  this.createPhysicsWall(
-    0,
-    this.floorY + elH + ceilingThickness,
-    elZ,
-    elW / 2,
-    ceilingThickness,
-    elD / 2,
-    this.matStandard,
-  );
-}
+    // === ПОТОЛОК КАБИНЫ ===
+    this.createPhysicsWall(
+      0,
+      this.floorY + elH + ceilingThickness,
+      elZ,
+      elW / 2,
+      ceilingThickness,
+      elD / 2,
+      this.matStandard,
+    );
+  }
 
   buildElevatorDoors() {
     const doorW = 3.8;
@@ -4055,41 +3560,40 @@ buildElevatorPhysics() {
         skipMaterialUpdate: true,
       });
     }
-// === ФИЗИКА ГЛУХИХ СТЕНОК КАБИНЫ ===
-// В каждый момент активна только одна из них.
-// Вторая отключается через collisionFilterMask в setElevatorMode().
+    // === ФИЗИКА ГЛУХИХ СТЕНОК КАБИНЫ ===
+    // В каждый момент активна только одна из них.
+    // Вторая отключается через collisionFilterMask в setElevatorMode().
 
-const createSolidWallBody = (z) => {
-  const body = new CANNON.Body({
-    mass: 0,
-    type: CANNON.Body.STATIC,
-    material: this.matSlippery,
+    const createSolidWallBody = (z) => {
+      const body = new CANNON.Body({
+        mass: 0,
+        type: CANNON.Body.STATIC,
+        material: this.matSlippery,
 
-    collisionFilterGroup: CONFIG.PHYSICS.GROUPS.SCENE,
-    collisionFilterMask:
-      CONFIG.PHYSICS.GROUPS.OBJECTS |
-      CONFIG.PHYSICS.GROUPS.TINY,
-  });
+        collisionFilterGroup: CONFIG.PHYSICS.GROUPS.SCENE,
+        collisionFilterMask:
+          CONFIG.PHYSICS.GROUPS.OBJECTS | CONFIG.PHYSICS.GROUPS.TINY,
+      });
 
-  body.addShape(
-    new CANNON.Box(
-      new CANNON.Vec3(
-        7.5 / 2,  // половина ширины
-        10.0 / 2, // половина высоты
-        0.1,      // половина толщины
-      ),
-    ),
-  );
+      body.addShape(
+        new CANNON.Box(
+          new CANNON.Vec3(
+            7.5 / 2, // половина ширины
+            10.0 / 2, // половина высоты
+            0.1, // половина толщины
+          ),
+        ),
+      );
 
-  body.position.set(0, doorY, z);
+      body.position.set(0, doorY, z);
 
-  this.addBody(body);
+      this.addBody(body);
 
-  return body;
-};
+      return body;
+    };
 
-this.entranceSolidWallBody = createSolidWallBody(cabinFrontZ);
-this.exitSolidWallBody = createSolidWallBody(cabinBackZ);
+    this.entranceSolidWallBody = createSolidWallBody(cabinFrontZ);
+    this.exitSolidWallBody = createSolidWallBody(cabinBackZ);
     this.entranceOpenState = 0.0;
     this.targetEntranceOpenState = 0.0;
     this.exitOpenState = 0.0;
@@ -4098,67 +3602,66 @@ this.exitSolidWallBody = createSolidWallBody(cabinBackZ);
     this.setElevatorMode("entering");
   }
 
- setElevatorMode(mode) {
-  const activeCollisionMask =
-    CONFIG.PHYSICS.GROUPS.OBJECTS |
-    CONFIG.PHYSICS.GROUPS.TINY;
+  setElevatorMode(mode) {
+    const activeCollisionMask =
+      CONFIG.PHYSICS.GROUPS.OBJECTS | CONFIG.PHYSICS.GROUPS.TINY;
 
-  if (mode === "entering") {
-    // Игрок заходит со стороны комнаты 1.
-    // Входная сторона открывается дверями,
-    // противоположная сторона является глухой стеной.
+    if (mode === "entering") {
+      // Игрок заходит со стороны комнаты 1.
+      // Входная сторона открывается дверями,
+      // противоположная сторона является глухой стеной.
 
-    this.entranceLeft.mesh.visible = true;
-    this.entranceRight.mesh.visible = true;
-    this.entranceFrame.visible = true;
-    this.entranceSolidWall.visible = false;
+      this.entranceLeft.mesh.visible = true;
+      this.entranceRight.mesh.visible = true;
+      this.entranceFrame.visible = true;
+      this.entranceSolidWall.visible = false;
 
-    this.exitLeft.mesh.visible = false;
-    this.exitRight.mesh.visible = false;
-    this.exitFrame.visible = false;
-    this.exitSolidWall.visible = true;
+      this.exitLeft.mesh.visible = false;
+      this.exitRight.mesh.visible = false;
+      this.exitFrame.visible = false;
+      this.exitSolidWall.visible = true;
 
-    // Передняя глухая стенка выключена.
-    if (this.entranceSolidWallBody) {
-      this.entranceSolidWallBody.collisionFilterMask = 0;
-      this.entranceSolidWallBody.collisionResponse = false;
-    }
+      // Передняя глухая стенка выключена.
+      if (this.entranceSolidWallBody) {
+        this.entranceSolidWallBody.collisionFilterMask = 0;
+        this.entranceSolidWallBody.collisionResponse = false;
+      }
 
-    // Задняя глухая стенка включена.
-    if (this.exitSolidWallBody) {
-      this.exitSolidWallBody.collisionFilterMask = activeCollisionMask;
-      this.exitSolidWallBody.collisionResponse = true;
-      this.exitSolidWallBody.aabbNeedsUpdate = true;
-    }
-  } else if (mode === "exiting") {
-    // Игрок выходит в новую комнату.
-    // Теперь входная сторона становится глухой стеной,
-    // а выходная сторона открывается дверями.
+      // Задняя глухая стенка включена.
+      if (this.exitSolidWallBody) {
+        this.exitSolidWallBody.collisionFilterMask = activeCollisionMask;
+        this.exitSolidWallBody.collisionResponse = true;
+        this.exitSolidWallBody.aabbNeedsUpdate = true;
+      }
+    } else if (mode === "exiting") {
+      // Игрок выходит в новую комнату.
+      // Теперь входная сторона становится глухой стеной,
+      // а выходная сторона открывается дверями.
 
-    this.entranceLeft.mesh.visible = false;
-    this.entranceRight.mesh.visible = false;
-    this.entranceFrame.visible = false;
-    this.entranceSolidWall.visible = true;
+      this.entranceLeft.mesh.visible = false;
+      this.entranceRight.mesh.visible = false;
+      this.entranceFrame.visible = false;
+      this.entranceSolidWall.visible = true;
 
-    this.exitLeft.mesh.visible = true;
-    this.exitRight.mesh.visible = true;
-    this.exitFrame.visible = true;
-    this.exitSolidWall.visible = false;
+      this.exitLeft.mesh.visible = true;
+      this.exitRight.mesh.visible = true;
+      this.exitFrame.visible = true;
+      this.exitSolidWall.visible = false;
 
-    // Передняя глухая стенка включена.
-    if (this.entranceSolidWallBody) {
-      this.entranceSolidWallBody.collisionFilterMask = activeCollisionMask;
-      this.entranceSolidWallBody.collisionResponse = true;
-      this.entranceSolidWallBody.aabbNeedsUpdate = true;
-    }
+      // Передняя глухая стенка включена.
+      if (this.entranceSolidWallBody) {
+        this.entranceSolidWallBody.collisionFilterMask = activeCollisionMask;
+        this.entranceSolidWallBody.collisionResponse = true;
+        this.entranceSolidWallBody.aabbNeedsUpdate = true;
+      }
 
-    // Задняя глухая стенка выключена.
-    if (this.exitSolidWallBody) {
-      this.exitSolidWallBody.collisionFilterMask = 0;
-      this.exitSolidWallBody.collisionResponse = false;
+      // Задняя глухая стенка выключена.
+      if (this.exitSolidWallBody) {
+        this.exitSolidWallBody.collisionFilterMask = 0;
+        this.exitSolidWallBody.collisionResponse = false;
+      }
     }
   }
-}
 
   buildElevatorLight() {
     const elZ = 11.25;
@@ -4244,52 +3747,52 @@ this.exitSolidWallBody = createSolidWallBody(cabinBackZ);
     return elevator ? elevator.openState : 0.0;
   }
 
-// === ЕДИНЫЙ API ДВЕРЕЙ ВСЕХ ЛИФТОВ ===
-//
-// Центральный лифт пока физически остаётся старой системой,
-// но снаружи управляется так же, как создаваемые комнатные лифты.
-//
-// Известные id:
-// "main_entrance" — сторона центрального лифта у комнаты 1;
-// "main_exit"     — сторона центрального лифта у комнат 2/3;
-// "room2_exit"    — финальный боковой лифт комнаты 2.
+  // === ЕДИНЫЙ API ДВЕРЕЙ ВСЕХ ЛИФТОВ ===
+  //
+  // Центральный лифт пока физически остаётся старой системой,
+  // но снаружи управляется так же, как создаваемые комнатные лифты.
+  //
+  // Известные id:
+  // "main_entrance" — сторона центрального лифта у комнаты 1;
+  // "main_exit"     — сторона центрального лифта у комнат 2/3;
+  // "room2_exit"    — финальный боковой лифт комнаты 2.
 
-setElevatorOpen(id, isOpen) {
-  const targetState = isOpen ? 1.0 : 0.0;
+  setElevatorOpen(id, isOpen) {
+    const targetState = isOpen ? 1.0 : 0.0;
 
-  if (id === "main_entrance") {
-    this.targetEntranceOpenState = targetState;
-    return;
+    if (id === "main_entrance") {
+      this.targetEntranceOpenState = targetState;
+      return;
+    }
+
+    if (id === "main_exit") {
+      this.targetExitOpenState = targetState;
+      return;
+    }
+
+    // Все новые комнатные лифты уже хранятся в roomElevators.
+    this.setRoomElevatorOpen(id, isOpen);
   }
 
-  if (id === "main_exit") {
-    this.targetExitOpenState = targetState;
-    return;
+  openElevator(id) {
+    this.setElevatorOpen(id, true);
   }
 
-  // Все новые комнатные лифты уже хранятся в roomElevators.
-  this.setRoomElevatorOpen(id, isOpen);
-}
-
-openElevator(id) {
-  this.setElevatorOpen(id, true);
-}
-
-closeElevator(id) {
-  this.setElevatorOpen(id, false);
-}
-
-getElevatorOpenState(id) {
-  if (id === "main_entrance") {
-    return this.entranceOpenState ?? 0.0;
+  closeElevator(id) {
+    this.setElevatorOpen(id, false);
   }
 
-  if (id === "main_exit") {
-    return this.exitOpenState ?? 0.0;
-  }
+  getElevatorOpenState(id) {
+    if (id === "main_entrance") {
+      return this.entranceOpenState ?? 0.0;
+    }
 
-  return this.getRoomElevatorOpenState(id);
-}
+    if (id === "main_exit") {
+      return this.exitOpenState ?? 0.0;
+    }
+
+    return this.getRoomElevatorOpenState(id);
+  }
 
   updateRoomElevators(dt, doorSpeed = 1.6) {
     if (!this.roomElevators || this.roomElevators.size === 0) return;
@@ -4324,40 +3827,40 @@ getElevatorOpenState(id) {
     }
   }
 
-// === СТАРЫЕ ИМЕНА ДЛЯ ВРЕМЕННОЙ СОВМЕСТИМОСТИ ===
-//
-// main.js пока продолжает вызывать эти методы.
-// После перевода кат-сцены на общий API их можно будет удалить.
+  // === СТАРЫЕ ИМЕНА ДЛЯ ВРЕМЕННОЙ СОВМЕСТИМОСТИ ===
+  //
+  // main.js пока продолжает вызывать эти методы.
+  // После перевода кат-сцены на общий API их можно будет удалить.
 
-openEntrance() {
-  this.openElevator("main_entrance");
-}
+  openEntrance() {
+    this.openElevator("main_entrance");
+  }
 
-closeEntrance() {
-  this.closeElevator("main_entrance");
-}
+  closeEntrance() {
+    this.closeElevator("main_entrance");
+  }
 
-openExit() {
-  this.openElevator("main_exit");
-}
+  openExit() {
+    this.openElevator("main_exit");
+  }
 
-closeExit() {
-  this.closeElevator("main_exit");
-}
+  closeExit() {
+    this.closeElevator("main_exit");
+  }
 
-openRoom2Exit() {
-  this.targetRoom2ExitOpenState = 1.0;
-  this.openElevator("room2_exit");
-}
+  openRoom2Exit() {
+    this.targetRoom2ExitOpenState = 1.0;
+    this.openElevator("room2_exit");
+  }
 
-closeRoom2Exit() {
-  this.targetRoom2ExitOpenState = 0.0;
-  this.closeElevator("room2_exit");
-}
+  closeRoom2Exit() {
+    this.targetRoom2ExitOpenState = 0.0;
+    this.closeElevator("room2_exit");
+  }
 
   updateDoors(dt) {
-    this.syncPushableObjects();
-    this.updateRoom2CorridorGate(dt);
+ this.syncPushableObjects();
+this.updateRoom2Puzzle();
 
     if (!this.entranceLeft) return;
 

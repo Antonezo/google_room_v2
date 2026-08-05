@@ -75,8 +75,11 @@ export class GoogleRoomApp {
         },
 
         // Единая конфигурация выходного лифта.
-        exitElevator: {
-          doorId: "main_entrance",
+    exitElevator: {
+  doorId: "main_entrance",
+
+  // Выход комнаты 1 доступен сразу.
+  unlocked: false,
 
           // Точка мягкого подхвата перед дверями.
           approachPoint: {
@@ -134,8 +137,12 @@ cameraPoint: {
           zMax: -27.0,
         },
 
-        exitElevator: {
-          doorId: "room2_exit",
+      exitElevator: {
+  doorId: "room2_exit",
+
+  // Временно оставляем доступным.
+  // Позже это состояние будет включаться решением головоломки комнаты 2.
+  unlocked: false,
 
           // Точка перед боковым лифтом, ещё внутри комнаты.
           approachPoint: {
@@ -438,9 +445,15 @@ this.exitElevatorMarkerBeam = null;
       },
 
       onReset: (options) => this.resetScene(options),
-      onSectorLoadedFromMenu: (levelId) => {
-        this.saveProgress(levelId);
-      },
+    onSectorLoadedFromMenu: (levelId) => {
+  // Загрузка сектора из главного меню создаёт новую сессию комнаты,
+  // поэтому её задание и выходной лифт начинаются заново.
+  if (levelId === 1 || levelId === 2) {
+    this.lockExitElevator(levelId);
+  }
+
+  this.saveProgress(levelId);
+},
 
       onRestartCurrentRoom: () => {
         const canRestart =
@@ -1113,12 +1126,14 @@ updateExitElevatorMarker(timeSec = 0) {
 }
 
   const zone = this.getCurrentExitActivationZone();
+  const isUnlocked = this.isExitElevatorUnlocked();
 
   const shouldShow =
     this.isGameActive &&
     !this.isPaused &&
     !this.isExitingToMenu &&
     !this.isElevatorSequenceActive &&
+    isUnlocked &&
     !!zone;
 
   this.exitElevatorMarker.visible = shouldShow;
@@ -1175,6 +1190,55 @@ this.exitElevatorMarkerBeam.material.opacity =
   getCurrentExitElevator() {
     const config = this.getCurrentLevelConfig();
     return config.exitElevator || null;
+  }
+
+  isExitElevatorUnlocked(levelId = this.currentLevelId) {
+    const config = this.levelConfigs[levelId];
+    const exitElevator = config?.exitElevator;
+
+    if (!exitElevator || !config?.nextLevelId) {
+      return false;
+    }
+
+    // Для старых конфигураций без поля unlocked сохраняем
+    // прежнее совместимое поведение: выход считается доступным.
+    return exitElevator.unlocked !== false;
+  }
+
+  setExitElevatorUnlocked(levelId, isUnlocked) {
+    const config = this.levelConfigs[levelId];
+    const exitElevator = config?.exitElevator;
+
+    if (!exitElevator) {
+      console.warn(
+        `[ELEVATOR] Cannot change unlocked state: level ${levelId} has no exitElevator.`,
+      );
+      return false;
+    }
+
+    exitElevator.unlocked = Boolean(isUnlocked);
+
+    // На случай блокировки уже открытого выхода сразу задаём
+    // дверям закрытое целевое состояние.
+    if (!exitElevator.unlocked && this.levelBuilder) {
+      this.levelBuilder.closeElevator(exitElevator.doorId);
+    }
+
+    console.log(
+      `[ELEVATOR] Level ${levelId} exit is now ${
+        exitElevator.unlocked ? "unlocked" : "locked"
+      }.`,
+    );
+
+    return true;
+  }
+
+  unlockExitElevator(levelId = this.currentLevelId) {
+    return this.setExitElevatorUnlocked(levelId, true);
+  }
+
+  lockExitElevator(levelId = this.currentLevelId) {
+    return this.setExitElevatorUnlocked(levelId, false);
   }
 
   getCurrentExitDoor() {
@@ -1473,10 +1537,21 @@ this.exitElevatorMarkerBeam.material.opacity =
   initSceneObjects() {
     // 1. Уровень
     this.levelBuilder = new LevelBuilder(
-      this.sceneManager,
-      this.physicsManager,
-    );
-    this.levelBuilder.build();
+  this.sceneManager,
+  this.physicsManager,
+);
+
+// Головоломка комнаты 2 разблокирует её выходной лифт.
+this.levelBuilder.onRoom2PuzzleSolved = () => {
+  const unlocked = this.unlockExitElevator(2);
+
+  console.log(
+    "[ELEVATOR] Room 2 puzzle callback executed.",
+    { unlocked },
+  );
+};
+
+this.levelBuilder.build();
 
     // 2. Мелкие шарики (инстансы оставляем как есть, это эффективно)
     const ballGeo = new THREE.SphereGeometry(
@@ -1708,10 +1783,20 @@ this.exitElevatorMarkerBeam = outerBeam;
 
     // Считаем, что после reset игра должна оказаться именно
     // в том уровне, который нам передали.
-    this.currentLevelId = levelId;
-    this.targetLevelId = null;
+  this.currentLevelId = levelId;
+this.targetLevelId = null;
 
-    if (this.levelBuilder && rebuildRoom) {
+// Условие прохождения текущей комнаты начинается заново
+// при новой игре и при перезапуске уровня.
+if (levelId === 1) {
+  this.lockExitElevator(1);
+}
+
+if (levelId === 2) {
+  this.lockExitElevator(2);
+}
+
+if (this.levelBuilder && rebuildRoom) {
       this.levelBuilder.buildRoom(levelId);
 
       if (this.cameraController) {
@@ -2315,10 +2400,52 @@ this.exitElevatorMarkerBeam = outerBeam;
         this.levelBuilder.updateDoors(dt);
       }
 
-      // === 1. АВТОМАТИЧЕСКИЙ НЕВИДИМЫЙ ТРИГГЕР ===
-      // На будущее: когда сделаем квесты, эта переменная будет становиться true
-      // только после того, как игрок выполнит задание (например, раскрасит все буквы).
-      const isElevatorUnlocked = true;
+      // === ВРЕМЕННОЕ ЗАДАНИЕ КОМНАТЫ 1 ===
+      //
+      // Игрок заезжает на голубую площадку,
+      // после чего выходной лифт комнаты 1 разблокируется.
+      if (
+        this.currentLevelId === 1 &&
+        this.isGameActive &&
+        !this.isPaused &&
+        !this.isExitingToMenu &&
+        !this.isElevatorSequenceActive &&
+        this.playerController?.body &&
+        this.levelBuilder?.room1UnlockPad &&
+        !this.isExitElevatorUnlocked(1)
+      ) {
+        const pad = this.levelBuilder.room1UnlockPad;
+        const playerPosition = this.playerController.body.position;
+
+        const dx = playerPosition.x - pad.position.x;
+        const dz = playerPosition.z - pad.position.z;
+
+        const activationRadius = pad.userData.radius ?? 2.0;
+
+        const isPlayerOnPad =
+          dx * dx + dz * dz <= activationRadius * activationRadius;
+
+        if (isPlayerOnPad) {
+          pad.userData.activated = true;
+
+          // Площадка визуально гаснет после активации.
+          if (pad.material) {
+            pad.material.opacity = 0.2;
+            pad.material.emissiveIntensity = 0.08;
+          }
+
+          // Общий механизм разблокировки выходного лифта.
+          this.unlockExitElevator(1);
+
+          console.log("[ROOM 1] Temporary unlock pad activated.");
+        }
+      }
+
+          // === 1. ТРИГГЕР ВЫХОДНОГО ЛИФТА ===
+      // Доступность берётся из общей конфигурации exitElevator.
+      // Позже комната 2 сможет вызвать unlockExitElevator(2)
+      // после решения головоломки.
+      const isElevatorUnlocked = this.isExitElevatorUnlocked();
 
       if (
         this.isGameActive &&

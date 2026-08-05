@@ -797,32 +797,55 @@ this.exitElevatorMarkerBeam = null;
 
     this.isPreparingGame = true;
 
+    // Во время последовательного прогрева комнат не уничтожаем материалы,
+// иначе Three.js удалит только что скомпилированные программы.
+if (this.levelBuilder) {
+  this.levelBuilder.preservePrewarmedMaterials = true;
+}
+
     const totalStart = performance.now();
 
-    const compileCurrentScene = async () => {
-      // Обновляем мировые матрицы перед компиляцией.
-      this.scene.updateMatrixWorld(true);
-      this.camera.updateMatrixWorld(true);
+const compileCurrentScene = async () => {
+  // Обновляем мировые матрицы перед компиляцией.
+  this.scene.updateMatrixWorld(true);
+  this.camera.updateMatrixWorld(true);
 
-      // Даём интерфейсу успеть показать новый этап.
-      await nextFrame();
+  // Даём загрузчику один кадр перед тяжёлой подготовкой.
+  await nextFrame();
 
-      if (typeof this.renderer.compileAsync === "function") {
-        await this.renderer.compileAsync(this.scene, this.camera);
-      } else {
-        console.warn(
-          "[PREPARE] compileAsync недоступен, используется compile().",
-        );
+  const previousRenderTarget = this.renderer.getRenderTarget();
 
-        this.renderer.compile(this.scene, this.camera);
-      }
+  // EffectComposer сначала рисует сцену во внутренний render target.
+  // Поэтому шейдеры нужно компилировать именно для этой цели,
+  // иначе первый composer.render() создаст дополнительные программы.
+  const composerRenderTarget =
+    this.composer?.readBuffer || this.composer?.renderTarget1 || null;
 
-      // Прогреваем ещё и цепочку EffectComposer / Bloom.
-      this.renderer.info.reset();
-      this.composer.render();
+  try {
+    if (composerRenderTarget) {
+      this.renderer.setRenderTarget(composerRenderTarget);
+    }
 
-      await nextFrame();
-    };
+    if (typeof this.renderer.compileAsync === "function") {
+      await this.renderer.compileAsync(this.scene, this.camera);
+    } else {
+      console.warn(
+        "[PREPARE] compileAsync недоступен, используется compile().",
+      );
+
+      this.renderer.compile(this.scene, this.camera);
+    }
+  } finally {
+    this.renderer.setRenderTarget(previousRenderTarget);
+  }
+
+  // После правильного compileAsync проход composer уже не должен
+  // создавать новые варианты программ.
+  this.renderer.info.reset();
+  this.composer.render();
+
+  await nextFrame();
+};
 
     const runStage = async (label, percentBefore, percentAfter, task) => {
       const stageStart = performance.now();
@@ -843,7 +866,7 @@ this.exitElevatorMarkerBeam = null;
     try {
       await runStage("Подготовка комнаты 1…", 5, 25, async () => {
         // Комната 1 уже построена при создании LevelBuilder.
-        await compileCurrentScene();
+    await compileCurrentScene();
       });
 
       await runStage("Подготовка комнаты 2…", 25, 55, async () => {
@@ -893,9 +916,13 @@ this.exitElevatorMarkerBeam = null;
     } catch (error) {
       console.error("[PREPARE] Ошибка прогрева комнат:", error);
       throw error;
-    } finally {
-      this.isPreparingGame = false;
-    }
+} finally {
+  if (this.levelBuilder) {
+    this.levelBuilder.preservePrewarmedMaterials = false;
+  }
+
+  this.isPreparingGame = false;
+}
   }
 
   hardResetTransitions() {

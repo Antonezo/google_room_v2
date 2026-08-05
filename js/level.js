@@ -60,6 +60,13 @@ export class LevelBuilder {
     this.staticBodies = [];
     this.pushableObjects = [];
 
+    // Материалы комнат, сохранённые во время предварительного прогрева.
+    //
+    // Они больше не привязаны к видимым мешам, но остаются живыми,
+    // чтобы Three.js не удалял уже скомпилированные WebGL-программы.
+    this.preservePrewarmedMaterials = false;
+    this.prewarmedMaterialKeepAlive = new Set();
+
     this.room2GoalMarkerMesh = null;
     this.room2GoalMarkerBody = null;
 
@@ -165,6 +172,16 @@ export class LevelBuilder {
 
         materials.forEach((material) => {
           if (!material) return;
+
+          if (this.preservePrewarmedMaterials) {
+            // Во время стартового прогрева материал сохраняем живым.
+            // Это удерживает связанную WebGL-программу в кеше Three.js,
+            // даже когда временный меш комнаты уже удалён.
+            this.prewarmedMaterialKeepAlive.add(material);
+            return;
+          }
+
+          // При обычной игровой пересборке материал по-прежнему освобождаем.
           material.dispose();
         });
       }
@@ -214,16 +231,16 @@ export class LevelBuilder {
       this.pushableObjects.length = 0;
     }
 
-this.room2GoalMarkerMesh = null;
-this.room2GoalMarkerBody = null;
+    this.room2GoalMarkerMesh = null;
+    this.room2GoalMarkerBody = null;
 
-// При полной перестройке комнаты её головоломка
-// снова считается нерешённой.
-this.room2PuzzleSolved = false;
+    // При полной перестройке комнаты её головоломка
+    // снова считается нерешённой.
+    this.room2PuzzleSolved = false;
 
-if (audioManager?.stopBoxSlide) {
-  audioManager.stopBoxSlide();
-}
+    if (audioManager?.stopBoxSlide) {
+      audioManager.stopBoxSlide();
+    }
 
     // Все лифты, которые были частью текущей комнаты,
     // больше не должны обновляться после пересборки комнаты.
@@ -1405,7 +1422,6 @@ if (audioManager?.stopBoxSlide) {
     );
   }
 
-
   isRoom2GoalCubeInSocket() {
     if (!this.room2GoalMarkerBody) return false;
 
@@ -1425,34 +1441,32 @@ if (audioManager?.stopBoxSlide) {
   }
 
   updateRoom2Puzzle() {
-  if (this.currentRoomId !== 2) {
-    return;
+    if (this.currentRoomId !== 2) {
+      return;
+    }
+
+    // Callback должен сработать только один раз
+    // за текущее прохождение комнаты.
+    if (this.room2PuzzleSolved) {
+      return;
+    }
+
+    if (!this.isRoom2GoalCubeInSocket()) {
+      return;
+    }
+
+    this.room2PuzzleSolved = true;
+
+    if (typeof this.onRoom2PuzzleSolved === "function") {
+      this.onRoom2PuzzleSolved();
+    } else {
+      console.warn(
+        "[ROOM 2] Puzzle solved, but onRoom2PuzzleSolved callback is missing.",
+      );
+    }
+
+    console.log("[ROOM 2] Cube socket activated. Exit elevator unlocked.");
   }
-
-  // Callback должен сработать только один раз
-  // за текущее прохождение комнаты.
-  if (this.room2PuzzleSolved) {
-    return;
-  }
-
-  if (!this.isRoom2GoalCubeInSocket()) {
-    return;
-  }
-
-  this.room2PuzzleSolved = true;
-
-  if (typeof this.onRoom2PuzzleSolved === "function") {
-    this.onRoom2PuzzleSolved();
-  } else {
-    console.warn(
-      "[ROOM 2] Puzzle solved, but onRoom2PuzzleSolved callback is missing.",
-    );
-  }
-
-  console.log(
-    "[ROOM 2] Cube socket activated. Exit elevator unlocked.",
-  );
-}
 
   getRoom2LeftWallSocketConfig() {
     const TILE = 2.5;
@@ -3859,8 +3873,8 @@ if (audioManager?.stopBoxSlide) {
   }
 
   updateDoors(dt) {
- this.syncPushableObjects();
-this.updateRoom2Puzzle();
+    this.syncPushableObjects();
+    this.updateRoom2Puzzle();
 
     if (!this.entranceLeft) return;
 

@@ -71,6 +71,19 @@ constructor() {
       }),
     );
 
+    // === ПРАВИЛА СТОЛКНОВЕНИЯ: КОРОБКА + СКОЛЬЗКАЯ СТЕНА ===
+//
+// Стены комнат используют matSlippery.
+// Без отдельного ContactMaterial Cannon применяет настройки по умолчанию,
+// из-за чего зажатый у стены блок может резко отбрасываться обратно.
+this.world.addContactMaterial(
+  new CANNON.ContactMaterial(this.matBox, this.matSlippery, {
+    friction: 0.0,
+    restitution: 0.0,
+    contactEquationStiffness: 1e7,
+    contactEquationRelaxation: 4,
+  }),
+);
 
    // === ПРАВИЛА СТОЛКНОВЕНИЯ: ТЯЖЕЛЫЙ ШАР + СТЕНА/ПОЛ ===
     this.world.addContactMaterial(

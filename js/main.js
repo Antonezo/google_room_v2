@@ -1445,14 +1445,34 @@ this.exitElevatorMarkerBeam.material.opacity =
         this.cameraController.targetZoom = 15.0;
       }
 
-      if (nextLevelId > 1 && this.levelBuilder) {
-        this.levelBuilder.setElevatorMode("exiting");
+    if (nextLevelId > 1 && this.levelBuilder) {
+  this.levelBuilder.setElevatorMode("exiting");
 
-        // Двери прибытия сначала закрыты,
-        // чтобы игрок появился внутри кабины.
-        this.levelBuilder.closeElevator(arrivalDoorId);
-      }
+  // Двери прибытия должны быть закрыты уже в первом видимом кадре.
+  // resetElevatorForLevel() оставляет выходную сторону открытой,
+  // поэтому сбрасываем не только target, но и текущее состояние.
+  this.levelBuilder.closeElevator(arrivalDoorId);
 
+  if (arrivalDoorId === "main_entrance") {
+    this.levelBuilder.entranceOpenState = 0;
+    this.levelBuilder.targetEntranceOpenState = 0;
+  } else if (arrivalDoorId === "main_exit") {
+    this.levelBuilder.exitOpenState = 0;
+    this.levelBuilder.targetExitOpenState = 0;
+  } else {
+    const arrivalElevator =
+      this.levelBuilder.getRoomElevator?.(arrivalDoorId);
+
+    if (arrivalElevator) {
+      arrivalElevator.openState = 0;
+      arrivalElevator.targetOpenState = 0;
+    }
+  }
+
+  // Немедленно применяем закрытое положение к мешам и коллайдерам,
+  // пока экран ещё полностью чёрный.
+  this.levelBuilder.updateDoors(0);
+}
       this.elevatorPhase = "opening_doors";
 
       requestAnimationFrame(() => {

@@ -541,7 +541,7 @@ export class LevelBuilder {
         x: -4.5,
         z: -10.0,
       },
-      mass: 35,
+      mass: 28,
       material: yellowMat,
     });
 
@@ -557,7 +557,7 @@ export class LevelBuilder {
         x: 4.5,
         z: -16.0,
       },
-      mass: 55,
+      mass: 46,
       material: greenMat,
     });
   }

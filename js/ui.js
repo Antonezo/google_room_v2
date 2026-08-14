@@ -1,4 +1,3 @@
-import { store } from "./state.js";
 import { audioManager } from "./audio.js";
 import { translations } from "./i18n.js";
 import { MenuManager } from "./ui-menu.js";
@@ -12,8 +11,8 @@ export class UIManager {
     this.currentLang =
       savedLanguage === "RU" || savedLanguage === "EN" ? savedLanguage : "EN";
 
-   // Инициализируем помощников
-this.menuManager = new MenuManager(this);
+    // Инициализируем помощников
+    this.menuManager = new MenuManager(this);
 
     // Централизованное хранилище таймеров
     this.animTimers = {
@@ -32,8 +31,8 @@ this.menuManager = new MenuManager(this);
     };
 
     if (this.elements.pauseOverlay) {
-  this.elements.pauseOverlay.inert = true;
-}
+      this.elements.pauseOverlay.inert = true;
+    }
 
     this.initGlobalBindings();
     this.initStartMenu();
@@ -188,11 +187,11 @@ this.menuManager = new MenuManager(this);
     // Разрешаем управление кнопками паузы.
     this.isMenuLocked = false;
 
-  // Возвращаем overlay в дерево доступности
-// до того, как покажем его пользователю.
-pauseOverlay.inert = false;
-pauseOverlay.setAttribute("aria-hidden", "false");
-pauseOverlay.classList.add("is-open");
+    // Возвращаем overlay в дерево доступности
+    // до того, как покажем его пользователю.
+    pauseOverlay.inert = false;
+    pauseOverlay.setAttribute("aria-hidden", "false");
+    pauseOverlay.classList.add("is-open");
 
     // Сначала показываем overlay, затем освобождаем мышь.
     // Повторное событие unlock уже ничего не откроет,
@@ -209,24 +208,24 @@ pauseOverlay.classList.add("is-open");
       return false;
     }
 
-  this.menuManager.hidePauseSettings();
+    this.menuManager.hidePauseSettings();
 
-// Нельзя ставить aria-hidden родителю, пока одна из его
-// кнопок остаётся активным элементом документа.
-const activeElement = document.activeElement;
+    // Нельзя ставить aria-hidden родителю, пока одна из его
+    // кнопок остаётся активным элементом документа.
+    const activeElement = document.activeElement;
 
-if (
-  activeElement instanceof HTMLElement &&
-  pauseOverlay.contains(activeElement)
-) {
-  activeElement.blur();
-}
+    if (
+      activeElement instanceof HTMLElement &&
+      pauseOverlay.contains(activeElement)
+    ) {
+      activeElement.blur();
+    }
 
-// Сначала убираем фокус, затем исключаем overlay
-// из управления и дерева доступности.
-pauseOverlay.inert = true;
-pauseOverlay.classList.remove("is-open");
-pauseOverlay.setAttribute("aria-hidden", "true");
+    // Сначала убираем фокус, затем исключаем overlay
+    // из управления и дерева доступности.
+    pauseOverlay.inert = true;
+    pauseOverlay.classList.remove("is-open");
+    pauseOverlay.setAttribute("aria-hidden", "true");
     if (!resumeGameplay) {
       this.isMenuLocked = false;
       return true;
@@ -441,48 +440,39 @@ pauseOverlay.setAttribute("aria-hidden", "true");
     };
 
     // Ждём реального окончания открытия больших ворот.
-// Управление игрой включается только после этого.
-const openDoorsAndWait = () => {
-  return new Promise((resolve) => {
-    if (!el.doors) {
-      resolve();
-      return;
-    }
+    // Управление игрой включается только после этого.
+    const openDoorsAndWait = () => {
+      return new Promise((resolve) => {
+        if (!el.doors) {
+          resolve();
+          return;
+        }
 
-    const leftDoor = el.doors.querySelector(".left-door");
+        const leftDoor = el.doors.querySelector(".left-door");
 
-    if (!leftDoor) {
-      el.doors.classList.add("loaded");
-      resolve();
-      return;
-    }
+        if (!leftDoor) {
+          el.doors.classList.add("loaded");
+          resolve();
+          return;
+        }
 
-    const handleTransitionEnd = (event) => {
-      // Нас интересует только движение самой створки.
-      if (
-        event.target !== leftDoor ||
-        event.propertyName !== "transform"
-      ) {
-        return;
-      }
+        const handleTransitionEnd = (event) => {
+          // Нас интересует только движение самой створки.
+          if (event.target !== leftDoor || event.propertyName !== "transform") {
+            return;
+          }
 
-      leftDoor.removeEventListener(
-        "transitionend",
-        handleTransitionEnd,
-      );
+          leftDoor.removeEventListener("transitionend", handleTransitionEnd);
 
-      resolve();
+          resolve();
+        };
+
+        // Сначала подписываемся, потом запускаем анимацию.
+        leftDoor.addEventListener("transitionend", handleTransitionEnd);
+
+        el.doors.classList.add("loaded");
+      });
     };
-
-    // Сначала подписываемся, потом запускаем анимацию.
-    leftDoor.addEventListener(
-      "transitionend",
-      handleTransitionEnd,
-    );
-
-    el.doors.classList.add("loaded");
-  });
-};
 
     ["pointerdown", "mousedown", "wheel", "touchstart", "contextmenu"].forEach(
       (evt) => {
@@ -493,7 +483,7 @@ const openDoorsAndWait = () => {
     );
 
     // Функция входа в игру (Используется для кнопки ПРОДОЛЖИТЬ)
- const enterGame = async () => {
+    const enterGame = async () => {
       this.isMenuLocked = true;
       this.clearAnimTimers();
 
@@ -511,17 +501,17 @@ const openDoorsAndWait = () => {
         this.animTimers.enter1 = setTimeout(() => {
           el.centerHub.classList.add("fade-out-fast");
 
-        this.animTimers.enter2 = setTimeout(() => {
-  if (audioManager?.fadeIn) audioManager.fadeIn(1.0);
+          this.animTimers.enter2 = setTimeout(() => {
+            if (audioManager?.fadeIn) audioManager.fadeIn(1.0);
 
-  openDoorsAndWait().then(() => {
-    if (this.cb?.onStartGameplay) {
-      this.cb.onStartGameplay();
-    }
+            openDoorsAndWait().then(() => {
+              if (this.cb?.onStartGameplay) {
+                this.cb.onStartGameplay();
+              }
 
-    document.body.classList.remove("loading");
-  });
-}, 600);
+              document.body.classList.remove("loading");
+            });
+          }, 600);
         }, 500);
       }
     };
@@ -531,24 +521,24 @@ const openDoorsAndWait = () => {
       eraseSave = false,
     } = {}) => {
       // Защита от повторного клика.
-    if (this.isMenuLocked) return;
+      if (this.isMenuLocked) return;
 
-this.isMenuLocked = true;
-this.clearAnimTimers();
+      this.isMenuLocked = true;
+      this.clearAnimTimers();
 
-// С момента выбора сектора игрок больше не может
-// поворачивать игровую камеру мышью.
-// При этом CameraController пока продолжает работать,
-// чтобы успеть правильно расположить камеру.
-if (this.cb?.onBlockGameplayLook) {
-  this.cb.onBlockGameplayLook();
-}
+      // С момента выбора сектора игрок больше не может
+      // поворачивать игровую камеру мышью.
+      // При этом CameraController пока продолжает работать,
+      // чтобы успеть правильно расположить камеру.
+      if (this.cb?.onBlockGameplayLook) {
+        this.cb.onBlockGameplayLook();
+      }
 
-if (audioManager?.resumeContext) {
-  audioManager.resumeContext();
-}
+      if (audioManager?.resumeContext) {
+        audioManager.resumeContext();
+      }
 
-await this.enterImmersiveFullscreen();
+      await this.enterImmersiveFullscreen();
 
       // Показываем индикатор, но пока не скрываем меню.
       updatePreparationStatus(
@@ -583,21 +573,10 @@ await this.enterImmersiveFullscreen();
         this.cb.onDeleteSavedProgress();
       }
 
-      // Сначала возвращаем общее состояние атмосферы.
-      // Оно может менять цвета общих материалов комнаты.
-      if (store?.update) {
-        store.update({
-          mode: "lab",
-          playerName: "Dev",
-        });
-      }
-
-      // И только после этого строим выбранный сектор,
-      // чтобы его собственные материалы и цвета применились последними.
+      // Строим выбранный сектор.
       if (this.cb?.onReset) {
         this.cb.onReset({ levelId });
       }
-
 
       // Теперь меню можно скрыть.
       this.menuManager.hideMenu();
@@ -624,21 +603,21 @@ await this.enterImmersiveFullscreen();
       await new Promise((resolve) => setTimeout(resolve, 700));
 
       // Мир уже успел стабилизироваться за закрытыми воротами.
-// Теперь фиксируем камеру на всё время их открытия.
-if (this.cb?.onFreezeGameplayCamera) {
-  this.cb.onFreezeGameplayCamera();
-}
+      // Теперь фиксируем камеру на всё время их открытия.
+      if (this.cb?.onFreezeGameplayCamera) {
+        this.cb.onFreezeGameplayCamera();
+      }
 
-   // Начинаем открытие больших ворот и ждём,
-// пока их CSS-анимация действительно закончится.
-await openDoorsAndWait();
+      // Начинаем открытие больших ворот и ждём,
+      // пока их CSS-анимация действительно закончится.
+      await openDoorsAndWait();
 
-// Только теперь начинается сама игра.
-if (this.cb?.onStartGameplay) {
-  this.cb.onStartGameplay();
-}
+      // Только теперь начинается сама игра.
+      if (this.cb?.onStartGameplay) {
+        this.cb.onStartGameplay();
+      }
 
-document.body.classList.remove("loading");
+      document.body.classList.remove("loading");
 
       if (audioManager?.fadeIn) {
         audioManager.fadeIn(1.0);
@@ -696,11 +675,11 @@ document.body.classList.remove("loading");
     const btnInGameMenu = document.getElementById("btn-in-game-menu");
     const btnPauseResume = document.getElementById("btn-pause-resume");
 
-   const btnPauseRestart = document.getElementById("btn-pause-restart");
+    const btnPauseRestart = document.getElementById("btn-pause-restart");
 
-const btnPauseControls = document.getElementById("btn-pause-controls");
+    const btnPauseControls = document.getElementById("btn-pause-controls");
 
-const btnPauseSettings = document.getElementById("btn-pause-settings");
+    const btnPauseSettings = document.getElementById("btn-pause-settings");
 
     const btnPauseMainMenu = document.getElementById("btn-pause-main-menu");
 
@@ -896,30 +875,30 @@ const btnPauseSettings = document.getElementById("btn-pause-settings");
       });
     }
 
-   if (btnPauseRestart) {
-  btnPauseRestart.addEventListener("click", () => {
-    const canRestart =
-      !this.cb?.canRestartCurrentRoom ||
-      this.cb.canRestartCurrentRoom() === true;
+    if (btnPauseRestart) {
+      btnPauseRestart.addEventListener("click", () => {
+        const canRestart =
+          !this.cb?.canRestartCurrentRoom ||
+          this.cb.canRestartCurrentRoom() === true;
 
-    if (!canRestart || !this.cb?.onRestartCurrentRoom) {
-      return;
+        if (!canRestart || !this.cb?.onRestartCurrentRoom) {
+          return;
+        }
+
+        const restarted = this.cb.onRestartCurrentRoom();
+
+        // Закрываем паузу только после успешного рестарта.
+        if (restarted !== false) {
+          this.closePauseMenu();
+        }
+      });
     }
 
-    const restarted = this.cb.onRestartCurrentRoom();
-
-    // Закрываем паузу только после успешного рестарта.
-    if (restarted !== false) {
-      this.closePauseMenu();
+    if (btnPauseControls) {
+      btnPauseControls.addEventListener("click", () => {
+        this.menuManager.showPauseControls();
+      });
     }
-  });
-}
-
-if (btnPauseControls) {
-  btnPauseControls.addEventListener("click", () => {
-    this.menuManager.showPauseControls();
-  });
-}
 
     if (btnPauseSettings) {
       btnPauseSettings.addEventListener("click", () => {
@@ -948,13 +927,13 @@ if (btnPauseControls) {
       });
     }
 
-   const pauseButtons = [
-  { button: btnPauseResume, sound: "start" },
-  { button: btnPauseRestart, sound: "start" },
-  { button: btnPauseControls, sound: "click" },
-  { button: btnPauseSettings, sound: "click" },
-  { button: btnPauseMainMenu, sound: "click" },
-];
+    const pauseButtons = [
+      { button: btnPauseResume, sound: "start" },
+      { button: btnPauseRestart, sound: "start" },
+      { button: btnPauseControls, sound: "click" },
+      { button: btnPauseSettings, sound: "click" },
+      { button: btnPauseMainMenu, sound: "click" },
+    ];
 
     pauseButtons.forEach(({ button, sound }) => {
       if (!button) return;
@@ -1067,11 +1046,11 @@ if (btnPauseControls) {
 
     updateBtnText("btn-pause-resume", t.pauseResume);
 
-  updateBtnText("btn-pause-restart", t.pauseRestart);
+    updateBtnText("btn-pause-restart", t.pauseRestart);
 
-updateBtnText("btn-pause-controls", t.controls);
+    updateBtnText("btn-pause-controls", t.controls);
 
-updateBtnText("btn-pause-settings", t.pauseSettings);
+    updateBtnText("btn-pause-settings", t.pauseSettings);
 
     updateBtnText("btn-pause-main-menu", t.pauseMainMenu);
 
@@ -1138,16 +1117,6 @@ updateBtnText("btn-pause-settings", t.pauseSettings);
       languageStatus.textContent = t.languageCode;
     }
 
-    updateText("btn-what-now", t.btnWhatNow);
-    updateText("btn-accept-friend", t.btnAcceptFriend);
-    updateText("btn-reject-friend", t.btnRejectFriend);
-    updateText("btn-final-confirm", t.btnFinalConfirm);
-    updateText("bios-continue", t.biosContinue);
-
-    const regTitle = document.querySelector(
-      ".registration-form .section-title",
-    );
-    if (regTitle) regTitle.textContent = t.regTerminalTitle;
     this.menuManager?.updateSectorsView();
   }
 
@@ -1177,26 +1146,26 @@ updateBtnText("btn-pause-settings", t.pauseSettings);
           break;
         }
 
-case "KeyR":
-  // Удержание клавиши не должно запускать серию рестартов.
-  if (e.repeat) break;
+        case "KeyR":
+          // Удержание клавиши не должно запускать серию рестартов.
+          if (e.repeat) break;
 
-  // Во время лифта, перехода, подготовки или другого рестарта
-  // сбрасывать комнату небезопасно.
-  const canRestart =
-    !this.cb?.canRestartCurrentRoom ||
-    this.cb.canRestartCurrentRoom() === true;
+          // Во время лифта, перехода, подготовки или другого рестарта
+          // сбрасывать комнату небезопасно.
+          const canRestart =
+            !this.cb?.canRestartCurrentRoom ||
+            this.cb.canRestartCurrentRoom() === true;
 
-  if (
-    canRestart &&
-    this.cb?.hasActiveSession?.() === true &&
-    !this.isPauseMenuOpen() &&
-    this.cb?.onRestartCurrentRoom
-  ) {
-    this.cb.onRestartCurrentRoom();
-  }
+          if (
+            canRestart &&
+            this.cb?.hasActiveSession?.() === true &&
+            !this.isPauseMenuOpen() &&
+            this.cb?.onRestartCurrentRoom
+          ) {
+            this.cb.onRestartCurrentRoom();
+          }
 
-  break;
+          break;
       }
     });
   }

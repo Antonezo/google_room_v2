@@ -2,12 +2,11 @@
 
 export class StateManager {
   constructor() {
-    this.state = {
-      mode: "lab",
-      isSlowMo: false,
-      currentTool: -1,
-      paintToolColor: -1,
-    };
+ this.state = {
+  isSlowMo: false,
+  currentTool: -1,
+  paintToolColor: -1,
+};
     this.listeners = [];
   }
   get() {
@@ -36,4 +35,3 @@ export class StateManager {
 export const store = new StateManager();
 
 export const isSlowMo = () => store.get().isSlowMo; // <--- Вот этот парень нужен для audio.js!
-export const isZeroG = () => store.get().mode === "space";

@@ -4,19 +4,12 @@ export const CONFIG = {
 
   // === НОВЫЙ БЛОК НАСТРОЕК КАМЕРЫ ===
   CAMERA: {
-    REGISTRATION: {
+    INITIAL: {
       fov: 60,
       pos: { x: 0, y: 6, z: 28 }, // Отодвинули дальше
       target: { x: 0, y: 3, z: 0 },
       minDist: 10,
       maxDist: 35,
-    },
-    GAMEPLAY: {
-      fov: 50, // Сделали угол чуть меньше, чтобы сцена была более плоской и аккуратной
-      pos: { x: 0, y: 3.5, z: 38 }, // Отодвинули камеру дальше (было 24)
-      target: { x: 0, y: 2, z: 0 },
-      minDist: 25,
-      maxDist: 50,
     },
   },
 

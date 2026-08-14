@@ -20,7 +20,7 @@ export function loadGameAssets(onProgress, onComplete) {
   manager.onProgress = (url, itemsLoaded, itemsTotal) => {
     onProgress(itemsLoaded / itemsTotal);
   };
-  
+
   manager.onLoad = () => {
     onComplete();
   };
@@ -36,15 +36,21 @@ export function loadGameAssets(onProgress, onComplete) {
   const repeatX = 0.05;
   const repeatY = 0.05;
 
-  tileTex = textureLoader.load("Image/diff_1k.png", (t) => setupTiling(t, repeatX, repeatY));
-  tileNormalTex = textureLoader.load("Image/nor_gl_1k.png", (t) => setupTiling(t, repeatX, repeatY));
-  tileRoughTex = textureLoader.load("Image/rough_1k.png", (t) => setupTiling(t, repeatX, repeatY));
+  tileTex = textureLoader.load("Image/diff_1k.png", (t) =>
+    setupTiling(t, repeatX, repeatY),
+  );
+  tileNormalTex = textureLoader.load("Image/nor_gl_1k.png", (t) =>
+    setupTiling(t, repeatX, repeatY),
+  );
+  tileRoughTex = textureLoader.load("Image/rough_1k.png", (t) =>
+    setupTiling(t, repeatX, repeatY),
+  );
 
   marbleBaseTex = textureLoader.load("Image/marble_69_basecolor-1K.png");
   marbleNormalTex = textureLoader.load("Image/marble_69_normal-1K.png");
   marbleRoughTex = textureLoader.load("Image/marble_69_roughness-1K.png");
 
-    const setupPlasticTexture = (texture, isColor = false) => {
+  const setupPlasticTexture = (texture, isColor = false) => {
     texture.wrapS = THREE.RepeatWrapping;
     texture.wrapT = THREE.RepeatWrapping;
     texture.repeat.set(1, 1);
@@ -116,7 +122,7 @@ export class SceneManager {
     this.scene = new THREE.Scene();
 
     // 1. Берем настройки для старта (регистрации) из конфига
-    const camCfg = CONFIG.CAMERA.REGISTRATION;
+   const camCfg = CONFIG.CAMERA.INITIAL;
 
     this.camera = new THREE.PerspectiveCamera(
       camCfg.fov,
@@ -126,7 +132,10 @@ export class SceneManager {
     );
     this.camera.position.set(camCfg.pos.x, camCfg.pos.y, camCfg.pos.z);
 
- this.renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: "high-performance" });
+    this.renderer = new THREE.WebGLRenderer({
+      antialias: true,
+      powerPreference: "high-performance",
+    });
     this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
     this.renderer.setSize(window.innerWidth, window.innerHeight);
     this.renderer.shadowMap.enabled = false; // Отключаем тени для производительности
@@ -134,29 +143,31 @@ export class SceneManager {
     this.renderer.outputColorSpace = THREE.SRGBColorSpace;
     this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
     this.renderer.toneMappingExposure = 0.8;
-    
+
     // ВАЖНО: физически добавляем канвас на страницу
-    document.getElementById("canvas-container").appendChild(this.renderer.domElement);
+    document
+      .getElementById("canvas-container")
+      .appendChild(this.renderer.domElement);
 
     // Настраиваем буфер со сглаживанием и поддержкой HDR (для Bloom)
     const renderTarget = new THREE.WebGLRenderTarget(
       window.innerWidth,
       window.innerHeight,
-      { 
+      {
         samples: 4,
         type: THREE.HalfFloatType, // Критично для правильной работы свечения!
-        colorSpace: THREE.SRGBColorSpace 
-      }
+        colorSpace: THREE.SRGBColorSpace,
+      },
     );
 
     this.composer = new EffectComposer(this.renderer, renderTarget);
     this.composer.addPass(new RenderPass(this.scene, this.camera));
-    
+
     this.bloomPass = new UnrealBloomPass(
       new THREE.Vector2(window.innerWidth, window.innerHeight),
       0.15,
       0.6,
-      0.15
+      0.15,
     );
     this.composer.addPass(this.bloomPass);
 
@@ -164,7 +175,7 @@ export class SceneManager {
     this.controls = new OrbitControls(this.camera, this.renderer.domElement);
     this.controls.enableDamping = true;
     this.controls.dampingFactor = 0.05;
-   
+
     this.controls.enablePan = false;
 
     // Отключаем вращение камеры (по твоему запросу)
@@ -204,39 +215,6 @@ export class SceneManager {
     return mesh;
   }
 
-  setCameraMode(mode) {
-    if (mode === "registration") {
-      this.controls.reset();
-      const cfg = CONFIG.CAMERA.REGISTRATION;
-
-      this.camera.fov = cfg.fov;
-      this.camera.position.set(cfg.pos.x, cfg.pos.y, cfg.pos.z);
-      this.controls.target.set(cfg.target.x, cfg.target.y, cfg.target.z);
-
-      this.controls.minDistance = cfg.minDist;
-      this.controls.maxDistance = cfg.maxDist;
-
-      this.camera.updateProjectionMatrix();
-      this.controls.update();
-    } else if (mode === "gameplay") {
-      const cfg = CONFIG.CAMERA.GAMEPLAY;
-
-      // Мгновенная установка позиции без анимации
-      this.camera.position.set(cfg.pos.x, cfg.pos.y, cfg.pos.z);
-      this.controls.target.set(cfg.target.x, cfg.target.y, cfg.target.z);
-      this.camera.fov = cfg.fov;
-
-      this.camera.updateProjectionMatrix();
-
-      // Обновляем лимиты зума
-      this.controls.minDistance = cfg.minDist;
-      this.controls.maxDistance = cfg.maxDist;
-
-      // Включаем управление, обновляем контроллер и выходим
-      this.controls.enabled = true;
-      this.controls.update();
-    }
-  }
   _initResizeHandler() {
     window.addEventListener("resize", () => {
       this.camera.aspect = window.innerWidth / window.innerHeight;
@@ -249,8 +227,6 @@ export class SceneManager {
     });
   }
 
-
-  
   buildEnvironment() {
     this.dayLights = new THREE.Group();
     this.scene.add(this.dayLights);
@@ -262,8 +238,6 @@ export class SceneManager {
     this.fillLight = new THREE.DirectionalLight(0xffe2c2, 0.0);
     this.fillLight.position.set(10, 6, 8);
     this.dayLights.add(this.fillLight);
-
- 
 
     this.labLampsGroup = new THREE.Group();
     this.scene.add(this.labLampsGroup);
@@ -639,18 +613,18 @@ export class SceneManager {
     return group;
   }
 
-  setAtmosphere(mode, configColors) {
+  setAtmosphere() {
     this.labProps.visible = false;
 
-   // --- 1. ОБНОВЛЕНИЕ ТЕКСТУР И ГЛЯНЦА ---
-for (const w of this.walls) {
-  // Некоторые объекты лежат в walls только как препятствия для камеры.
-  // Например двери лифта. Их нельзя перекрашивать плиткой.
-  if (w.skipMaterialUpdate || w.mesh?.userData?.skipWallMaterialUpdate) {
-    continue;
-  }
+    // --- 1. ОБНОВЛЕНИЕ ТЕКСТУР И ГЛЯНЦА ---
+    for (const w of this.walls) {
+      // Некоторые объекты лежат в walls только как препятствия для камеры.
+      // Например двери лифта. Их нельзя перекрашивать плиткой.
+      if (w.skipMaterialUpdate || w.mesh?.userData?.skipWallMaterialUpdate) {
+        continue;
+      }
 
-  const applyToMat = (mat, props) => {
+      const applyToMat = (mat, props) => {
         if (Array.isArray(mat)) {
           if (mat[0]) Object.assign(mat[0], props);
           if (mat[1]) {
@@ -702,67 +676,61 @@ for (const w of this.walls) {
       }
     };
 
- 
     // --- ПРАВКИ ДЛЯ МЯГКОГО РАССЕИВАНИЯ НА ПОТОЛКЕ ---
 
-this.scene.background = new THREE.Color(0x050505);
-this.scene.fog = new THREE.Fog(0x050505, 50, 150);
+    this.scene.background = new THREE.Color(0x050505);
+    this.scene.fog = new THREE.Fog(0x050505, 50, 150);
 
-this.ambientLight.intensity = 0.15;
+    this.ambientLight.intensity = 0.15;
 
-this.ringMesh.material.color.setHex(0x0088ff);
-this.ringMesh.material.emissive.setHex(0x0055ff);
-this.floorLight.color.setHex(0x0088ff);
-this.holoLight.color.setHex(0x0088ff);
-this.baseMesh.material.color.setHex(0xffffff);
+    this.ringMesh.material.color.setHex(0x0088ff);
+    this.ringMesh.material.emissive.setHex(0x0055ff);
+    this.floorLight.color.setHex(0x0088ff);
+    this.holoLight.color.setHex(0x0088ff);
+    this.baseMesh.material.color.setHex(0xffffff);
 
-this.holoLight.intensity = 20;
-this.ringMesh.material.emissiveIntensity = 1.2;
-this.floorLight.intensity = 10;
+    this.holoLight.intensity = 20;
+    this.ringMesh.material.emissiveIntensity = 1.2;
+    this.floorLight.intensity = 10;
 
-this.leftLight.intensity = 0.0;
-this.fillLight.intensity = 0.0;
+    this.leftLight.intensity = 0.0;
+    this.fillLight.intensity = 0.0;
 
-this.labLampsGroup.visible = true;
+    this.labLampsGroup.visible = true;
 
-for (const w of this.walls) {
-  if (
-    w.skipMaterialUpdate ||
-    w.mesh?.userData?.skipWallMaterialUpdate
-  ) {
-    continue;
-  }
+    for (const w of this.walls) {
+      if (w.skipMaterialUpdate || w.mesh?.userData?.skipWallMaterialUpdate) {
+        continue;
+      }
 
-  safeSetColor(w.mesh.material, 0xffffff);
-}
+      safeSetColor(w.mesh.material, 0xffffff);
+    }
 
-this.renderer.toneMappingExposure = 1.5;
-this.bloomPass.strength = 0.3;
-this.bloomPass.threshold = 0.9;
-this.bloomPass.radius = 0.2;
-    
+    this.renderer.toneMappingExposure = 1.5;
+    this.bloomPass.strength = 0.3;
+    this.bloomPass.threshold = 0.9;
+    this.bloomPass.radius = 0.2;
   }
 
   updateAtmosphere(
     timeSec,
-    mode,
     platformImpact,
     fanLevel,
     isMagnetEquipped,
     activeToolColor,
   ) {
- if (this.currentRingIntensity === undefined) {
-  this.currentRingIntensity = 1.2;
-}
+    if (this.currentRingIntensity === undefined) {
+      this.currentRingIntensity = 1.2;
+    }
 
-const targetRingIntensity = isMagnetEquipped ? 0.0 : 1.2;
+    const targetRingIntensity = isMagnetEquipped ? 0.0 : 1.2;
     this.currentRingIntensity = THREE.MathUtils.lerp(
       this.currentRingIntensity,
       targetRingIntensity,
       0.05,
     );
 
-   const maxIntensity = 1.2;
+    const maxIntensity = 1.2;
     const ratio = Math.max(
       0,
       Math.min(this.currentRingIntensity / maxIntensity, 1.0),
@@ -770,7 +738,7 @@ const targetRingIntensity = isMagnetEquipped ? 0.0 : 1.2;
     this.ringMesh.material.emissiveIntensity = this.currentRingIntensity;
     this.ringMesh.material.opacity = THREE.MathUtils.lerp(0.15, 1.0, ratio);
 
-this.ringMesh.material.emissive.setHex(0x0055ff);
+    this.ringMesh.material.emissive.setHex(0x0055ff);
 
     if (isMagnetEquipped) {
       this.magnetReticle.visible = true;
@@ -784,15 +752,15 @@ this.ringMesh.material.emissive.setHex(0x0055ff);
     }
 
     const dimFactor = 1.0 - platformImpact * 0.85;
-   this.floorLight.intensity = 10 * dimFactor;
-this.holoLight.intensity = 20 * dimFactor;
+    this.floorLight.intensity = 10 * dimFactor;
+    this.holoLight.intensity = 20 * dimFactor;
 
-const env = -(Math.cos(Math.PI * fanLevel) - 1) / 2;
+    const env = -(Math.cos(Math.PI * fanLevel) - 1) / 2;
 
-this.ventOverlay.material.opacity =
-  0.7 * env * (0.92 + 0.08 * Math.sin(timeSec * 6.5));
+    this.ventOverlay.material.opacity =
+      0.7 * env * (0.92 + 0.08 * Math.sin(timeSec * 6.5));
 
-this.ventOverlay.material.emissiveIntensity = 2.1 * env;
+    this.ventOverlay.material.emissiveIntensity = 2.1 * env;
   }
 
   render() {

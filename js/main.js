@@ -1912,17 +1912,14 @@ lockGameplayLookInput() {
 
     // Сброс UI и стейта
     if (store && typeof store.get === "function") {
-      const currentState = store.get();
-      if (typeof store.set === "function") {
-        store.set({ ...currentState, currentTool: -1, paintToolColor: -1 });
-      } else if (typeof store.update === "function") {
-        store.update({ currentTool: -1, paintToolColor: -1 });
-      }
-      if (store.get().mode === "space") {
-        const btnZeroG = document.getElementById("btn-zerog");
-        if (btnZeroG) btnZeroG.click();
-      }
-    }
+  const currentState = store.get();
+
+  if (typeof store.set === "function") {
+    store.set({ ...currentState, currentTool: -1, paintToolColor: -1 });
+  } else if (typeof store.update === "function") {
+    store.update({ currentTool: -1, paintToolColor: -1 });
+  }
+}
 
     document.body.classList.remove("is-pressing");
 
@@ -1984,30 +1981,21 @@ lockGameplayLookInput() {
     }
   }
 
-  setupStateReactions() {
-    let lastMode = store.get().mode;
-    let lastTool = store.get().currentTool;
+setupStateReactions() {
+  let lastTool = store.get().currentTool;
 
-    store.subscribe((state) => {
-      if (state.mode !== lastMode) {
-        this.fansActive = false;
-        this.fanLevel = 0.0;
-        lastMode = state.mode;
-      }
-      this.sceneManager.setAtmosphere(state.mode, CONFIG.COLORS);
-      // КОММЕНТИРУЕМ ЭТИ ДВЕ СТРОКИ:
-      // if (!this.world.bodies.includes(this.platformBody))
-      //   this.world.addBody(this.platformBody);
+  store.subscribe((state) => {
+    this.sceneManager.setAtmosphere();
 
-     for (const l of this.wordManager.letterObjects) {
-  l.mesh.material.emissiveIntensity = 0.0;
-  l.mesh.material.roughness = 0.5;
-  l.mesh.material.color.setHex(l.body.userData.googleColor);
-}
+    for (const l of this.wordManager.letterObjects) {
+      l.mesh.material.emissiveIntensity = 0.0;
+      l.mesh.material.roughness = 0.5;
+      l.mesh.material.color.setHex(l.body.userData.googleColor);
+    }
 
-this.setBallGlow(false);
+    this.setBallGlow(false);
 
-      if (state.currentTool !== lastTool) {
+    if (state.currentTool !== lastTool) {
         const wasMagnet = lastTool !== -1;
         const isMagnet = state.currentTool !== -1;
 
@@ -2973,15 +2961,14 @@ this.setBallGlow(false);
     const TOOL_COLORS = { 0: 0x34a853, 1: 0xfbbc05, 2: 0xea4335, 3: 0x4285f4 };
     const activeColor = isMagnetEquipped ? TOOL_COLORS[tool] : null;
 
-    this.sceneManager.updateAtmosphere(
-      timeSec,
-      store.get().mode,
-      this.platformImpact,
-      this.fanLevel,
-      isMagnetEquipped,
-      activeColor,
-      isMagnetPulling,
-    );
+this.sceneManager.updateAtmosphere(
+  timeSec,
+  this.platformImpact,
+  this.fanLevel,
+  isMagnetEquipped,
+  activeColor,
+  isMagnetPulling,
+);
 
     if (isMagnetEquipped && this.inputManager.hasInteractionTarget) {
       this.sceneManager.magnetReticle.position.copy(

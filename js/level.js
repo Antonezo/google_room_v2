@@ -740,44 +740,70 @@ export class LevelBuilder {
     this.registerMesh(pad);
   }
 
-  buildElevatorCabinVisual() {
-    const elW = 7.5; // ширина кабины
-    const elD = 5.0; // глубина кабины
-    const elH = 10.0; // высота кабины
+  createElevatorCabinVisual({
+    name,
+    position,
+    rotationY = 0,
+    parent = this.getBuildGroup(),
+
+    // Центральный лифт проходной, поэтому по умолчанию
+    // постоянную заднюю стенку не создаём.
+    includeBackWall = false,
+  }) {
+    const elW = 7.5;
+    const elD = 5.0;
+    const elH = 10.0;
 
     const elCenterY = this.floorY + elH / 2;
-    const elZ = 11.25;
 
-    // === МАТЕРИАЛЫ КАБИНЫ ЛИФТА ===
+    const cabinGroup = new THREE.Group();
+    cabinGroup.name = name;
 
-    const wallMat = new THREE.MeshStandardMaterial({
-      color: 0x6f777c, // серо-синий матовый металл
-      roughness: 0.58,
-      metalness: 0.32,
-    });
+    // === ОБЩИЕ МАТЕРИАЛЫ КАБИНЫ ===
+
+const sideWallMat = new THREE.MeshStandardMaterial({
+  color: 0xffffff,
+  roughness: 0.58,
+  metalness: 0.32,
+  emissive: 0x24282b,
+  emissiveIntensity: 0.18,
+});
+
+const backWallMat = new THREE.MeshStandardMaterial({
+  color: 0xffffff,
+  roughness: 0.58,
+  metalness: 0.32,
+  emissive: 0x6f777c,
+  emissiveIntensity: 0.32,
+});
+
+    cabinGroup.userData.sideWallMaterial = sideWallMat;
+    cabinGroup.userData.backWallMaterial = backWallMat;
 
     const floorMat = new THREE.MeshStandardMaterial({
-      color: 0x4b5256, // пол чуть темнее стен
+      color: 0x4b5256,
       roughness: 0.72,
       metalness: 0.22,
     });
 
     const ceilingMat = new THREE.MeshStandardMaterial({
-      color: 0x1c2730, // графитовый потолок
+      color: 0x1c2730,
       roughness: 0.65,
       metalness: 0.2,
     });
 
-    const createPanel = (
+    const createPanel = ({
+      name: panelName,
       geometry,
-      position,
+      position: localPosition,
       rotation,
       material,
       cameraWall = true,
-    ) => {
+    }) => {
       const mesh = new THREE.Mesh(geometry, material);
 
-      mesh.position.copy(position);
+      mesh.name = panelName;
+      mesh.position.copy(localPosition);
 
       if (rotation) {
         mesh.rotation.set(rotation.x, rotation.y, rotation.z);
@@ -787,11 +813,8 @@ export class LevelBuilder {
       mesh.receiveShadow = true;
       mesh.userData.skipWallMaterialUpdate = true;
 
-      this.registerMesh(mesh);
+      cabinGroup.add(mesh);
 
-      // Эти металлические панели больше не создаются через createWallMesh(),
-      // поэтому вручную добавляем их в список стен для камеры.
-      // Иначе камера считает их просто декором и может вылетать наружу.
       if (
         cameraWall &&
         this.sceneManager &&
@@ -807,23 +830,106 @@ export class LevelBuilder {
       return mesh;
     };
 
-    // === КАБИНА ЛИФТА ===
-
     // Пол
-    createPanel(
-      new THREE.PlaneGeometry(elW, elD),
-      new THREE.Vector3(0, this.floorY + 0.01, elZ),
-      new THREE.Vector3(-Math.PI / 2, 0, 0),
-      floorMat,
-    );
+    createPanel({
+      name: `${name}_Floor`,
+      geometry: new THREE.PlaneGeometry(elW, elD),
+      position: new THREE.Vector3(0, this.floorY + 0.01, 0),
+      rotation: new THREE.Vector3(-Math.PI / 2, 0, 0),
+      material: floorMat,
+      cameraWall: false,
+    });
 
     // Потолок
-    createPanel(
-      new THREE.PlaneGeometry(elW, elD),
-      new THREE.Vector3(0, this.floorY + elH - 0.01, elZ),
-      new THREE.Vector3(Math.PI / 2, 0, 0),
-      ceilingMat,
+    createPanel({
+      name: `${name}_Ceiling`,
+      geometry: new THREE.PlaneGeometry(elW, elD),
+      position: new THREE.Vector3(0, this.floorY + elH - 0.01, 0),
+      rotation: new THREE.Vector3(Math.PI / 2, 0, 0),
+      material: ceilingMat,
+    });
+
+    const leftWall = createPanel({
+      name: `${name}_LeftWall`,
+      geometry: new THREE.PlaneGeometry(elD, elH),
+      position: new THREE.Vector3(-elW / 2, elCenterY, 0),
+      rotation: new THREE.Vector3(0, Math.PI / 2, 0),
+      material: sideWallMat,
+    });
+
+    const rightWall = createPanel({
+      name: `${name}_RightWall`,
+      geometry: new THREE.PlaneGeometry(elD, elH),
+      position: new THREE.Vector3(elW / 2, elCenterY, 0),
+      rotation: new THREE.Vector3(0, -Math.PI / 2, 0),
+      material: sideWallMat,
+    });
+  
+    let backWall = null;
+
+    if (includeBackWall) {
+      backWall = createPanel({
+        name: `${name}_BackWall`,
+        geometry: new THREE.PlaneGeometry(elW, elH),
+        position: new THREE.Vector3(0, elCenterY, elD / 2),
+        rotation: new THREE.Vector3(0, Math.PI, 0),
+        material: backWallMat,
+      });
+    }
+
+    // === ВНУТРЕННЕЕ ОСВЕЩЕНИЕ КАБИНЫ ===
+
+    const lampMaterial = new THREE.MeshStandardMaterial({
+      color: 0xffffff,
+      emissive: 0xffffff,
+      emissiveIntensity: 1.1,
+      roughness: 0.2,
+      metalness: 0.0,
+    });
+
+    const lamp = new THREE.Mesh(
+      new THREE.BoxGeometry(2.8, 0.08, 2.8),
+      lampMaterial,
     );
+
+    lamp.name = `${name}_Lamp`;
+    lamp.position.set(0, this.floorY + elH - 0.08, 0);
+    lamp.userData.skipWallMaterialUpdate = true;
+
+    cabinGroup.add(lamp);
+
+    const light = new THREE.RectAreaLight(0xfff0dd, 4.0, 3.2, 3.2);
+
+    light.name = `${name}_Light`;
+
+    light.position.set(0, this.floorY + elH - 0.12, 0);
+
+    light.rotation.x = -Math.PI / 2;
+
+    cabinGroup.add(light);
+
+    cabinGroup.position.copy(position);
+    cabinGroup.rotation.y = rotationY;
+
+    parent.add(cabinGroup);
+
+    return cabinGroup;
+  }
+
+  buildElevatorCabinVisual() {
+    const elW = 7.5; // ширина кабины
+    const elD = 5.0; // глубина кабины
+    const elH = 10.0; // высота кабины
+
+    const elCenterY = this.floorY + elH / 2;
+    const elZ = 11.25;
+
+    this.mainElevatorCabinVisual = this.createElevatorCabinVisual({
+      name: "MainElevatorCabin",
+      position: new THREE.Vector3(0, 0, elZ),
+      rotationY: 0,
+      parent: this.elevatorGroup,
+    });
 
     // === НЕВИДИМЫЕ ПЕРЕКРЫТИЯ ДЛЯ КАМЕРЫ НАД ДВЕРЯМИ ===
     //
@@ -968,22 +1074,6 @@ export class LevelBuilder {
       exitBridgeCenterZ,
       exitBridgeDepth,
     );
-
-    // Левая стенка
-    createPanel(
-      new THREE.PlaneGeometry(elD, elH),
-      new THREE.Vector3(-elW / 2, elCenterY, elZ),
-      new THREE.Vector3(0, Math.PI / 2, 0),
-      wallMat,
-    );
-
-    // Правая стенка
-    createPanel(
-      new THREE.PlaneGeometry(elD, elH),
-      new THREE.Vector3(elW / 2, elCenterY, elZ),
-      new THREE.Vector3(0, -Math.PI / 2, 0),
-      wallMat,
-    );
   }
 
   buildSecondRoom() {
@@ -1020,90 +1110,63 @@ export class LevelBuilder {
     // ЛЕВАЯ СТЕНА С ЯЧЕЙКОЙ ДЛЯ БЕЛОГО КУБИКА
     this.buildRoom2LeftWallWithSocketVisual(wallH);
 
-    // ПРАВАЯ СТЕНА С ПРОЁМОМ ПОД ФИНАЛЬНЫЙ ЛИФТ 2 → 3
-    // Правая стена идёт вдоль оси Z.
-    // Чтобы плитка не "сбрасывалась" на каждом отдельном куске,
-    // задаём UV-смещения так, будто это одна цельная стена от backZ до frontZ.
-    const exitDoorZ = -31.15;
-    const exitDoorW = 7.5;
-    const exitDoorH = 10.0;
-
-    const exitDoorZMin = exitDoorZ - exitDoorW / 2; // -34.75
-    const exitDoorZMax = exitDoorZ + exitDoorW / 2; // -27.25
-
-    // Небольшой нахлёст под раму двери.
-    // Он прячет микротрещины между отдельными плоскостями стены и рамой.
-    const wallSeamOverlap = 0.04;
-
-    // Общая UV-точка отсчёта для всей правой стены.
-    // Условно считаем, что вся правая стена начинается от backZ.
-    const rightWallUvBaseZ = backZ;
-
-    // === Кусок стены от стартовой стороны комнаты до проёма ===
-    const rightWallFrontStartZ = exitDoorZMax - wallSeamOverlap;
-    const rightWallFrontEndZ = frontZ;
-    const rightWallFrontLen = rightWallFrontEndZ - rightWallFrontStartZ;
-    const rightWallFrontCenterZ =
-      (rightWallFrontEndZ + rightWallFrontStartZ) / 2;
-
-    // UV-смещение по горизонтали, чтобы плитка продолжала общую сетку стены.
-    const rightWallFrontUvX = rightWallFrontStartZ - rightWallUvBaseZ;
-
+    // ПРАВАЯ СТЕНА КОМНАТЫ №2
+    // Старого бокового лифта здесь больше нет.
     this.addTiledWall(
-      rightWallFrontLen,
+      roomD,
       wallH,
-      new THREE.Vector3(15, wallCenterY, rightWallFrontCenterZ),
+      new THREE.Vector3(15, wallCenterY, centerZ),
       new THREE.Vector3(0, -Math.PI / 2, 0),
-      rightWallFrontUvX,
-      0,
     );
 
-    // === Кусок стены от проёма до дальней стены ===
-    const rightWallBackStartZ = backZ;
-    const rightWallBackEndZ = exitDoorZMin + wallSeamOverlap;
-    const rightWallBackLen = rightWallBackEndZ - rightWallBackStartZ;
-    const rightWallBackCenterZ = (rightWallBackEndZ + rightWallBackStartZ) / 2;
+    // === ДАЛЬНЯЯ СТЕНА С ПРОЁМОМ ПОД НОВЫЙ ЛИФТ 2 → 3 ===
+    //
+    // Новый лифт располагается точно по центру дальней стены,
+    // напротив центрального входного лифта.
 
-    const rightWallBackUvX = rightWallBackStartZ - rightWallUvBaseZ;
+    const exitElW = 7.5;
+    const exitElH = 10.0;
 
+    // Ширина стены слева и справа от проёма.
+    const exitSideW = (roomW - exitElW) / 2;
+
+    // Центры двух боковых участков.
+    const exitLeftX = -(exitElW / 2) - exitSideW / 2;
+
+    const exitRightX = exitElW / 2 + exitSideW / 2;
+
+    // Левая часть дальней стены
     this.addTiledWall(
-      rightWallBackLen,
+      exitSideW,
       wallH,
-      new THREE.Vector3(15, wallCenterY, rightWallBackCenterZ),
-      new THREE.Vector3(0, -Math.PI / 2, 0),
-      rightWallBackUvX,
-      0,
-    );
-
-    // === Верхняя перемычка над проёмом ===
-    const exitTopH = wallH - exitDoorH;
-    const exitTopCenterY = this.floorY + exitDoorH + exitTopH / 2;
-
-    // Перемычка занимает участок от exitDoorZMin до exitDoorZMax.
-    // Делаем её чуть шире, чтобы края ушли под чёрную раму.
-    const exitTopLen = exitDoorW + wallSeamOverlap * 2;
-    const exitTopUvX = exitDoorZMin - wallSeamOverlap - rightWallUvBaseZ;
-
-    // UV по Y тоже сдвигаем на высоту двери,
-    // чтобы плитка над проёмом продолжала вертикальную сетку стены,
-    // а не начиналась заново от нижнего края перемычки.
-    const exitTopUvY = exitDoorH;
-
-    this.addTiledWall(
-      exitTopLen,
-      exitTopH,
-      new THREE.Vector3(15, exitTopCenterY, exitDoorZ),
-      new THREE.Vector3(0, -Math.PI / 2, 0),
-      exitTopUvX,
-      exitTopUvY,
-    );
-
-    // ДАЛЬНЯЯ СТЕНА
-    this.addTiledWall(
-      roomW,
-      wallH,
-      new THREE.Vector3(0, wallCenterY, backZ),
+      new THREE.Vector3(exitLeftX, wallCenterY, backZ),
       new THREE.Vector3(0, 0, 0),
+      0,
+      0,
+    );
+
+    // Правая часть дальней стены
+    this.addTiledWall(
+      exitSideW,
+      wallH,
+      new THREE.Vector3(exitRightX, wallCenterY, backZ),
+      new THREE.Vector3(0, 0, 0),
+      1.25,
+      0,
+    );
+
+    // Перемычка над проёмом
+    const exitTopH = wallH - exitElH;
+
+    const exitTopCenterY = this.floorY + exitElH + exitTopH / 2;
+
+    this.addTiledWall(
+      exitElW,
+      exitTopH,
+      new THREE.Vector3(0, exitTopCenterY, backZ),
+      new THREE.Vector3(0, 0, 0),
+      1.25,
+      0,
     );
 
     // ПЕРЕДНЯЯ СТЕНА С ПРОЁМОМ ПОД СТАРТОВЫЙ ЛИФТ
@@ -1152,12 +1215,18 @@ export class LevelBuilder {
     // Полка-цель в правом углу комнаты.
     this.buildRoom2GoalShelfVisual();
 
-    // Перегородка, промежуточная дверь и её индикатор
-    // больше не создаются. После решения головоломки
-    // разблокируется непосредственно выходной лифт.
+    // === НОВЫЙ ВЫХОДНОЙ ЛИФТ КОМНАТЫ 2 → 3 ===
+    // Стоит по центру дальней стены.
+    // Кабина уходит наружу комнаты по -Z.
+    this.room2ExitElevator = this.createRoomElevator({
+      id: "room2_exit",
+      name: "Room2ExitElevator",
 
-    // Ставим выходной лифт на правой стене ближе к дальнему углу.
-    this.buildRoom2ExitElevatorVisual();
+      wall: "back",
+
+      x: 0,
+      z: backZ,
+    });
   }
 
   getRoom2GoalShelfConfig() {
@@ -1756,11 +1825,11 @@ export class LevelBuilder {
       cabinW: 7.5,
       cabinH: 10.0,
 
-      doorColor: 0x202426,
+     doorColor: 0xdcdcdc,
       seamColor: 0x121517,
       frameColor: 0x333333,
 
-      cabinWallColor: 0x6f777c,
+     cabinWallColor: 0xffffff,
       cabinFloorColor: 0x4b5256,
       cabinCeilingColor: 0x1c2730,
     };
@@ -1786,12 +1855,24 @@ export class LevelBuilder {
         metalness: 0.9,
       }),
 
-      cabinWallMat: new THREE.MeshStandardMaterial({
-        color: style.cabinWallColor,
-        roughness: 0.58,
-        metalness: 0.32,
-      }),
+    cabinSideWallMat: new THREE.MeshStandardMaterial({
+  color: style.cabinWallColor,
+  roughness: 0.58,
+  metalness: 0.32,
 
+  // Точно как у центральной кабины
+  emissive: 0x24282b,
+  emissiveIntensity: 0.18,
+}),
+
+cabinBackWallMat: new THREE.MeshStandardMaterial({
+  color: style.cabinWallColor,
+  roughness: 0.58,
+  metalness: 0.32,
+
+  emissive: 0x6f777c,
+  emissiveIntensity: 0.32,
+}),
       cabinFloorMat: new THREE.MeshStandardMaterial({
         color: style.cabinFloorColor,
         roughness: 0.72,
@@ -1828,7 +1909,7 @@ export class LevelBuilder {
     //
     // back:
     //   дальняя стена
-    //   кабина уходит по +Z
+    //   кабина уходит наружу комнаты по -Z
     //   створки ездят по X
 
     if (wall === "right") {
@@ -1867,7 +1948,7 @@ export class LevelBuilder {
     if (wall === "back") {
       return {
         wall,
-        normal: new THREE.Vector3(0, 0, 1),
+        normal: new THREE.Vector3(0, 0, -1),
         slide: new THREE.Vector3(1, 0, 0),
         slideAxis: "x",
         depthAxis: "z",
@@ -2015,60 +2096,159 @@ export class LevelBuilder {
       true,
     );
 
-    addBoxMesh(
-      `${config.id}_side_a`,
-      style.cabinDepth,
-      style.cabinH,
-      0.08,
-      cabinCenterOffset,
-      -style.cabinW / 2,
-      cabinY,
-      materials.cabinWallMat,
-      true,
-    );
+// === ФИЗИКА КАБИНЫ ===
+
+const addCabinPhysics = (
+  normalSize,
+  height,
+  slideSize,
+  normalOffset,
+  slideOffset,
+  y,
+) => {
+  const body = new CANNON.Body({
+    mass: 0,
+    material: this.matStandard,
+    collisionFilterGroup: CONFIG.PHYSICS.GROUPS.SCENE,
+    collisionFilterMask:
+      CONFIG.PHYSICS.GROUPS.OBJECTS |
+      CONFIG.PHYSICS.GROUPS.TINY,
+  });
+
+  body.addShape(
+    new CANNON.Box(
+      makeCannonHalfExtents(
+        normalSize,
+        height,
+        slideSize,
+      ),
+    ),
+  );
+
+  body.position.copy(
+    makePos(
+      normalOffset,
+      slideOffset,
+      y,
+    ),
+  );
+
+  this.addBody(body);
+
+  return body;
+};
+
+// Пол кабины
+addCabinPhysics(
+  style.cabinDepth,
+  0.08,
+  style.cabinW,
+  cabinCenterOffset,
+  0,
+  this.floorY + 0.04,
+);
+
+// Левая боковая стенка
+addCabinPhysics(
+  style.cabinDepth,
+  style.cabinH,
+  0.08,
+  cabinCenterOffset,
+  -style.cabinW / 2,
+  cabinY,
+);
+
+// Правая боковая стенка
+addCabinPhysics(
+  style.cabinDepth,
+  style.cabinH,
+  0.08,
+  cabinCenterOffset,
+  style.cabinW / 2,
+  cabinY,
+);
+
+// Задняя стенка
+addCabinPhysics(
+  0.08,
+  style.cabinH,
+  style.cabinW,
+  cabinBackOffset,
+  0,
+  cabinY,
+);
 
     addBoxMesh(
-      `${config.id}_side_b`,
-      style.cabinDepth,
-      style.cabinH,
-      0.08,
-      cabinCenterOffset,
-      style.cabinW / 2,
-      cabinY,
-      materials.cabinWallMat,
-      true,
-    );
+  `${config.id}_side_a`,
+  style.cabinDepth,
+  style.cabinH,
+  0.08,
+  cabinCenterOffset,
+  -style.cabinW / 2,
+  cabinY,
+  materials.cabinSideWallMat,
+  true,
+);
 
-    addBoxMesh(
-      `${config.id}_back_wall`,
-      0.08,
-      style.cabinH,
-      style.cabinW,
-      cabinBackOffset,
-      0,
-      cabinY,
-      materials.cabinWallMat,
-      true,
-    );
+addBoxMesh(
+  `${config.id}_side_b`,
+  style.cabinDepth,
+  style.cabinH,
+  0.08,
+  cabinCenterOffset,
+  style.cabinW / 2,
+  cabinY,
+  materials.cabinSideWallMat,
+  true,
+);
 
-    // Небольшая внутренняя лампа, чтобы боковые/дальние лифты
-    // не выглядели темнее центрального.
-    const cabinLight = new THREE.PointLight(0xffffff, 1.0, 12);
-    cabinLight.position.copy(
-      makePos(style.cabinDepth * 0.45, 0, this.floorY + style.cabinH - 1.1),
-    );
-    group.add(cabinLight);
+   addBoxMesh(
+  `${config.id}_back_wall`,
+  0.08,
+  style.cabinH,
+  style.cabinW,
+  cabinBackOffset,
+  0,
+  cabinY,
+  materials.cabinBackWallMat,
+  true,
+);
 
-    const cabinLamp = new THREE.Mesh(
-      makeBoxGeometry(0.08, 0.08, 2.8),
-      new THREE.MeshStandardMaterial({
-        color: 0xffffff,
-        emissive: 0xffffff,
-        emissiveIntensity: 1.0,
-        roughness: 0.2,
-        metalness: 0.0,
-      }),
-    );
+   // === ОСВЕЩЕНИЕ КАБИНЫ ===
+// То же RectAreaLight, что используется в центральном лифте.
+const cabinLight = new THREE.RectAreaLight(
+  0xfff0dd,
+  4.0,
+  3.2,
+  3.2,
+);
+
+cabinLight.name = `${config.id}_Light`;
+
+cabinLight.position.copy(
+  makePos(
+    style.cabinDepth * 0.45,
+    0,
+    this.floorY + style.cabinH - 0.12,
+  ),
+);
+
+// RectAreaLight направлен вертикально вниз.
+cabinLight.rotation.x = -Math.PI / 2;
+
+group.add(cabinLight);
+
+const cabinLamp = new THREE.Mesh(
+  new THREE.BoxGeometry(2.8, 0.08, 2.8),
+  new THREE.MeshStandardMaterial({
+    color: 0xffffff,
+    emissive: 0xffffff,
+    emissiveIntensity: 1.0,
+    roughness: 0.2,
+    metalness: 0.0,
+  }),
+);   
+
     cabinLamp.position.copy(
       makePos(style.cabinDepth * 0.45, 0, this.floorY + style.cabinH - 0.08),
     );
@@ -2304,6 +2484,73 @@ export class LevelBuilder {
 
     this.registerMesh(group);
 
+if (config.id === "room2_exit") {
+  this.scene.updateMatrixWorld(true);
+
+  const centralPos = new THREE.Vector3(
+    0,
+    4.88,
+    11.25,
+  );
+
+  const newExitPos = new THREE.Vector3(
+    0,
+    4.88,
+    -39.75,
+  );
+
+  const lights = [];
+
+  this.scene.traverse((obj) => {
+    if (!obj.isLight) return;
+
+    const worldPos = new THREE.Vector3();
+    obj.getWorldPosition(worldPos);
+
+    lights.push({
+      name: obj.name || "(no name)",
+      type: obj.type,
+      intensity: obj.intensity,
+      visible: obj.visible,
+
+      worldPosition: worldPos.toArray(),
+
+      distanceToCentral:
+        worldPos.distanceTo(centralPos),
+
+      distanceToNewExit:
+        worldPos.distanceTo(newExitPos),
+
+      parent:
+        obj.parent?.name || "(no name)",
+    });
+  });
+
+  console.log(
+    "============ ALL LIGHTS NEAR ELEVATORS ============",
+  );
+
+  console.table(
+    lights
+      .filter(
+        (light) =>
+          light.distanceToCentral < 12 ||
+          light.distanceToNewExit < 12,
+      )
+      .sort(
+        (a, b) =>
+          Math.min(
+            a.distanceToCentral,
+            a.distanceToNewExit,
+          ) -
+          Math.min(
+            b.distanceToCentral,
+            b.distanceToNewExit,
+          ),
+      ),
+  );
+}
+
     return {
       id: config.id,
       group,
@@ -2313,362 +2560,189 @@ export class LevelBuilder {
     };
   }
 
-  buildRoom2ExitElevatorVisual() {
-    // Финальный лифт уровня 2.
-    // Пока это отдельная система дверей, не связанная с центральным лифтом.
-    // Лифт стоит на правой стене, поэтому створки разъезжаются вдоль оси Z.
-
-    const exitX = 14.75; // Сдвигаем лифт чуть глубже в проём, чтобы он не выступал в комнату
-    const exitZ = -31.35; // Ближе к дальнему правому углу
-    // ВАЖНО:
-    // doorTotalW — это ширина самих створок/внутреннего проёма.
-    // Снаружи к ней ещё добавляется рама.
-    // Чтобы ВЕСЬ лифт вместе с рамой занимал ровно 3 плитки = 7.5,
-    // сами створки делаем чуть уже.
-    const doorTotalW = 7.5; // ровно 3 плитки, как у центрального лифта
-    const doorH = 10.0;
-    const doorD = 0.35;
-    const doorY = this.floorY + doorH / 2;
-
+  createRoom2ExitCabinVisual({
+    parent,
+    frontX,
+    centerZ,
+    depth = 5.0,
+    width = 7.5,
+    height = 10.0,
+  }) {
     const group = new THREE.Group();
-    group.name = "Room2ExitElevatorVisual";
+    group.name = "Room2ExitCabin";
 
-    // Локальная подсветка кабины, чтобы она выглядела так же,
-    // как остальные 3 лифта, а не тёмной шахтой.
-    const cabinLight = new THREE.PointLight(0xffffff, 1.15, 12);
-    cabinLight.position.set(exitX + 2.2, this.floorY + 8.8, exitZ);
-    group.add(cabinLight);
+    const centerX = frontX + depth / 2;
+    const centerY = this.floorY + height / 2;
+    const backX = frontX + depth;
 
-    const cabinLamp = new THREE.Mesh(
-      new THREE.BoxGeometry(2.8, 0.08, 2.8),
-      new THREE.MeshStandardMaterial({
-        color: 0xffffff,
-        emissive: 0xffffff,
-        emissiveIntensity: 1.1,
-        roughness: 0.2,
-        metalness: 0.0,
-      }),
-    );
-    cabinLamp.position.set(exitX + 2.2, this.floorY + doorH - 0.08, exitZ);
-    group.add(cabinLamp);
+    const wallThickness = 0.08;
+    const floorThickness = 0.08;
+    const ceilingThickness = 0.08;
 
-    const doorMat = new THREE.MeshStandardMaterial({
-      // Светлые створки, как у остальных лифтов.
-      color: 0xdcdcdc,
-      roughness: 0.55,
-      metalness: 0.35,
-    });
+    // === МАТЕРИАЛЫ ===
 
-    const seamMat = new THREE.MeshStandardMaterial({
-      color: 0x121517,
-      roughness: 0.8,
-      metalness: 0.15,
-    });
-
-    const frameMat = new THREE.MeshStandardMaterial({
-      color: 0x333333,
-      roughness: 0.5,
-      metalness: 0.9,
-    });
-
-    const shaftMat = new THREE.MeshStandardMaterial({
-      color: 0x050505,
-      roughness: 0.9,
-      metalness: 0.0,
-    });
-
-    // === МЕТАЛЛИЧЕСКАЯ КАБИНА ФИНАЛЬНОГО ЛИФТА 2 → 3 ===
-    // Лифт стоит на правой стене, поэтому глубина кабины идёт по оси X.
-
-    const cabinDepth = 5.0;
-    const cabinW = doorTotalW;
-    const cabinH = doorH;
-
-    const cabinCenterX = exitX + cabinDepth / 2;
-    const cabinBackX = exitX + cabinDepth;
-    const cabinY = doorY;
-
-    const cabinWallMat = new THREE.MeshStandardMaterial({
+    const sideWallMat = new THREE.MeshStandardMaterial({
       color: 0x6f777c,
       roughness: 0.58,
       metalness: 0.32,
+      emissive: 0x24282b,
+      emissiveIntensity: 0.18,
     });
 
-    const cabinFloorMat = new THREE.MeshStandardMaterial({
+    const backWallMat = new THREE.MeshStandardMaterial({
+      color: 0x6f777c,
+      roughness: 0.58,
+      metalness: 0.32,
+      emissive: 0x6f777c,
+      emissiveIntensity: 0.32,
+    });
+
+    const floorMat = new THREE.MeshStandardMaterial({
       color: 0x4b5256,
       roughness: 0.72,
       metalness: 0.22,
     });
 
-    const cabinCeilingMat = new THREE.MeshStandardMaterial({
+    const ceilingMat = new THREE.MeshStandardMaterial({
       color: 0x1c2730,
       roughness: 0.65,
       metalness: 0.2,
     });
 
-    const addCameraWall = (mesh) => {
-      if (this.sceneManager && Array.isArray(this.sceneManager.walls)) {
-        this.sceneManager.walls.push({
-          mesh,
-          isElevatorCabinWall: true,
-          skipMaterialUpdate: true,
-        });
-      }
-    };
+    const lampMat = new THREE.MeshStandardMaterial({
+      color: 0xffffff,
+      emissive: 0xffffff,
+      emissiveIntensity: 1.1,
+      roughness: 0.2,
+      metalness: 0.0,
+    });
 
-    const addCabinBox = (
+    const addPart = ({
       name,
       geometry,
       position,
       material,
       cameraWall = true,
-    ) => {
+    }) => {
       const mesh = new THREE.Mesh(geometry, material);
+
       mesh.name = name;
       mesh.position.copy(position);
+
       mesh.castShadow = false;
       mesh.receiveShadow = true;
       mesh.userData.skipWallMaterialUpdate = true;
 
       group.add(mesh);
 
-      if (cameraWall) {
-        addCameraWall(mesh);
+      if (
+        cameraWall &&
+        this.sceneManager &&
+        Array.isArray(this.sceneManager.walls)
+      ) {
+        this.sceneManager.walls.push({
+          mesh,
+          isElevatorCabinWall: true,
+          skipMaterialUpdate: true,
+        });
       }
 
       return mesh;
     };
 
-    // Пол кабины
-    addCabinBox(
-      "Room2ExitElevatorFloor",
-      new THREE.BoxGeometry(cabinDepth, 0.08, cabinW),
-      new THREE.Vector3(cabinCenterX, this.floorY + 0.04, exitZ),
-      cabinFloorMat,
-      false,
-    );
+    // === ПОЛ ===
 
-    // Потолок кабины
-    addCabinBox(
-      "Room2ExitElevatorCeiling",
-      new THREE.BoxGeometry(cabinDepth, 0.08, cabinW),
-      new THREE.Vector3(cabinCenterX, this.floorY + cabinH - 0.04, exitZ),
-      cabinCeilingMat,
-      true,
-    );
-
-    // Нижняя/верхняя боковая стенка кабины по Z
-    addCabinBox(
-      "Room2ExitElevatorSideA",
-      new THREE.BoxGeometry(cabinDepth, cabinH, 0.08),
-      new THREE.Vector3(cabinCenterX, cabinY, exitZ - cabinW / 2),
-      cabinWallMat,
-      true,
-    );
-
-    addCabinBox(
-      "Room2ExitElevatorSideB",
-      new THREE.BoxGeometry(cabinDepth, cabinH, 0.08),
-      new THREE.Vector3(cabinCenterX, cabinY, exitZ + cabinW / 2),
-      cabinWallMat,
-      true,
-    );
-
-    // Задняя стенка кабины
-    addCabinBox(
-      "Room2ExitElevatorBackWall",
-      new THREE.BoxGeometry(0.08, cabinH, cabinW),
-      new THREE.Vector3(cabinBackX, cabinY, exitZ),
-      cabinWallMat,
-      true,
-    );
-
-    // === РАМА И ДВЕРИ ФИНАЛЬНОГО ЛИФТА 2 → 3 ===
-    const frameX = exitX + 0.32;
-    const doorX = exitX + 0.325;
-
-    // === ПАРАМЕТРЫ РАМЫ И СТВОРОК ===
-    // Сам проём/двери остаются шириной 7.5,
-    // а верхняя и нижняя планки делаются шире — 8.1.
-    // Именно это даёт "усики", как у остальных лифтов.
-    const leafW = doorTotalW / 2;
-
-    const frameOuterW = 8.35;
-    const frameSideW = 0.6;
-    const frameThinH = 0.1;
-
-    // Центры боковых стоек — как у центрального лифта:
-    // doorTotalW / 2 = 3.75.
-    const frameSideOffset = doorTotalW / 2;
-
-    // Верхняя тонкая планка
-    const frameTop = new THREE.Mesh(
-      new THREE.BoxGeometry(0.3, frameThinH, frameOuterW),
-      frameMat,
-    );
-    frameTop.position.set(frameX, this.floorY + doorH - frameThinH / 2, exitZ);
-    group.add(frameTop);
-
-    // Нижняя тонкая планка
-    const frameBottom = new THREE.Mesh(
-      new THREE.BoxGeometry(0.3, frameThinH, frameOuterW),
-      frameMat,
-    );
-    frameBottom.position.set(frameX, this.floorY + frameThinH / 2, exitZ);
-    group.add(frameBottom);
-
-    // Левая боковая стойка
-    const frameA = new THREE.Mesh(
-      new THREE.BoxGeometry(0.3, doorH, frameSideW),
-      frameMat,
-    );
-    frameA.position.set(frameX, doorY, exitZ - frameSideOffset);
-    group.add(frameA);
-
-    // Правая боковая стойка
-    const frameB = new THREE.Mesh(
-      new THREE.BoxGeometry(0.3, doorH, frameSideW),
-      frameMat,
-    );
-    frameB.position.set(frameX, doorY, exitZ + frameSideOffset);
-    group.add(frameB);
-
-    const createExitLeaf = (side) => {
-      // side: -1 нижняя/левая по Z створка, 1 верхняя/правая по Z створка.
-      const leaf = new THREE.Mesh(
-        new THREE.BoxGeometry(doorD, doorH, leafW),
-        doorMat,
-      );
-
-      leaf.castShadow = true;
-      leaf.receiveShadow = true;
-      leaf.userData.skipWallMaterialUpdate = true;
-
-      // Закрытое положение: створки сходятся в центре.
-      const closedZ = exitZ + side * (leafW / 2);
-
-      // ВАЖНО:
-      // Теперь у боковых дверей тоже есть физическое тело,
-      // как у центрального лифта.
-      const body = new CANNON.Body({
-        mass: 0,
-        type: CANNON.Body.KINEMATIC,
-        material: this.matStandard,
-        collisionFilterGroup: CONFIG.PHYSICS.GROUPS.SCENE,
-        collisionFilterMask:
-          CONFIG.PHYSICS.GROUPS.OBJECTS | CONFIG.PHYSICS.GROUPS.TINY,
-      });
-
-      body.addShape(
-        new CANNON.Box(new CANNON.Vec3(doorD / 2, doorH / 2, leafW / 2)),
-      );
-
-      body.position.set(doorX, doorY, closedZ);
-      this.addBody(body);
-
-      leaf.position.copy(body.position);
-
-      // === ЧЁРНЫЙ ЦЕНТРАЛЬНЫЙ ШОВ ДЛЯ ДВЕРЕЙ, КОТОРЫЕ ЕДУТ ПО Z ===
-
-      const seamWidth = 0.08;
-      const seamHeight = doorH + 0.02;
-      const seamThickness = 0.012;
-
-      // У створки side = -1 внутренний край находится справа по локальному Z.
-      // У створки side = 1 внутренний край находится слева по локальному Z.
-      const isNegativeLeaf = side === -1;
-      const innerEdgeZ = isNegativeLeaf ? leafW / 2 : -leafW / 2;
-      const edgeDir = isNegativeLeaf ? 1 : -1;
-
-      // 2. Тонкие накладки на лицевой и обратной стороне двери.
-      // Для бокового лифта лицевая/обратная стороны идут по X.
-      const seamOffsetX = doorD / 2 + seamThickness / 2 + 0.003;
-
-      const createSeamStrip = (xOffset) => {
-        const strip = new THREE.Mesh(
-          new THREE.BoxGeometry(seamThickness, seamHeight, seamWidth),
-          seamMat,
-        );
-
-        strip.position.set(
-          xOffset,
-          0,
-          innerEdgeZ - edgeDir * (seamWidth / 2 - 0.01),
-        );
-
-        strip.castShadow = true;
-        strip.receiveShadow = true;
-        leaf.add(strip);
-      };
-
-      // Оставляем только тонкие швы,
-      // без толстой чёрной торцевой вставки.
-      createSeamStrip(-seamOffsetX);
-      createSeamStrip(seamOffsetX);
-      group.add(leaf);
-
-      // Камера тоже должна считать эти двери препятствием,
-      // как двери центрального лифта.
-      if (this.sceneManager && Array.isArray(this.sceneManager.walls)) {
-        this.sceneManager.walls.push({
-          mesh: leaf,
-          isElevatorDoor: true,
-          skipMaterialUpdate: true,
-        });
-      }
-
-      return {
-        mesh: leaf,
-        body,
-        side,
-        closedZ,
-      };
-    };
-    this.room2ExitDoorA = createExitLeaf(-1);
-    this.room2ExitDoorB = createExitLeaf(1);
-
-    // Временно оставляем старые поля, чтобы не сломать другой код,
-    // но управление дверями теперь будет идти через roomElevators.
-    this.room2ExitOpenState = 0.0;
-    this.targetRoom2ExitOpenState = 0.0;
-
-    this.registerRoomElevator({
-      id: "room2_exit",
-
-      // Лифт стоит на правой стене,
-      // поэтому створки разъезжаются вдоль оси Z.
-      slideAxis: "z",
-      slideDistance: 3.4,
-
-      openState: 0.0,
-      targetOpenState: 0.0,
-
-      leaves: [
-        {
-          mesh: this.room2ExitDoorA.mesh,
-          body: this.room2ExitDoorA.body,
-          side: -1,
-          closedPosition: this.room2ExitDoorA.closedZ,
-        },
-        {
-          mesh: this.room2ExitDoorB.mesh,
-          body: this.room2ExitDoorB.body,
-          side: 1,
-          closedPosition: this.room2ExitDoorB.closedZ,
-        },
-      ],
+    addPart({
+      name: "Room2ExitCabin_Floor",
+      geometry: new THREE.BoxGeometry(depth, floorThickness, width),
+      position: new THREE.Vector3(
+        centerX,
+        this.floorY + floorThickness / 2,
+        centerZ,
+      ),
+      material: floorMat,
+      cameraWall: false,
     });
 
-    group.traverse((obj) => {
-      if (obj.isMesh) {
-        obj.castShadow = true;
-        obj.receiveShadow = true;
-      }
+    // === ПОТОЛОК ===
+
+    addPart({
+      name: "Room2ExitCabin_Ceiling",
+      geometry: new THREE.BoxGeometry(depth, ceilingThickness, width),
+      position: new THREE.Vector3(
+        centerX,
+        this.floorY + height - ceilingThickness / 2,
+        centerZ,
+      ),
+      material: ceilingMat,
     });
 
-    this.room2ExitElevatorGroup = group;
-    this.registerMesh(group);
+    // === БОКОВЫЕ СТЕНЫ ===
+    //
+    // Кабина идёт вдоль X.
+    // Поэтому боковины стоят по Z.
+
+    addPart({
+      name: "Room2ExitCabin_SideA",
+      geometry: new THREE.BoxGeometry(depth, height, wallThickness),
+      position: new THREE.Vector3(centerX, centerY, centerZ - width / 2),
+      material: sideWallMat,
+    });
+
+    addPart({
+      name: "Room2ExitCabin_SideB",
+      geometry: new THREE.BoxGeometry(depth, height, wallThickness),
+      position: new THREE.Vector3(centerX, centerY, centerZ + width / 2),
+      material: sideWallMat,
+    });
+
+    // === ЗАДНЯЯ СТЕНА ===
+    //
+    // Передняя сторона на x = frontX остаётся открытой:
+    // там находятся двери.
+    //
+    // Дальний торец — x = backX.
+
+    addPart({
+      name: "Room2ExitCabin_BackWall",
+      geometry: new THREE.BoxGeometry(wallThickness, height, width),
+      position: new THREE.Vector3(backX - wallThickness / 2, centerY, centerZ),
+      material: backWallMat,
+    });
+
+    // === СВЕТИЛЬНИК ===
+
+    const lamp = new THREE.Mesh(new THREE.BoxGeometry(2.8, 0.08, 2.8), lampMat);
+
+    lamp.name = "Room2ExitCabin_Lamp";
+
+    lamp.position.set(centerX, this.floorY + height - 0.08, centerZ);
+
+    lamp.userData.skipWallMaterialUpdate = true;
+
+    group.add(lamp);
+
+    // === РЕАЛЬНЫЙ СВЕТ ===
+    //
+    // Такой же тип, цвет и интенсивность,
+    // как у центральной кабины.
+
+    const light = new THREE.RectAreaLight(0xfff0dd, 4.0, 3.2, 3.2);
+
+    light.name = "Room2ExitCabin_Light";
+
+    light.position.set(centerX, this.floorY + height - 0.12, centerZ);
+
+    light.rotation.x = -Math.PI / 2;
+
+    group.add(light);
+
+    parent.add(group);
+
+    return group;
   }
+
+ 
 
   buildThirdRoom() {
     // Черновик уровня 3:
@@ -3079,96 +3153,57 @@ export class LevelBuilder {
     // Левая стена с физическим отверстием под белый кубик
     this.buildRoom2LeftWallWithSocketPhysics(wallH, wallCenterY);
 
-    // Правая стена комнаты №2 с физическим проёмом под финальный лифт 2 → 3.
-    // Визуальный проём уже есть в buildSecondRoom(), теперь делаем такой же проём в коллизиях.
-    const exitDoorZ = -31.15; //
-    const exitDoorW = 7.5; //
+    // ПРАВАЯ СТЕНА КОМНАТЫ №2
+    // Старого бокового физического проёма больше нет.
+    this.createPhysicsWall(16, wallCenterY, centerZ, 1, wallH / 2, roomD / 2);
 
-    const exitDoorZMin = exitDoorZ - exitDoorW / 2; // -34.75
-    const exitDoorZMax = exitDoorZ + exitDoorW / 2; // -27.25
+  // === ДАЛЬНЯЯ ФИЗИЧЕСКАЯ СТЕНА С ПРОЁМОМ ПОД НОВЫЙ ЛИФТ ===
 
-    // Участок правой стены от стартовой стороны комнаты до проёма.
-    const rightWallFrontLen = frontZ - exitDoorZMax;
-    const rightWallFrontCenterZ = (frontZ + exitDoorZMax) / 2;
+const exitElW = 7.5;
+const exitElH = 10.0;
 
-    this.createPhysicsWall(
-      16,
-      wallCenterY,
-      rightWallFrontCenterZ,
-      1,
-      wallH / 2,
-      rightWallFrontLen / 2,
-    );
+const exitSideW = (roomW - exitElW) / 2;
 
-    // Участок правой стены от проёма до дальней стены.
-    const rightWallBackLen = exitDoorZMin - backZ;
-    const rightWallBackCenterZ = (exitDoorZMin + backZ) / 2;
+const exitLeftX =
+  -(exitElW / 2) - exitSideW / 2;
 
-    this.createPhysicsWall(
-      16,
-      wallCenterY,
-      rightWallBackCenterZ,
-      1,
-      wallH / 2,
-      rightWallBackLen / 2,
-    );
+const exitRightX =
+  exitElW / 2 + exitSideW / 2;
 
-    // Дальняя стена с физическим отверстием под нишу-цель.
-    this.createPhysicsWall(0, wallCenterY, backZ - 1, roomW / 2, wallH / 2, 1); // Дальняя
+// Левая часть дальней стены
+this.createPhysicsWall(
+  exitLeftX,
+  wallCenterY,
+  backZ - 1,
+  exitSideW / 2,
+  wallH / 2,
+  1,
+);
 
-    // === ФИЗИКА КАБИНЫ ФИНАЛЬНОГО ЛИФТА 2 → 3 ===
-    // Кабина стоит за правой стеной комнаты, глубина идёт по оси X.
-    const room2ExitX = 14.75;
-    const room2ExitZ = -31.15;
-    const room2ExitDepth = 5.0;
-    const room2ExitW = 7.5;
+// Правая часть дальней стены
+this.createPhysicsWall(
+  exitRightX,
+  wallCenterY,
+  backZ - 1,
+  exitSideW / 2,
+  wallH / 2,
+  1,
+);
 
-    const room2ExitCenterX = room2ExitX + room2ExitDepth / 2;
-    const room2ExitBackX = room2ExitX + room2ExitDepth;
+// Верхняя перемычка над проёмом
+const exitTopH = wallH - exitElH;
 
-    // Пол кабины
-    const room2ExitFloorBody = new CANNON.Body({
-      mass: 0,
-      material: this.matStandard,
-    });
-    room2ExitFloorBody.addShape(
-      new CANNON.Box(new CANNON.Vec3(room2ExitDepth / 2, 10, room2ExitW / 2)),
-    );
-    room2ExitFloorBody.position.set(
-      room2ExitCenterX,
-      this.floorY - 10,
-      room2ExitZ,
-    );
-    this.addBody(room2ExitFloorBody);
+const exitTopCenterY =
+  this.floorY + exitElH + exitTopH / 2;
 
-    // Боковые стенки кабины по Z
-    this.createPhysicsWall(
-      room2ExitCenterX,
-      wallCenterY,
-      room2ExitZ - room2ExitW / 2,
-      room2ExitDepth / 2,
-      wallH / 2,
-      0.1,
-    );
-
-    this.createPhysicsWall(
-      room2ExitCenterX,
-      wallCenterY,
-      room2ExitZ + room2ExitW / 2,
-      room2ExitDepth / 2,
-      wallH / 2,
-      0.1,
-    );
-
-    // Задняя стенка кабины по X
-    this.createPhysicsWall(
-      room2ExitBackX,
-      wallCenterY,
-      room2ExitZ,
-      0.1,
-      wallH / 2,
-      room2ExitW / 2,
-    );
+this.createPhysicsWall(
+  0,
+  exitTopCenterY,
+  backZ - 1,
+  exitElW / 2,
+  exitTopH / 2,
+  1,
+);
 
     // Полка-цель в правом углу комнаты
     this.buildRoom2GoalShelfPhysics();
@@ -3293,6 +3328,74 @@ export class LevelBuilder {
     );
   }
 
+  createElevatorFrameVisual({
+    name,
+    position,
+    rotationY = 0,
+    frameMat,
+    shaftMat,
+    parent = this.scene,
+  }) {
+    const doorH = 10.0;
+    const doorY = this.floorY + doorH / 2;
+
+    const frameGroup = new THREE.Group();
+    frameGroup.name = name;
+
+    // Все детали создаются в локальных координатах.
+    // Благодаря этому всю конструкцию можно целиком
+    // перемещать и поворачивать как один объект.
+
+    const left = new THREE.Mesh(
+      new THREE.BoxGeometry(0.6, 10.0, 0.3),
+      frameMat,
+    );
+    left.position.set(-3.75, doorY, 0);
+
+    const right = new THREE.Mesh(
+      new THREE.BoxGeometry(0.6, 10.0, 0.3),
+      frameMat,
+    );
+    right.position.set(3.75, doorY, 0);
+
+    const top = new THREE.Mesh(new THREE.BoxGeometry(8.1, 0.1, 0.3), frameMat);
+    top.position.set(0, doorY + 4.95, 0);
+
+    const bottom = new THREE.Mesh(
+      new THREE.BoxGeometry(8.1, 0.1, 0.3),
+      frameMat,
+    );
+    bottom.position.set(0, this.floorY + 0.05, 0);
+
+    // Чёрные полосы за верхней и нижней частями рамы.
+    const floorHole = new THREE.Mesh(
+      new THREE.BoxGeometry(8.1, 0.08, 0.5),
+      shaftMat,
+    );
+    floorHole.position.set(0, this.floorY + 0.04, 0);
+
+    const ceilingHole = new THREE.Mesh(
+      new THREE.BoxGeometry(8.1, 0.08, 0.5),
+      shaftMat,
+    );
+    ceilingHole.position.set(0, doorY + 4.95, 0);
+
+    [left, right, top, bottom, floorHole, ceilingHole].forEach((mesh) => {
+      mesh.castShadow = true;
+      mesh.receiveShadow = true;
+      mesh.userData.skipWallMaterialUpdate = true;
+
+      frameGroup.add(mesh);
+    });
+
+    frameGroup.position.copy(position);
+    frameGroup.rotation.y = rotationY;
+
+    parent.add(frameGroup);
+
+    return frameGroup;
+  }
+
   buildElevatorDoors() {
     const doorW = 3.8;
     const doorH = 10.0;
@@ -3302,13 +3405,11 @@ export class LevelBuilder {
     const zEntrance = 14.3;
     const zExit = 8.2;
 
-    const doorMat = new THREE.MeshStandardMaterial({
-      // Не абсолютно чёрный, чтобы дверь не сливалась с пустотой,
-      // но достаточно тёмный для технического лифта.
-      color: 0x202426,
-      roughness: 0.55,
-      metalness: 0.35,
-    });
+  const doorMat = new THREE.MeshStandardMaterial({
+  color: 0xdcdcdc,
+  roughness: 0.55,
+  metalness: 0.35,
+});
 
     const seamMat = new THREE.MeshStandardMaterial({
       color: 0x121517,
@@ -3335,78 +3436,24 @@ export class LevelBuilder {
       metalness: 0.9,
     });
 
-    const createFrame = (zPos, frameZ = zPos + 0.4) => {
-      const frameGroup = new THREE.Group();
-
-      const buildHalfFrame = (zOffset) => {
-        const left = new THREE.Mesh(
-          new THREE.BoxGeometry(0.6, 10, 0.3),
-          frameMat,
-        );
-        left.position.set(-3.75, doorY, zOffset);
-
-        const right = new THREE.Mesh(
-          new THREE.BoxGeometry(0.6, 10, 0.3),
-          frameMat,
-        );
-        right.position.set(3.75, doorY, zOffset);
-
-        const top = new THREE.Mesh(
-          new THREE.BoxGeometry(8.1, 0.1, 0.3),
-          frameMat,
-        );
-        top.position.set(0, doorY + 4.95, zOffset);
-
-        const bottom = new THREE.Mesh(
-          new THREE.BoxGeometry(8.1, 0.1, 0.3),
-          frameMat,
-        );
-        bottom.position.set(0, this.floorY + 0.05, zOffset);
-
-        [left, right, top, bottom].forEach((m) => {
-          m.castShadow = true;
-          m.receiveShadow = true;
-          frameGroup.add(m);
-        });
-      };
-
-      // Теперь позицию визуальной рамы можно задавать отдельно.
-      // Для входа 1-го уровня оставим старое положение.
-      // Для стартового лифта уровней 2/3 вынесем раму ближе к стене комнаты.
-      buildHalfFrame(frameZ);
-
-      // === ИЛЛЮЗИЯ ШАХТЫ / ЧЁРНЫЙ КАНТ ===
-      // Привязываем его к той же глубине, что и визуальную раму,
-      // чтобы сверху/снизу не появлялась отдельная щель.
-      const floorHole = new THREE.Mesh(
-        new THREE.BoxGeometry(8.1, 0.08, 0.5),
-        shaftMat,
-      );
-      floorHole.position.set(0, this.floorY + 0.04, frameZ);
-      frameGroup.add(floorHole);
-
-      const ceilingHole = new THREE.Mesh(
-        new THREE.BoxGeometry(8.1, 0.08, 0.5),
-        shaftMat,
-      );
-      ceilingHole.position.set(0, doorY + 4.95, frameZ);
-      frameGroup.add(ceilingHole);
-
-      this.scene.add(frameGroup);
-      return frameGroup;
-    };
-
     // Создаем рамы.
+    this.entranceFrame = this.createElevatorFrameVisual({
+      name: "ElevatorEntranceFrame",
+      position: new THREE.Vector3(0, 0, 14.78),
+      rotationY: 0,
+      frameMat,
+      shaftMat,
+      parent: this.scene,
+    });
 
-    // Входная сторона — это финишный лифт 1-й комнаты.
-    // Передняя стена первой комнаты стоит на z = 15.
-    // Делаем такой же отступ внутрь проёма, как у стартового лифта 2/3.
-    this.entranceFrame = createFrame(zEntrance, 14.78);
-
-    // Выходная сторона — это стартовый лифт уровней 2/3.
-    // Передняя стена комнат 2/3 стоит на z = 7.5.
-    // Этот вариант уже проверен и выглядит аккуратно.
-    this.exitFrame = createFrame(zExit, 7.72);
+    this.exitFrame = this.createElevatorFrameVisual({
+      name: "ElevatorExitFrame",
+      position: new THREE.Vector3(0, 0, 7.72),
+      rotationY: 0,
+      frameMat,
+      shaftMat,
+      parent: this.scene,
+    });
 
     const createDoorLeaf = (side, zPos) => {
       const mesh = new THREE.Mesh(
@@ -3519,16 +3566,14 @@ export class LevelBuilder {
     this.exitLeft = createDoorLeaf("left", zExit);
     this.exitRight = createDoorLeaf("right", zExit);
 
-    const elevatorBackWallMat = new THREE.MeshStandardMaterial({
-      color: 0x6f777c,
-      roughness: 0.58,
-      metalness: 0.32,
+    const elevatorBackWallMat =
+      this.mainElevatorCabinVisual?.userData?.backWallMaterial;
 
-      // Важно: не DoubleSide.
-      // Стенка должна быть видна только изнутри кабины,
-      // чтобы снаружи/сверху камера не видела огромную серую панель.
-      side: THREE.FrontSide,
-    });
+    if (!elevatorBackWallMat) {
+      throw new Error(
+        "[ELEVATOR] Main cabin wall material was not created before the doors.",
+      );
+    }
 
     // Глухие металлические стенки кабины.
     // Это односторонние плоскости, видимые только изнутри лифта.
@@ -3862,16 +3907,6 @@ export class LevelBuilder {
     this.closeElevator("main_exit");
   }
 
-  openRoom2Exit() {
-    this.targetRoom2ExitOpenState = 1.0;
-    this.openElevator("room2_exit");
-  }
-
-  closeRoom2Exit() {
-    this.targetRoom2ExitOpenState = 0.0;
-    this.closeElevator("room2_exit");
-  }
-
   updateDoors(dt) {
     this.syncPushableObjects();
     this.updateRoom2Puzzle();
@@ -3919,13 +3954,6 @@ export class LevelBuilder {
     // Пока сюда попадает только финальный лифт уровня 2.
     // Позже здесь будут обновляться room2_entry, room2_exit, room3_entry и т.д.
     this.updateRoomElevators(dt, doorSpeed);
-
-    // Синхронизация старого поля для временной совместимости.
-    // Потом это поле можно будет удалить.
-    const room2ExitElevator = this.roomElevators?.get("room2_exit");
-    if (room2ExitElevator) {
-      this.room2ExitOpenState = room2ExitElevator.openState;
-    }
   }
 
   buildLightingPanels() {
@@ -4006,30 +4034,28 @@ export class LevelBuilder {
     ];
 
     // Позиции для ВТОРОЙ комнаты.
-    // Комната 2 теперь длиннее: от z = 7.5 до z = -37.5.
-    // Поэтому лампы ставим симметрично:
-    // передний ряд на z = 0 — 7.5 метров от передней стены,
-    // дальний ряд на z = -30 — 7.5 метров от дальней стены.
     const room2Pos = [
-      // Основная квадратная часть второй комнаты (30x30)
+      // Ближний ряд основной части комнаты
       { x: -7.5, z: -7.5 },
       { x: 7.5, z: -7.5 },
 
-      // Одна лампа в коридоре к лифту 2 -> 3
-      { x: 2.5, z: -31.25 },
+      // Дальний ряд.
+      // Коридора больше нет, поэтому снова используем
+      // две симметричные лампы на всю ширину комнаты.
+      { x: -7.5, z: -30.0 },
+      { x: 7.5, z: -30.0 },
     ];
 
-    // Запускаем создание ламп для обеих комнат
-    // Передаем true в конце, чтобы свет был включен (isCorridor = true)
-    room1Pos.forEach((pos) =>
-      this.sceneManager.corridorPanels.push(
-        createLightPanel(pos.x, this.ceilingY, pos.z, true),
-      ),
-    );
-    room2Pos.forEach((pos) =>
-      this.sceneManager.corridorPanels.push(
-        createLightPanel(pos.x, this.ceilingY, pos.z, true),
-      ),
-    );
+  room1Pos.forEach((pos) =>
+  this.sceneManager.corridorPanels.push(
+    createLightPanel(pos.x, this.ceilingY, pos.z, true),
+  ),
+);
+
+room2Pos.forEach((pos) =>
+  this.sceneManager.corridorPanels.push(
+    createLightPanel(pos.x, this.ceilingY, pos.z, true),
+  ),
+);
   }
 }

@@ -183,7 +183,6 @@ export class SceneManager {
     this.controls.saveState();
 
     this.walls = [];
-    this.discoSpots = [];
     this.labPanels = []; // <-- НОВАЯ СТРОКА: Хранилище для независимого управления лампами
     this._initResizeHandler();
   }
@@ -264,79 +263,15 @@ export class SceneManager {
     this.fillLight.position.set(10, 6, 8);
     this.dayLights.add(this.fillLight);
 
-    this.nightLights = new THREE.Group();
-    this.scene.add(this.nightLights);
-    const ledGeo = new THREE.BoxGeometry(0.2, 0.05, 0.2);
-    const ledMat = new THREE.MeshStandardMaterial({
-      color: 0xffffff,
-      emissive: 0xffffff,
-      emissiveIntensity: 3.5,
-      roughness: 0.9,
-      metalness: 0.1,
-    });
-    const ledStrip = new THREE.InstancedMesh(ledGeo, ledMat, 80 * 2 + 120);
-    ledStrip.instanceMatrix.setUsage(THREE.StaticDrawUsage);
-    const dummy = new THREE.Object3D();
-    let idx = 0;
-    const placeLedLine = (startX, startZ, endX, endZ, count) => {
-      for (let i = 0; i < count; i++) {
-        const t = i / (count - 1);
-        dummy.position.set(
-          startX + (endX - startX) * t,
-          CONFIG.WORLD.FLOOR_LEVEL + 0.03,
-          startZ + (endZ - startZ) * t,
-        );
-        dummy.rotation.set(0, 0, 0);
-        dummy.updateMatrix();
-        ledStrip.setMatrixAt(idx++, dummy.matrix);
-      }
-    };
-    placeLedLine(-14.7, -10.0, -14.7, 12.0, 80);
-    placeLedLine(14.7, -10.0, 14.7, 12.0, 80);
-    placeLedLine(-14.7, -10.0, 14.7, -10.0, 120);
-    this.nightLights.add(ledStrip);
-    this.nightLights.visible = false;
+ 
 
     this.labLampsGroup = new THREE.Group();
     this.scene.add(this.labLampsGroup);
-
-    this.discoLampsGroup = new THREE.Group();
-    this.scene.add(this.discoLampsGroup);
-    this.discoLampsGroup.visible = false;
 
     if (!this.corridorLampsGroup) {
       this.corridorLampsGroup = new THREE.Group();
       this.scene.add(this.corridorLampsGroup);
     }
-
-    const createDiscoSpot = (x, z, colorHex) => {
-      // 1. Меняем яркость с 40 на 500 (или 800, если покажется темновато)
-      const spotLight = new THREE.SpotLight(0xfff0e0, 500, 25);
-      spotLight.position.set(x, CONFIG.WORLD.CEILING_HEIGHT - 0.05, z);
-
-      // 2. Делаем конус света шире: меняем Math.PI / 3 на Math.PI / 2.5
-      spotLight.angle = Math.PI / 2.5;
-      spotLight.penumbra = 1.0;
-      spotLight.decay = 2.0;
-      spotLight.castShadow = true;
-      spotLight.shadow.bias = -0.0001;
-      spotLight.target.position.set(0, CONFIG.WORLD.FLOOR_LEVEL, 0);
-      const housing = new THREE.Mesh(
-        new THREE.CylinderGeometry(0.3, 0.3, 0.8),
-        new THREE.MeshStandardMaterial({ color: 0x111111, metalness: 0.8 }),
-      );
-      housing.position.copy(spotLight.position);
-      housing.lookAt(spotLight.target.position);
-      housing.rotateX(Math.PI / 2);
-      this.discoLampsGroup.add(spotLight);
-      this.discoLampsGroup.add(spotLight.target);
-      this.discoLampsGroup.add(housing);
-      this.discoSpots.push({ light: spotLight, housing: housing });
-    };
-    createDiscoSpot(-13, -8, 0xff00ff);
-    createDiscoSpot(13, -8, 0x00ffff);
-    createDiscoSpot(-13, 10, 0xffff00);
-    createDiscoSpot(13, 10, 0x00ff00);
 
     this.labProps = new THREE.Group();
     this.scene.add(this.labProps);
@@ -767,68 +702,45 @@ for (const w of this.walls) {
       }
     };
 
-    // --- 2. РЕЖИМЫ ОСВЕЩЕНИЯ ---
-    if (mode === "disco") {
-      this.scene.background = new THREE.Color(configColors.BG_DISCO);
-      this.scene.fog = new THREE.Fog(configColors.BG_DISCO, 40, 120);
-      this.ambientLight.intensity = 0;
-      this.holoLight.intensity = 8;
-      this.ringMesh.material.emissiveIntensity = 0.8;
-      this.floorLight.intensity = 4;
-      this.leftLight.intensity = 0.2;
-      this.fillLight.intensity = 0.2;
-      this.labLampsGroup.visible = false;
-      this.discoLampsGroup.visible = true;
-      this.nightLights.visible = true;
+ 
+    // --- ПРАВКИ ДЛЯ МЯГКОГО РАССЕИВАНИЯ НА ПОТОЛКЕ ---
 
-      // Используем безопасную покраску для режима диско
-      for (const w of this.walls) {
-        safeSetColor(w.mesh.material, 0x666aa6);
-      }
+this.scene.background = new THREE.Color(0x050505);
+this.scene.fog = new THREE.Fog(0x050505, 50, 150);
 
-      this.renderer.toneMappingExposure = 1.1;
-      this.bloomPass.strength = 0.7;
-      this.bloomPass.threshold = 0.1;
-      this.bloomPass.radius = 0.5;
-    } else {
-      // --- ПРАВКИ ДЛЯ МЯГКОГО РАССЕИВАНИЯ НА ПОТОЛКЕ ---
+this.ambientLight.intensity = 0.15;
 
-      // 1. Делаем фон сцены не черным (0x000000), а очень-очень темно-серым (0x050505).
-      // Это поможет потолку не "сливаться" с пустотой.
-      this.scene.background = new THREE.Color(0x050505);
-      this.scene.fog = new THREE.Fog(0x050505, 50, 150);
+this.ringMesh.material.color.setHex(0x0088ff);
+this.ringMesh.material.emissive.setHex(0x0055ff);
+this.floorLight.color.setHex(0x0088ff);
+this.holoLight.color.setHex(0x0088ff);
+this.baseMesh.material.color.setHex(0xffffff);
 
-      // 2. ВОЗВРАЩАЕМ ФОНОВЫЙ СВЕТ, НО С ОЧЕНЬ НИЗКОЙ ЯРКОСТЬЮ!
-      // Поставь 0.05 (это всего 5% от нормы). Это значение "натурально" подсветит потолок
-      // и верхние углы, имитируя отраженный свет от пола.
-      this.ambientLight.intensity = 0.15; // <--- Было 0.0, стало 0.09
+this.holoLight.intensity = 20;
+this.ringMesh.material.emissiveIntensity = 1.2;
+this.floorLight.intensity = 10;
 
-      // --- КОНЕЦ ПРАВОК ДЛЯ ПОТОЛКА ---
+this.leftLight.intensity = 0.0;
+this.fillLight.intensity = 0.0;
 
-      // Остальной код в блоке else оставляем без изменений:
-      this.ringMesh.material.color.setHex(0x0088ff);
-      this.ringMesh.material.emissive.setHex(0x0055ff);
-      this.floorLight.color.setHex(0x0088ff);
-      this.holoLight.color.setHex(0x0088ff);
-      this.baseMesh.material.color.setHex(0xffffff);
-      this.holoLight.intensity = 20;
-      this.ringMesh.material.emissiveIntensity = 1.2;
-      this.floorLight.intensity = 10;
-      this.leftLight.intensity = 0.0;
-      this.fillLight.intensity = 0.0;
-      this.labLampsGroup.visible = true;
-      this.discoLampsGroup.visible = false;
-      this.nightLights.visible = false;
+this.labLampsGroup.visible = true;
 
-      for (const w of this.walls) {
-        safeSetColor(w.mesh.material, 0xffffff);
-      }
+for (const w of this.walls) {
+  if (
+    w.skipMaterialUpdate ||
+    w.mesh?.userData?.skipWallMaterialUpdate
+  ) {
+    continue;
+  }
 
-      this.renderer.toneMappingExposure = 1.5;
-      this.bloomPass.strength = 0.3;
-      this.bloomPass.threshold = 0.9;
-      this.bloomPass.radius = 0.2;
-    }
+  safeSetColor(w.mesh.material, 0xffffff);
+}
+
+this.renderer.toneMappingExposure = 1.5;
+this.bloomPass.strength = 0.3;
+this.bloomPass.threshold = 0.9;
+this.bloomPass.radius = 0.2;
+    
   }
 
   updateAtmosphere(
@@ -839,17 +751,18 @@ for (const w of this.walls) {
     isMagnetEquipped,
     activeToolColor,
   ) {
-    const isNight = mode === "disco";
-    if (this.currentRingIntensity === undefined)
-      this.currentRingIntensity = 1.2;
-    const targetRingIntensity = isMagnetEquipped ? 0.0 : isNight ? 0.8 : 1.2;
+ if (this.currentRingIntensity === undefined) {
+  this.currentRingIntensity = 1.2;
+}
+
+const targetRingIntensity = isMagnetEquipped ? 0.0 : 1.2;
     this.currentRingIntensity = THREE.MathUtils.lerp(
       this.currentRingIntensity,
       targetRingIntensity,
       0.05,
     );
 
-    const maxIntensity = isNight ? 0.8 : 1.2;
+   const maxIntensity = 1.2;
     const ratio = Math.max(
       0,
       Math.min(this.currentRingIntensity / maxIntensity, 1.0),
@@ -857,31 +770,7 @@ for (const w of this.walls) {
     this.ringMesh.material.emissiveIntensity = this.currentRingIntensity;
     this.ringMesh.material.opacity = THREE.MathUtils.lerp(0.15, 1.0, ratio);
 
-    if (isNight) {
-      const hue = (timeSec * 0.2) % 1;
-      this.ringMesh.material.emissive.setHSL(hue, 0.7, 0.5);
-      const rgbColor = new THREE.Color().setHSL(hue, 0.7, 0.5);
-      const glassColor = new THREE.Color().setHSL(hue, 0.2, 0.95);
-      this.floorLight.color.copy(rgbColor);
-      this.holoLight.color.copy(rgbColor);
-      this.baseMesh.material.color.copy(glassColor);
-      this.discoSpots.forEach((spot, index) => {
-        const speed = 1.5;
-        const time = timeSec * speed + index * 2.0;
-        const targetX = Math.sin(time) * 10;
-        const targetZ = Math.cos(time * 0.73) * 8;
-        spot.light.target.position.set(
-          targetX,
-          CONFIG.WORLD.FLOOR_LEVEL,
-          targetZ,
-        );
-        spot.light.target.updateMatrixWorld();
-        spot.housing.lookAt(spot.light.target.position);
-        spot.housing.rotateX(Math.PI / 2);
-      });
-    } else {
-      this.ringMesh.material.emissive.setHex(0x0055ff);
-    }
+this.ringMesh.material.emissive.setHex(0x0055ff);
 
     if (isMagnetEquipped) {
       this.magnetReticle.visible = true;
@@ -895,14 +784,15 @@ for (const w of this.walls) {
     }
 
     const dimFactor = 1.0 - platformImpact * 0.85;
-    this.floorLight.intensity = (isNight ? 3 : 10) * dimFactor;
-    this.holoLight.intensity = (isNight ? 6 : 20) * dimFactor;
+   this.floorLight.intensity = 10 * dimFactor;
+this.holoLight.intensity = 20 * dimFactor;
 
-    const env = -(Math.cos(Math.PI * fanLevel) - 1) / 2;
-    const nightGlowFactor = isNight ? 0.5 : 1.0;
-    this.ventOverlay.material.opacity =
-      0.7 * env * (0.92 + 0.08 * Math.sin(timeSec * 6.5)) * nightGlowFactor;
-    this.ventOverlay.material.emissiveIntensity = 2.1 * env * nightGlowFactor;
+const env = -(Math.cos(Math.PI * fanLevel) - 1) / 2;
+
+this.ventOverlay.material.opacity =
+  0.7 * env * (0.92 + 0.08 * Math.sin(timeSec * 6.5));
+
+this.ventOverlay.material.emissiveIntensity = 2.1 * env;
   }
 
   render() {

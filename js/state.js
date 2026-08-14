@@ -34,6 +34,6 @@ export class StateManager {
 
 // Экспортируем хранилище и функции-помощники
 export const store = new StateManager();
-export const isNight = () => store.get().mode === "disco";
+
 export const isSlowMo = () => store.get().isSlowMo; // <--- Вот этот парень нужен для audio.js!
 export const isZeroG = () => store.get().mode === "space";

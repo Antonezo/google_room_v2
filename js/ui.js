@@ -440,6 +440,50 @@ pauseOverlay.setAttribute("aria-hidden", "true");
       }
     };
 
+    // Ждём реального окончания открытия больших ворот.
+// Управление игрой включается только после этого.
+const openDoorsAndWait = () => {
+  return new Promise((resolve) => {
+    if (!el.doors) {
+      resolve();
+      return;
+    }
+
+    const leftDoor = el.doors.querySelector(".left-door");
+
+    if (!leftDoor) {
+      el.doors.classList.add("loaded");
+      resolve();
+      return;
+    }
+
+    const handleTransitionEnd = (event) => {
+      // Нас интересует только движение самой створки.
+      if (
+        event.target !== leftDoor ||
+        event.propertyName !== "transform"
+      ) {
+        return;
+      }
+
+      leftDoor.removeEventListener(
+        "transitionend",
+        handleTransitionEnd,
+      );
+
+      resolve();
+    };
+
+    // Сначала подписываемся, потом запускаем анимацию.
+    leftDoor.addEventListener(
+      "transitionend",
+      handleTransitionEnd,
+    );
+
+    el.doors.classList.add("loaded");
+  });
+};
+
     ["pointerdown", "mousedown", "wheel", "touchstart", "contextmenu"].forEach(
       (evt) => {
         el.doors.addEventListener(evt, (e) => {
@@ -449,7 +493,7 @@ pauseOverlay.setAttribute("aria-hidden", "true");
     );
 
     // Функция входа в игру (Используется для кнопки ПРОДОЛЖИТЬ)
-    const enterGame = () => {
+ const enterGame = async () => {
       this.isMenuLocked = true;
       this.clearAnimTimers();
 
@@ -467,17 +511,17 @@ pauseOverlay.setAttribute("aria-hidden", "true");
         this.animTimers.enter1 = setTimeout(() => {
           el.centerHub.classList.add("fade-out-fast");
 
-          this.animTimers.enter2 = setTimeout(() => {
-            if (audioManager?.fadeIn) audioManager.fadeIn(1.0);
+        this.animTimers.enter2 = setTimeout(() => {
+  if (audioManager?.fadeIn) audioManager.fadeIn(1.0);
 
-            el.doors.classList.add("loaded");
+  openDoorsAndWait().then(() => {
+    if (this.cb?.onStartGameplay) {
+      this.cb.onStartGameplay();
+    }
 
-            if (this.cb?.onStartGameplay) {
-              this.cb.onStartGameplay();
-            }
-
-            document.body.classList.remove("loading");
-          }, 600);
+    document.body.classList.remove("loading");
+  });
+}, 600);
         }, 500);
       }
     };
@@ -487,16 +531,24 @@ pauseOverlay.setAttribute("aria-hidden", "true");
       eraseSave = false,
     } = {}) => {
       // Защита от повторного клика.
-      if (this.isMenuLocked) return;
+    if (this.isMenuLocked) return;
 
-      this.isMenuLocked = true;
-      this.clearAnimTimers();
+this.isMenuLocked = true;
+this.clearAnimTimers();
 
-      if (audioManager?.resumeContext) {
-        audioManager.resumeContext();
-      }
+// С момента выбора сектора игрок больше не может
+// поворачивать игровую камеру мышью.
+// При этом CameraController пока продолжает работать,
+// чтобы успеть правильно расположить камеру.
+if (this.cb?.onBlockGameplayLook) {
+  this.cb.onBlockGameplayLook();
+}
 
-      await this.enterImmersiveFullscreen();
+if (audioManager?.resumeContext) {
+  audioManager.resumeContext();
+}
+
+await this.enterImmersiveFullscreen();
 
       // Показываем индикатор, но пока не скрываем меню.
       updatePreparationStatus(
@@ -571,15 +623,22 @@ pauseOverlay.setAttribute("aria-hidden", "true");
       // Даём центральному кругу плавно исчезнуть.
       await new Promise((resolve) => setTimeout(resolve, 700));
 
-      if (el.doors) {
-        el.doors.classList.add("loaded");
-      }
+      // Мир уже успел стабилизироваться за закрытыми воротами.
+// Теперь фиксируем камеру на всё время их открытия.
+if (this.cb?.onFreezeGameplayCamera) {
+  this.cb.onFreezeGameplayCamera();
+}
 
-      if (this.cb?.onStartGameplay) {
-        this.cb.onStartGameplay();
-      }
+   // Начинаем открытие больших ворот и ждём,
+// пока их CSS-анимация действительно закончится.
+await openDoorsAndWait();
 
-      document.body.classList.remove("loading");
+// Только теперь начинается сама игра.
+if (this.cb?.onStartGameplay) {
+  this.cb.onStartGameplay();
+}
+
+document.body.classList.remove("loading");
 
       if (audioManager?.fadeIn) {
         audioManager.fadeIn(1.0);

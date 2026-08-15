@@ -76,7 +76,7 @@ export class GoogleRoomApp {
 
         // Единая конфигурация выходного лифта.
         exitElevator: {
-          doorId: "main_entrance",
+         doorId: "room1_exit",
 
           // Выход комнаты 1 доступен сразу.
           unlocked: false,
@@ -87,14 +87,17 @@ export class GoogleRoomApp {
             z: 17.0,
           },
 
-          // Конечная точка внутри кабины.
-          cabinPoint: {
-            x: 0,
-            z: 11.25,
-          },
-
+    // Конечная точка внутри односторонней кабины.
+//
+// Задняя стенка новой кабины находится примерно у z = 10.
+// Радиус шара = 1.5, поэтому оставляем безопасный запас,
+// чтобы автопилот не пытался вдавить шар в заднюю стену.
+cabinPoint: {
+  x: 0,
+  z: 11.8,
+},
           // Через какую дверь игрок выйдет в следующем секторе.
-          arrivalDoorId: "main_exit",
+      arrivalDoorId: "room2_start",
 
           // Круглая зона запуска кат-сцены.
           // markerRadius специально больше radius:
@@ -159,7 +162,7 @@ export class GoogleRoomApp {
 
           // В следующем секторе игрок по-прежнему
           // появляется через центральный лифт.
-          arrivalDoorId: "main_exit",
+        arrivalDoorId: "room3_start",
 
           // Зелёный маркер перед новым лифтом.
           activationZone: {
@@ -1332,45 +1335,57 @@ lockGameplayLookInput() {
     }
   }
 
-  resetElevatorForLevel(levelId) {
-    if (!this.levelBuilder) return;
+resetElevatorForLevel(levelId) {
+  if (!this.levelBuilder) return;
 
-    // Сначала закрываем всё и сбрасываем числовые состояния.
-    this.levelBuilder.closeEntrance();
-    this.levelBuilder.closeExit();
+  this.isExitDoorClosingPending = false;
 
-    this.levelBuilder.entranceOpenState = 0;
-    this.levelBuilder.targetEntranceOpenState = 0;
+  // После buildRoom() в roomElevators находятся только лифты
+  // текущего сектора, потому что clearCurrentRoom()
+  // очищает карту перед построением новой комнаты.
+  const elevators = this.levelBuilder.roomElevators;
 
-    this.levelBuilder.exitOpenState = 0;
-    this.levelBuilder.targetExitOpenState = 0;
-
-    this.isExitDoorClosingPending = false;
-
-    if (levelId === 1) {
-      // Комната 1: игрок стартует в самой комнате,
-      // лифт находится в режиме входа.
-      this.levelBuilder.setElevatorMode("entering");
-    } else {
-      // Комнаты 2, 3 и дальше:
-      // игрок появляется внутри стартового лифта,
-      // двери уже открыты в новую комнату.
-      this.levelBuilder.setElevatorMode("exiting");
-
-      this.levelBuilder.exitOpenState = 1;
-      this.levelBuilder.targetExitOpenState = 1;
-
-      if (this.levelBuilder.openExit) {
-        this.levelBuilder.openExit();
-      }
-    }
-
-    // Сразу применяем положение дверей к мешам,
-    // чтобы после рестарта не было промежуточного состояния.
-    if (this.levelBuilder.updateDoors) {
-      this.levelBuilder.updateDoors(999);
+  if (elevators) {
+    for (const elevator of elevators.values()) {
+      elevator.openState = 0;
+      elevator.targetOpenState = 0;
     }
   }
+
+  // Первый сектор начинается непосредственно в комнате:
+  // его единственный финишный лифт должен быть закрыт.
+  if (levelId === 1) {
+    this.levelBuilder.closeElevator("room1_exit");
+  }
+
+  // Сектор 2 начинается внутри room2_start.
+  if (levelId === 2) {
+    const startElevator = this.levelBuilder.getRoomElevator?.("room2_start");
+
+    if (startElevator) {
+      startElevator.openState = 1;
+      startElevator.targetOpenState = 1;
+    }
+
+    this.levelBuilder.openElevator("room2_start");
+    this.levelBuilder.closeElevator("room2_exit");
+  }
+
+  // Сектор 3 начинается внутри room3_start.
+  if (levelId === 3) {
+    const startElevator = this.levelBuilder.getRoomElevator?.("room3_start");
+
+    if (startElevator) {
+      startElevator.openState = 1;
+      startElevator.targetOpenState = 1;
+    }
+
+    this.levelBuilder.openElevator("room3_start");
+  }
+
+  // Немедленно применяем положение створок и коллайдеров.
+  this.levelBuilder.updateDoors?.(999);
+}
 
   resetCameraForLevel(levelId) {
     if (!this.cameraPivot || !this.camera) return;
@@ -1415,9 +1430,9 @@ lockGameplayLookInput() {
 
     const playerRef = this.playerController;
 
-    // После перестройки комнаты текущая конфигурация уровня изменится,
-    // поэтому заранее запоминаем дверь, через которую игрок прибудет.
-    const arrivalDoorId = this.activeExitElevator?.arrivalDoorId || "main_exit";
+const arrivalDoorId =
+  this.activeExitElevator?.arrivalDoorId ||
+  `room${nextLevelId}_start`;
 
     this.targetLevelId = nextLevelId;
     this.isElevatorSequenceActive = true;
@@ -1455,28 +1470,19 @@ lockGameplayLookInput() {
       }
 
       if (nextLevelId > 1 && this.levelBuilder) {
-        this.levelBuilder.setElevatorMode("exiting");
 
         // Двери прибытия должны быть закрыты уже в первом видимом кадре.
         // resetElevatorForLevel() оставляет выходную сторону открытой,
         // поэтому сбрасываем не только target, но и текущее состояние.
         this.levelBuilder.closeElevator(arrivalDoorId);
 
-        if (arrivalDoorId === "main_entrance") {
-          this.levelBuilder.entranceOpenState = 0;
-          this.levelBuilder.targetEntranceOpenState = 0;
-        } else if (arrivalDoorId === "main_exit") {
-          this.levelBuilder.exitOpenState = 0;
-          this.levelBuilder.targetExitOpenState = 0;
-        } else {
-          const arrivalElevator =
-            this.levelBuilder.getRoomElevator?.(arrivalDoorId);
+     const arrivalElevator =
+  this.levelBuilder.getRoomElevator?.(arrivalDoorId);
 
-          if (arrivalElevator) {
-            arrivalElevator.openState = 0;
-            arrivalElevator.targetOpenState = 0;
-          }
-        }
+if (arrivalElevator) {
+  arrivalElevator.openState = 0;
+  arrivalElevator.targetOpenState = 0;
+}
 
         // Немедленно применяем закрытое положение к мешам и коллайдерам,
         // пока экран ещё полностью чёрный.
@@ -2827,32 +2833,46 @@ setupStateReactions() {
         }
       }
 
-      // === 3. СЕНСОР ЗАКРЫТИЯ ДВЕРЕЙ ЗА ИГРОКОМ ===
-      //
-      // Двери закрываются только после того,
-      // как шар и камера полностью покинули кабину.
-      if (
-        !this.isElevatorSequenceActive &&
-        this.levelBuilder &&
-        this.playerController &&
-        this.camera
-      ) {
-        const pPos = this.playerController.body.position;
+    // === 3. СЕНСОР ЗАКРЫТИЯ СТАРТОВОГО ЛИФТА ЗА ИГРОКОМ ===
+//
+// Начиная со второго сектора игрок появляется внутри
+// обычного универсального лифта roomN_start.
+//
+// Когда и шар, и камера полностью выехали из кабины,
+// закрываем именно стартовый лифт текущего сектора.
+if (
+  !this.isElevatorSequenceActive &&
+  this.currentLevelId > 1 &&
+  this.levelBuilder &&
+  this.playerController &&
+  this.camera
+) {
+  const pPos = this.playerController.body.position;
 
-        const cameraWorldPos = new THREE.Vector3();
-        this.camera.getWorldPosition(cameraWorldPos);
+  const cameraWorldPos = new THREE.Vector3();
+  this.camera.getWorldPosition(cameraWorldPos);
 
-        const playerLeftElevator = pPos.z < 5.0;
-        const cameraLeftElevator = cameraWorldPos.z < 7.0;
+  // Стартовый проём находится у z = 7.5,
+  // а игровая комната уходит в сторону -Z.
+  const playerLeftElevator = pPos.z < 5.0;
+  const cameraLeftElevator = cameraWorldPos.z < 7.0;
 
-        if (
-          playerLeftElevator &&
-          cameraLeftElevator &&
-          this.levelBuilder.targetExitOpenState > 0
-        ) {
-          this.levelBuilder.closeExit();
-        }
-      }
+  // Единое соглашение:
+  // room2_start, room3_start, room4_start...
+  const startElevatorId = `room${this.currentLevelId}_start`;
+
+  const startElevatorOpenState =
+    this.levelBuilder.getElevatorOpenState(startElevatorId);
+
+  if (
+    playerLeftElevator &&
+    cameraLeftElevator &&
+    startElevatorOpenState > 0.05
+  ) {
+    this.levelBuilder.closeElevator(startElevatorId);
+  }
+}
+
       // 6. Синхронизация интерактивных объектов
       if (this.interactivePlatforms) {
         this.interactivePlatforms.forEach((platform) => platform.update());

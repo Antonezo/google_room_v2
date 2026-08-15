@@ -38,6 +38,7 @@ export class LevelBuilder {
     // Просто начинаем складывать объекты по категориям.
     this.currentRoomId = 1;
 
+    // Корневой контейнер всего уровня.
     this.rootGroup = new THREE.Group();
     this.rootGroup.name = "LevelRoot";
     this.scene.add(this.rootGroup);
@@ -45,18 +46,13 @@ export class LevelBuilder {
     this.currentRoomGroup = new THREE.Group();
     this.currentRoomGroup.name = "CurrentRoom";
 
-    this.elevatorGroup = new THREE.Group();
-    this.elevatorGroup.name = "Elevator";
-
     this.staticLevelGroup = new THREE.Group();
     this.staticLevelGroup.name = "StaticLevel";
 
     this.rootGroup.add(this.currentRoomGroup);
-    this.rootGroup.add(this.elevatorGroup);
     this.rootGroup.add(this.staticLevelGroup);
 
     this.currentRoomBodies = [];
-    this.elevatorBodies = [];
     this.staticBodies = [];
     this.pushableObjects = [];
 
@@ -85,7 +81,7 @@ export class LevelBuilder {
   }
 
   setBuildTarget(target) {
-    // target: "room" | "elevator" | "static"
+    // target: "room" | "static"
     this.buildTarget = target;
   }
 
@@ -94,21 +90,11 @@ export class LevelBuilder {
     this.setBuildTarget("static");
     this.sceneManager.buildEnvironment();
 
-    // 2. Лифт строится отдельно и остаётся постоянным между комнатами.
-    this.setBuildTarget("elevator");
-    this.buildElevatorCabinVisual();
-    this.buildElevatorPhysics();
-
-    // 3. Свет пока общий/статический.
+    // 2. Свет остаётся общим/статическим.
     this.setBuildTarget("static");
-    this.buildLightingPanels();
 
-    // 4. Двери и рамы лифта отдельно.
-    this.setBuildTarget("elevator");
-    this.buildElevatorDoors();
-
-    // 5. При старте строим только первую комнату.
-    // Вторая комната больше НЕ создаётся сразу.
+    // 3. Каждый сектор теперь сам создаёт нужные ему лифты.
+    // Специального постоянного двустороннего MainElevator больше нет.
     this.buildRoom(1);
 
     // Возвращаем безопасный режим по умолчанию.
@@ -116,8 +102,10 @@ export class LevelBuilder {
   }
 
   getBuildGroup() {
-    if (this.buildTarget === "room") return this.currentRoomGroup;
-    if (this.buildTarget === "elevator") return this.elevatorGroup;
+    if (this.buildTarget === "room") {
+      return this.currentRoomGroup;
+    }
+
     return this.staticLevelGroup;
   }
 
@@ -140,8 +128,6 @@ export class LevelBuilder {
 
     if (this.buildTarget === "room") {
       this.currentRoomBodies.push(body);
-    } else if (this.buildTarget === "elevator") {
-      this.elevatorBodies.push(body);
     } else {
       this.staticBodies.push(body);
     }
@@ -277,6 +263,10 @@ export class LevelBuilder {
       this.buildRoom1Physics();
     }
 
+    // Освещение принадлежит именно текущей комнате.
+    // Пока buildTarget === "room", светильники попадут
+    // в currentRoomGroup и удалятся вместе с комнатой.
+    this.buildLightingPanels(this.currentRoomId);
     this.setBuildTarget("static");
 
     console.log(`[LEVEL] Room ${this.currentRoomId} built`);
@@ -695,6 +685,22 @@ export class LevelBuilder {
       0,
     );
 
+    // === ФИНИШНЫЙ ЛИФТ СЕКТОРА 1 ===
+    //
+    // Используем тот же универсальный шаблон,
+    // что и для всех остальных лифтов.
+    this.room1ExitElevator = this.createRoomElevator({
+      id: "room1_exit",
+      name: "Room1ExitElevator",
+
+      // Передняя стена комнаты находится на z = 15.
+      // Кабина должна уходить наружу комнаты по -Z.
+      wall: "front",
+
+      x: 0,
+      z: 15,
+    });
+
     // Временная обучающая площадка комнаты 1.
     // Позже её можно будет заменить настоящим заданием,
     // сохранив тот же вызов unlockExitElevator(1).
@@ -738,342 +744,6 @@ export class LevelBuilder {
     this.room1UnlockPad = pad;
 
     this.registerMesh(pad);
-  }
-
-  createElevatorCabinVisual({
-    name,
-    position,
-    rotationY = 0,
-    parent = this.getBuildGroup(),
-
-    // Центральный лифт проходной, поэтому по умолчанию
-    // постоянную заднюю стенку не создаём.
-    includeBackWall = false,
-  }) {
-    const elW = 7.5;
-    const elD = 5.0;
-    const elH = 10.0;
-
-    const elCenterY = this.floorY + elH / 2;
-
-    const cabinGroup = new THREE.Group();
-    cabinGroup.name = name;
-
-    // === ОБЩИЕ МАТЕРИАЛЫ КАБИНЫ ===
-
-const sideWallMat = new THREE.MeshStandardMaterial({
-  color: 0xffffff,
-  roughness: 0.58,
-  metalness: 0.32,
-  emissive: 0x24282b,
-  emissiveIntensity: 0.18,
-});
-
-const backWallMat = new THREE.MeshStandardMaterial({
-  color: 0xffffff,
-  roughness: 0.58,
-  metalness: 0.32,
-  emissive: 0x6f777c,
-  emissiveIntensity: 0.32,
-});
-
-    cabinGroup.userData.sideWallMaterial = sideWallMat;
-    cabinGroup.userData.backWallMaterial = backWallMat;
-
-    const floorMat = new THREE.MeshStandardMaterial({
-      color: 0x4b5256,
-      roughness: 0.72,
-      metalness: 0.22,
-    });
-
-    const ceilingMat = new THREE.MeshStandardMaterial({
-      color: 0x1c2730,
-      roughness: 0.65,
-      metalness: 0.2,
-    });
-
-    const createPanel = ({
-      name: panelName,
-      geometry,
-      position: localPosition,
-      rotation,
-      material,
-      cameraWall = true,
-    }) => {
-      const mesh = new THREE.Mesh(geometry, material);
-
-      mesh.name = panelName;
-      mesh.position.copy(localPosition);
-
-      if (rotation) {
-        mesh.rotation.set(rotation.x, rotation.y, rotation.z);
-      }
-
-      mesh.castShadow = false;
-      mesh.receiveShadow = true;
-      mesh.userData.skipWallMaterialUpdate = true;
-
-      cabinGroup.add(mesh);
-
-      if (
-        cameraWall &&
-        this.sceneManager &&
-        Array.isArray(this.sceneManager.walls)
-      ) {
-        this.sceneManager.walls.push({
-          mesh,
-          isElevatorCabinWall: true,
-          skipMaterialUpdate: true,
-        });
-      }
-
-      return mesh;
-    };
-
-    // Пол
-    createPanel({
-      name: `${name}_Floor`,
-      geometry: new THREE.PlaneGeometry(elW, elD),
-      position: new THREE.Vector3(0, this.floorY + 0.01, 0),
-      rotation: new THREE.Vector3(-Math.PI / 2, 0, 0),
-      material: floorMat,
-      cameraWall: false,
-    });
-
-    // Потолок
-    createPanel({
-      name: `${name}_Ceiling`,
-      geometry: new THREE.PlaneGeometry(elW, elD),
-      position: new THREE.Vector3(0, this.floorY + elH - 0.01, 0),
-      rotation: new THREE.Vector3(Math.PI / 2, 0, 0),
-      material: ceilingMat,
-    });
-
-    const leftWall = createPanel({
-      name: `${name}_LeftWall`,
-      geometry: new THREE.PlaneGeometry(elD, elH),
-      position: new THREE.Vector3(-elW / 2, elCenterY, 0),
-      rotation: new THREE.Vector3(0, Math.PI / 2, 0),
-      material: sideWallMat,
-    });
-
-    const rightWall = createPanel({
-      name: `${name}_RightWall`,
-      geometry: new THREE.PlaneGeometry(elD, elH),
-      position: new THREE.Vector3(elW / 2, elCenterY, 0),
-      rotation: new THREE.Vector3(0, -Math.PI / 2, 0),
-      material: sideWallMat,
-    });
-  
-    let backWall = null;
-
-    if (includeBackWall) {
-      backWall = createPanel({
-        name: `${name}_BackWall`,
-        geometry: new THREE.PlaneGeometry(elW, elH),
-        position: new THREE.Vector3(0, elCenterY, elD / 2),
-        rotation: new THREE.Vector3(0, Math.PI, 0),
-        material: backWallMat,
-      });
-    }
-
-    // === ВНУТРЕННЕЕ ОСВЕЩЕНИЕ КАБИНЫ ===
-
-    const lampMaterial = new THREE.MeshStandardMaterial({
-      color: 0xffffff,
-      emissive: 0xffffff,
-      emissiveIntensity: 1.1,
-      roughness: 0.2,
-      metalness: 0.0,
-    });
-
-    const lamp = new THREE.Mesh(
-      new THREE.BoxGeometry(2.8, 0.08, 2.8),
-      lampMaterial,
-    );
-
-    lamp.name = `${name}_Lamp`;
-    lamp.position.set(0, this.floorY + elH - 0.08, 0);
-    lamp.userData.skipWallMaterialUpdate = true;
-
-    cabinGroup.add(lamp);
-
-    const light = new THREE.RectAreaLight(0xfff0dd, 4.0, 3.2, 3.2);
-
-    light.name = `${name}_Light`;
-
-    light.position.set(0, this.floorY + elH - 0.12, 0);
-
-    light.rotation.x = -Math.PI / 2;
-
-    cabinGroup.add(light);
-
-    cabinGroup.position.copy(position);
-    cabinGroup.rotation.y = rotationY;
-
-    parent.add(cabinGroup);
-
-    return cabinGroup;
-  }
-
-  buildElevatorCabinVisual() {
-    const elW = 7.5; // ширина кабины
-    const elD = 5.0; // глубина кабины
-    const elH = 10.0; // высота кабины
-
-    const elCenterY = this.floorY + elH / 2;
-    const elZ = 11.25;
-
-    this.mainElevatorCabinVisual = this.createElevatorCabinVisual({
-      name: "MainElevatorCabin",
-      position: new THREE.Vector3(0, 0, elZ),
-      rotationY: 0,
-      parent: this.elevatorGroup,
-    });
-
-    // === НЕВИДИМЫЕ ПЕРЕКРЫТИЯ ДЛЯ КАМЕРЫ НАД ДВЕРЯМИ ===
-    //
-    // Потолок кабины заканчивается раньше потолка комнаты.
-    // Без этих мостиков камера может проскочить через верхнюю щель
-    // между кабиной и дверной рамой и заглянуть в лифт снаружи.
-
-    const cameraBlockerMaterial = new THREE.MeshBasicMaterial({
-      transparent: true,
-      opacity: 0,
-      depthWrite: false,
-      colorWrite: false,
-    });
-
-    const addCameraCeilingBridge = (name, centerZ, depth) => {
-      const blocker = new THREE.Mesh(
-        new THREE.BoxGeometry(
-          8.1, // немного шире самой кабины и проёма
-          0.16, // толщина невидимого перекрытия
-          depth,
-        ),
-        cameraBlockerMaterial,
-      );
-
-      blocker.name = name;
-
-      blocker.position.set(0, this.floorY + elH - 0.08, centerZ);
-
-      blocker.userData.skipWallMaterialUpdate = true;
-      blocker.userData.isCameraBlocker = true;
-
-      this.registerMesh(blocker);
-
-      if (this.sceneManager && Array.isArray(this.sceneManager.walls)) {
-        this.sceneManager.walls.push({
-          mesh: blocker,
-          isElevatorCabinWall: true,
-          isCameraBlocker: true,
-          skipMaterialUpdate: true,
-        });
-      }
-
-      return blocker;
-    };
-
-    // Границы основной кабины:
-    // задняя сторона: z = 8.75
-    // передняя сторона: z = 13.75
-
-    // Мостик между кабиной и стеной комнаты №1:
-    // от z = 13.75 до z = 15.0
-    this.elevatorEntranceCameraBridge = addCameraCeilingBridge(
-      "ElevatorEntranceCameraBridge",
-      (13.75 + 15.0) / 2,
-      15.0 - 13.75,
-    );
-
-    // Мостик между кабиной и стеной комнат №2/3:
-    // от z = 7.5 до z = 8.75
-    this.elevatorExitCameraBridge = addCameraCeilingBridge(
-      "ElevatorExitCameraBridge",
-      (7.5 + 8.75) / 2,
-      8.75 - 7.5,
-    );
-
-    // === НЕВИДИМЫЕ БОКОВЫЕ ПЕРЕКРЫТИЯ ДЛЯ КАМЕРЫ ===
-    //
-    // Боковые стены кабины заканчиваются на z = 8.75 и z = 13.75.
-    // До стен комнат остаются короткие участки по 1.25 единицы.
-    // Через эти щели камера могла обойти край кабины сбоку.
-
-    const addCameraSideBridge = (name, x, centerZ, depth) => {
-      const blocker = new THREE.Mesh(
-        new THREE.BoxGeometry(
-          0.24, // толщина по X
-          elH + 0.2, // немного выше полной высоты кабины
-          depth, // длина участка между кабиной и комнатой
-        ),
-        cameraBlockerMaterial,
-      );
-
-      blocker.name = name;
-
-      blocker.position.set(x, elCenterY, centerZ);
-
-      blocker.userData.skipWallMaterialUpdate = true;
-      blocker.userData.isCameraBlocker = true;
-
-      this.registerMesh(blocker);
-
-      if (this.sceneManager && Array.isArray(this.sceneManager.walls)) {
-        this.sceneManager.walls.push({
-          mesh: blocker,
-          isElevatorCabinWall: true,
-          isCameraBlocker: true,
-          skipMaterialUpdate: true,
-        });
-      }
-
-      return blocker;
-    };
-
-    const cabinLeftX = -elW / 2;
-    const cabinRightX = elW / 2;
-
-    // Со стороны комнаты №1:
-    // кабина заканчивается на z = 13.75,
-    // а стена комнаты находится на z = 15.
-    const entranceBridgeCenterZ = (13.75 + 15.0) / 2;
-    const entranceBridgeDepth = 15.0 - 13.75;
-
-    this.elevatorEntranceLeftCameraBridge = addCameraSideBridge(
-      "ElevatorEntranceLeftCameraBridge",
-      cabinLeftX,
-      entranceBridgeCenterZ,
-      entranceBridgeDepth,
-    );
-
-    this.elevatorEntranceRightCameraBridge = addCameraSideBridge(
-      "ElevatorEntranceRightCameraBridge",
-      cabinRightX,
-      entranceBridgeCenterZ,
-      entranceBridgeDepth,
-    );
-
-    // Со стороны комнат №2/3:
-    // стена комнаты находится на z = 7.5,
-    // а кабина начинается на z = 8.75.
-    const exitBridgeCenterZ = (7.5 + 8.75) / 2;
-    const exitBridgeDepth = 8.75 - 7.5;
-
-    this.elevatorExitLeftCameraBridge = addCameraSideBridge(
-      "ElevatorExitLeftCameraBridge",
-      cabinLeftX,
-      exitBridgeCenterZ,
-      exitBridgeDepth,
-    );
-
-    this.elevatorExitRightCameraBridge = addCameraSideBridge(
-      "ElevatorExitRightCameraBridge",
-      cabinRightX,
-      exitBridgeCenterZ,
-      exitBridgeDepth,
-    );
   }
 
   buildSecondRoom() {
@@ -1207,6 +877,20 @@ const backWallMat = new THREE.MeshStandardMaterial({
       1.25,
       0,
     );
+
+    // === СТАРТОВЫЙ ЛИФТ СЕКТОРА 2 ===
+    //
+    // После перехода игрок появляется внутри этой кабины,
+    // а затем двери открываются в комнату.
+    this.room2StartElevator = this.createRoomElevator({
+      id: "room2_start",
+      name: "Room2StartElevator",
+
+      wall: "front_out",
+
+      x: 0,
+      z: frontZ,
+    });
 
     // Толкаемые блоки-ступеньки комнаты №2.
     this.buildRoom2PushableBlocks();
@@ -1808,34 +1492,129 @@ const backWallMat = new THREE.MeshStandardMaterial({
 
   getElevatorStyle() {
     // Единый стиль для всех лифтов.
-    // Эти размеры взяты с центрального лифта, который сейчас выглядит правильно.
+    // Базовые размеры единого шаблона лифта.
     return {
       doorW: 3.8,
       doorH: 10.0,
       doorD: 0.4,
 
-      frameOuterW: 8.1,
-      frameSideW: 0.6,
-      frameThinH: 0.1,
+      // === ВНЕШНЯЯ РАМА И НИША ===
+
+      // Общая ширина рамы.
+      frameOuterW: 8.35,
+
+      // Боковые стойки становятся чуть массивнее.
+      frameSideW: 0.72,
+
+      // Верхняя перемычка теперь полноценная,
+      // а не тонкая чёрная полоска.
+      frameTopH: 0.62,
+
+      // Нижний порог оставляем заметно тоньше.
+      frameBottomH: 0.16,
+
+      // Реальная глубина металлической рамы.
+      frameDepth: 0.42,
+
+      // Насколько портал лифта визуально утоплен относительно стены.
+      nicheDepth: 0.48,
+
+      // Светлая внутренняя поверхность ниши.
+      nicheRevealColor: 0xb8c0c6,
 
       closedOffset: 1.9,
+
+      // Створки уходят немного дальше за боковые стойки рамы,
+      // чтобы их светлые внутренние края не выглядывали в проём.
       openOffset: 5.25,
 
       cabinDepth: 5.0,
       cabinW: 7.5,
       cabinH: 10.0,
 
-     doorColor: 0xdcdcdc,
+      doorColor: 0xdcdcdc,
       seamColor: 0x121517,
       frameColor: 0x333333,
 
-     cabinWallColor: 0xffffff,
+      cabinWallColor: 0xd9dde0,
       cabinFloorColor: 0x4b5256,
-      cabinCeilingColor: 0x1c2730,
+
+      // Потолок делаем заметно светлее.
+      cabinCeilingColor: 0xd4d9dd,
+
+      // Металлические декоративные элементы.
+      cabinTrimColor: 0xa2aab0,
+
+      // Светлая внутренняя потолочная/стеновая кассета.
+      cabinPanelColor: 0xe3e7ea,
     };
   }
 
+  createElevatorWallGradientTexture() {
+    const canvas = document.createElement("canvas");
+    canvas.width = 512;
+    canvas.height = 512;
+
+    const ctx = canvas.getContext("2d");
+
+    // ==========================================
+    // БАЗОВЫЙ ГРАДИЕНТ
+    // ==========================================
+    //
+    // Делаем мягкий металлический переход:
+    // светлее по центру, темнее по краям.
+    const grad = ctx.createLinearGradient(0, 0, canvas.width, 0);
+
+    // Делаем стены заметно светлее — ближе к цвету плинтусов.
+    grad.addColorStop(0.0, "#C9D1D6");
+    grad.addColorStop(0.22, "#D9E0E4");
+    grad.addColorStop(0.5, "#EEF2F4");
+    grad.addColorStop(0.78, "#D9E0E4");
+    grad.addColorStop(1.0, "#C9D1D6");
+
+    ctx.fillStyle = grad;
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+    // ==========================================
+    // ЭФФЕКТ ШЛИФОВАННОГО МЕТАЛЛА
+    // ==========================================
+    //
+    // Очень лёгкие горизонтальные штрихи.
+    // Не делаем их слишком контрастными.
+    for (let y = 0; y < canvas.height; y += 2) {
+      const alpha = 0.016 + Math.random() * 0.02;
+      const shift = Math.floor(Math.random() * 18) - 9;
+
+      ctx.fillStyle = `rgba(255,255,255,${alpha})`;
+      ctx.fillRect(0, y, canvas.width + shift, 1);
+    }
+
+    for (let y = 1; y < canvas.height; y += 4) {
+      const alpha = 0.008 + Math.random() * 0.012;
+
+      ctx.fillStyle = `rgba(0,0,0,${alpha})`;
+      ctx.fillRect(0, y, canvas.width, 1);
+    }
+
+    const texture = new THREE.CanvasTexture(canvas);
+
+    texture.wrapS = THREE.ClampToEdgeWrapping;
+    texture.wrapT = THREE.RepeatWrapping;
+
+    // Повторяем по высоте, чтобы шлифовка выглядела плотнее.
+    texture.repeat.set(1, 2);
+
+    texture.needsUpdate = true;
+
+    return texture;
+  }
+
   createElevatorMaterials(style = this.getElevatorStyle()) {
+    const wallGradientTexture = this.createElevatorWallGradientTexture();
+
+    const backWallGradientTexture = wallGradientTexture.clone();
+    backWallGradientTexture.needsUpdate = true;
+
     return {
       doorMat: new THREE.MeshStandardMaterial({
         color: style.doorColor,
@@ -1851,28 +1630,30 @@ const backWallMat = new THREE.MeshStandardMaterial({
 
       frameMat: new THREE.MeshStandardMaterial({
         color: style.frameColor,
-        roughness: 0.5,
-        metalness: 0.9,
+
+        // Раму пока делаем более матовой.
+        // Высокая металличность давала яркие блики на узких боковых гранях,
+        // которые при движении камеры выглядели как дрожащие светлые полосы.
+        roughness: 0.85,
+        metalness: 0.08,
       }),
 
-    cabinSideWallMat: new THREE.MeshStandardMaterial({
-  color: style.cabinWallColor,
-  roughness: 0.58,
-  metalness: 0.32,
+      cabinSideWallMat: new THREE.MeshStandardMaterial({
+        color: 0xffffff,
+        map: wallGradientTexture,
+        // Для задней стены отдельно клонируем карту,
+        // чтобы потом можно было независимо крутить/масштабировать.
+        roughness: 0.34,
+        metalness: 0.62,
+      }),
 
-  // Точно как у центральной кабины
-  emissive: 0x24282b,
-  emissiveIntensity: 0.18,
-}),
+      cabinBackWallMat: new THREE.MeshStandardMaterial({
+        color: 0xffffff,
+        map: wallGradientTexture.clone(),
+        roughness: 0.34,
+        metalness: 0.62,
+      }),
 
-cabinBackWallMat: new THREE.MeshStandardMaterial({
-  color: style.cabinWallColor,
-  roughness: 0.58,
-  metalness: 0.32,
-
-  emissive: 0x6f777c,
-  emissiveIntensity: 0.32,
-}),
       cabinFloorMat: new THREE.MeshStandardMaterial({
         color: style.cabinFloorColor,
         roughness: 0.72,
@@ -1881,8 +1662,30 @@ cabinBackWallMat: new THREE.MeshStandardMaterial({
 
       cabinCeilingMat: new THREE.MeshStandardMaterial({
         color: style.cabinCeilingColor,
-        roughness: 0.65,
-        metalness: 0.2,
+        roughness: 0.48,
+        metalness: 0.16,
+      }),
+
+      cabinTrimMat: new THREE.MeshStandardMaterial({
+        color: style.cabinTrimColor,
+        roughness: 0.22,
+        metalness: 0.88,
+      }),
+
+      cabinPanelMat: new THREE.MeshStandardMaterial({
+        color: style.cabinPanelColor,
+        roughness: 0.46,
+        metalness: 0.1,
+      }),
+
+      cabinSkirtingMat: new THREE.MeshStandardMaterial({
+        // Чуть темнее стен, чтобы плинтус не светился
+        // и смотрелся как спокойная нижняя окантовка.
+        color: 0xaeb6bc,
+        roughness: 0.58,
+        metalness: 0.04,
+        side: THREE.DoubleSide,
+        flatShading: true,
       }),
     };
   }
@@ -1939,6 +1742,23 @@ cabinBackWallMat: new THREE.MeshStandardMaterial({
         wall,
         normal: new THREE.Vector3(0, 0, -1),
         slide: new THREE.Vector3(1, 0, 0),
+        slideAxis: "x",
+        depthAxis: "z",
+        isSideWall: false,
+      };
+    }
+
+    if (wall === "front_out") {
+      return {
+        wall,
+
+        // Кабина находится с внешней стороны стартовой стены
+        // и уходит от комнаты по +Z.
+        normal: new THREE.Vector3(0, 0, 1),
+
+        // Створки по-прежнему разъезжаются по X.
+        slide: new THREE.Vector3(1, 0, 0),
+
         slideAxis: "x",
         depthAxis: "z",
         isSideWall: false,
@@ -2067,10 +1887,143 @@ cabinBackWallMat: new THREE.MeshStandardMaterial({
       return mesh;
     };
 
+    const addRotatedBoxMesh = (
+      name,
+      normalSize,
+      height,
+      slideSize,
+      normalOffset,
+      slideOffset,
+      y,
+      material,
+      rotationX = 0,
+      rotationY = 0,
+      rotationZ = 0,
+    ) => {
+      const mesh = new THREE.Mesh(
+        makeBoxGeometry(normalSize, height, slideSize),
+        material,
+      );
+
+      mesh.name = name;
+      mesh.position.copy(makePos(normalOffset, slideOffset, y));
+      mesh.rotation.set(rotationX, rotationY, rotationZ);
+      mesh.castShadow = true;
+      mesh.receiveShadow = true;
+      mesh.userData.skipWallMaterialUpdate = true;
+
+      group.add(mesh);
+
+      return mesh;
+    };
+
+    // Создаёт плинтус с треугольным профилем
+    // и, при необходимости, с запилом торцов под 45°.
+    const addMiteredSkirtingMesh = ({
+      name,
+      start,
+      end,
+      inward,
+      size,
+      material,
+      miterStart = false,
+      miterEnd = false,
+    }) => {
+      const direction = end.clone().sub(start).normalize();
+      const up = new THREE.Vector3(0, 1, 0);
+
+      // Точки внутреннего края у пола.
+      const startInner = start.clone().addScaledVector(inward, size);
+
+      const endInner = end.clone().addScaledVector(inward, size);
+
+      // Запил под 45°.
+      //
+      // В начале внутренний край уходит вперёд,
+      // в конце — назад. Получается диагональная плоскость стыка.
+      if (miterStart) {
+        startInner.addScaledVector(direction, size);
+      }
+
+      if (miterEnd) {
+        endInner.addScaledVector(direction, -size);
+      }
+
+      // Поперечное сечение плинтуса — треугольник:
+      //
+      // стенка
+      // │\
+      // │ \
+      // │__\ пол
+      //
+      const points = [
+        // Начало
+        start.clone(), // 0: низ у стены
+        start.clone().addScaledVector(up, size), // 1: верх у стены
+        startInner, // 2: край на полу
+
+        // Конец
+        end.clone(), // 3
+        end.clone().addScaledVector(up, size), // 4
+        endInner, // 5
+      ];
+
+      const vertices = [];
+
+      for (const p of points) {
+        vertices.push(p.x, p.y, p.z);
+      }
+
+      const indices = [];
+
+      // Прямые торцы закрываем.
+      // Скошенные торцы специально не закрываем — там плинтусы
+      // сходятся друг с другом запилом.
+      if (!miterStart) {
+        indices.push(0, 2, 1);
+      }
+
+      if (!miterEnd) {
+        indices.push(3, 4, 5);
+      }
+
+      // Оставляем только ВИДИМУЮ наклонную лицевую поверхность.
+      // Поверхности, лежащие на стене и полу, не рисуем вообще,
+      // чтобы не было z-fighting.
+      indices.push(1, 2, 5, 1, 5, 4);
+
+      const geometry = new THREE.BufferGeometry();
+
+      geometry.setAttribute(
+        "position",
+        new THREE.Float32BufferAttribute(vertices, 3),
+      );
+
+      geometry.setIndex(indices);
+      geometry.computeVertexNormals();
+
+      const mesh = new THREE.Mesh(geometry, material);
+
+      mesh.name = name;
+      mesh.castShadow = true;
+      mesh.receiveShadow = true;
+      mesh.userData.skipWallMaterialUpdate = true;
+
+      group.add(mesh);
+
+      return mesh;
+    };
+
     // === КАБИНА ===
 
     const cabinCenterOffset = style.cabinDepth / 2;
     const cabinBackOffset = style.cabinDepth;
+
+    // Визуальная внутренняя обшивка начинается немного глубже,
+    // чтобы её светлые торцы не выглядывали перед чёрной рамой.
+    const cabinVisualInset = 0.42;
+    const cabinVisualDepth = style.cabinDepth - cabinVisualInset;
+    const cabinVisualCenterOffset = cabinVisualInset + cabinVisualDepth / 2;
 
     addBoxMesh(
       `${config.id}_floor`,
@@ -2086,171 +2039,355 @@ cabinBackWallMat: new THREE.MeshStandardMaterial({
 
     addBoxMesh(
       `${config.id}_ceiling`,
-      style.cabinDepth,
+      cabinVisualDepth,
       0.08,
       style.cabinW,
-      cabinCenterOffset,
+      cabinVisualCenterOffset,
       0,
       this.floorY + style.cabinH - 0.04,
       materials.cabinCeilingMat,
       true,
     );
 
-// === ФИЗИКА КАБИНЫ ===
+    // ==========================================
+    // ДЕКОРАТИВНЫЙ ПОТОЛОЧНЫЙ МОДУЛЬ
+    // ==========================================
+    //
+    // Вместо одной тёмной плоскости делаем светлую кассету
+    // с тёмной рамкой вокруг центрального светильника.
 
-const addCabinPhysics = (
-  normalSize,
-  height,
-  slideSize,
-  normalOffset,
-  slideOffset,
-  y,
-) => {
-  const body = new CANNON.Body({
-    mass: 0,
-    material: this.matStandard,
-    collisionFilterGroup: CONFIG.PHYSICS.GROUPS.SCENE,
-    collisionFilterMask:
-      CONFIG.PHYSICS.GROUPS.OBJECTS |
-      CONFIG.PHYSICS.GROUPS.TINY,
-  });
+    const ceilingDecorY = this.floorY + style.cabinH - 0.1;
 
-  body.addShape(
-    new CANNON.Box(
-      makeCannonHalfExtents(
-        normalSize,
-        height,
-        slideSize,
-      ),
-    ),
-  );
+    // Размер центральной потолочной кассеты.
+    const ceilingPanelDepth = 3.5;
+    const ceilingPanelWidth = 5.7;
 
-  body.position.copy(
-    makePos(
+    // Светлая внутренняя панель.
+    addBoxMesh(
+      `${config.id}_ceiling_panel`,
+      ceilingPanelDepth,
+      0.055,
+      ceilingPanelWidth,
+      style.cabinDepth * 0.48,
+      0,
+      ceilingDecorY,
+      materials.cabinPanelMat,
+      false,
+    );
+
+    // Тёмная рамка по четырём сторонам кассеты.
+    const ceilingTrimThickness = 0.16;
+
+    // Передняя поперечина.
+    addBoxMesh(
+      `${config.id}_ceiling_trim_front`,
+      ceilingTrimThickness,
+      0.08,
+      ceilingPanelWidth + 0.32,
+      style.cabinDepth * 0.48 - ceilingPanelDepth / 2,
+      0,
+      ceilingDecorY - 0.015,
+      materials.cabinTrimMat,
+      false,
+    );
+
+    // Задняя поперечина.
+    addBoxMesh(
+      `${config.id}_ceiling_trim_back`,
+      ceilingTrimThickness,
+      0.08,
+      ceilingPanelWidth + 0.32,
+      style.cabinDepth * 0.48 + ceilingPanelDepth / 2,
+      0,
+      ceilingDecorY - 0.015,
+      materials.cabinTrimMat,
+      false,
+    );
+
+    // Левая продольная рейка.
+    addBoxMesh(
+      `${config.id}_ceiling_trim_left`,
+      ceilingPanelDepth,
+      0.08,
+      ceilingTrimThickness,
+      style.cabinDepth * 0.48,
+      -(ceilingPanelWidth / 2 + ceilingTrimThickness / 2),
+      ceilingDecorY - 0.015,
+      materials.cabinTrimMat,
+      false,
+    );
+
+    // Правая продольная рейка.
+    addBoxMesh(
+      `${config.id}_ceiling_trim_right`,
+      ceilingPanelDepth,
+      0.08,
+      ceilingTrimThickness,
+      style.cabinDepth * 0.48,
+      ceilingPanelWidth / 2 + ceilingTrimThickness / 2,
+      ceilingDecorY - 0.015,
+      materials.cabinTrimMat,
+      false,
+    );
+
+    // === ФИЗИКА КАБИНЫ ===
+
+    const addCabinPhysics = (
+      normalSize,
+      height,
+      slideSize,
       normalOffset,
       slideOffset,
       y,
-    ),
-  );
+    ) => {
+      const body = new CANNON.Body({
+        mass: 0,
+        material: this.matStandard,
+        collisionFilterGroup: CONFIG.PHYSICS.GROUPS.SCENE,
+        collisionFilterMask:
+          CONFIG.PHYSICS.GROUPS.OBJECTS | CONFIG.PHYSICS.GROUPS.TINY,
+      });
 
-  this.addBody(body);
+      body.addShape(
+        new CANNON.Box(makeCannonHalfExtents(normalSize, height, slideSize)),
+      );
 
-  return body;
-};
+      body.position.copy(makePos(normalOffset, slideOffset, y));
 
-// Пол кабины
-addCabinPhysics(
-  style.cabinDepth,
-  0.08,
-  style.cabinW,
-  cabinCenterOffset,
-  0,
-  this.floorY + 0.04,
-);
+      this.addBody(body);
 
-// Левая боковая стенка
-addCabinPhysics(
-  style.cabinDepth,
-  style.cabinH,
-  0.08,
-  cabinCenterOffset,
-  -style.cabinW / 2,
-  cabinY,
-);
+      return body;
+    };
 
-// Правая боковая стенка
-addCabinPhysics(
-  style.cabinDepth,
-  style.cabinH,
-  0.08,
-  cabinCenterOffset,
-  style.cabinW / 2,
-  cabinY,
-);
+    // Пол кабины
+    addCabinPhysics(
+      style.cabinDepth,
+      0.08,
+      style.cabinW,
+      cabinCenterOffset,
+      0,
+      this.floorY + 0.04,
+    );
 
-// Задняя стенка
-addCabinPhysics(
-  0.08,
-  style.cabinH,
-  style.cabinW,
-  cabinBackOffset,
-  0,
-  cabinY,
-);
+    // Левая боковая стенка
+    addCabinPhysics(
+      style.cabinDepth,
+      style.cabinH,
+      0.08,
+      cabinCenterOffset,
+      -style.cabinW / 2,
+      cabinY,
+    );
+
+    // Правая боковая стенка
+    addCabinPhysics(
+      style.cabinDepth,
+      style.cabinH,
+      0.08,
+      cabinCenterOffset,
+      style.cabinW / 2,
+      cabinY,
+    );
+
+    // Задняя стенка
+    addCabinPhysics(
+      0.08,
+      style.cabinH,
+      style.cabinW,
+      cabinBackOffset,
+      0,
+      cabinY,
+    );
 
     addBoxMesh(
-  `${config.id}_side_a`,
-  style.cabinDepth,
-  style.cabinH,
-  0.08,
-  cabinCenterOffset,
-  -style.cabinW / 2,
-  cabinY,
-  materials.cabinSideWallMat,
-  true,
-);
+      `${config.id}_side_a`,
+      cabinVisualDepth,
+      style.cabinH,
+      0.08,
+      cabinVisualCenterOffset,
+      -style.cabinW / 2,
+      cabinY,
+      materials.cabinSideWallMat,
+      true,
+    );
 
-addBoxMesh(
-  `${config.id}_side_b`,
-  style.cabinDepth,
-  style.cabinH,
-  0.08,
-  cabinCenterOffset,
-  style.cabinW / 2,
-  cabinY,
-  materials.cabinSideWallMat,
-  true,
-);
+    addBoxMesh(
+      `${config.id}_side_b`,
+      cabinVisualDepth,
+      style.cabinH,
+      0.08,
+      cabinVisualCenterOffset,
+      style.cabinW / 2,
+      cabinY,
+      materials.cabinSideWallMat,
+      true,
+    );
 
-   addBoxMesh(
-  `${config.id}_back_wall`,
-  0.08,
-  style.cabinH,
-  style.cabinW,
-  cabinBackOffset,
-  0,
-  cabinY,
-  materials.cabinBackWallMat,
-  true,
-);
+    addBoxMesh(
+      `${config.id}_back_wall`,
 
-   // === ОСВЕЩЕНИЕ КАБИНЫ ===
-// То же RectAreaLight, что используется в центральном лифте.
-const cabinLight = new THREE.RectAreaLight(
-  0xfff0dd,
-  4.0,
-  3.2,
-  3.2,
-);
+      0.08,
+      style.cabinH,
+      style.cabinW,
+      cabinBackOffset,
+      0,
+      cabinY,
+      materials.cabinBackWallMat,
+      true,
+    );
 
-cabinLight.name = `${config.id}_Light`;
+    // ==========================================
+    // ПЛИНТУСЫ КАБИНЫ
+    // С НАСТОЯЩИМ ЗАПИЛОМ УГЛОВ ПОД 45°
+    // ==========================================
 
-cabinLight.position.copy(
-  makePos(
-    style.cabinDepth * 0.45,
-    0,
-    this.floorY + style.cabinH - 0.12,
-  ),
-);
+    const skirtingSize = 0.3;
 
-// RectAreaLight направлен вертикально вниз.
-cabinLight.rotation.x = -Math.PI / 2;
+    // Верх поверхности пола.
+    // Сам пол имеет толщину 0.08 и центр стоит на floorY + 0.04.
+    const skirtingFloorY = this.floorY + 0.08;
 
-group.add(cabinLight);
+    // Внутренняя поверхность боковой стенки.
+    // Стенка имеет толщину 0.08.
+    const sideWallInnerOffset = style.cabinW / 2 - 0.04;
 
-const cabinLamp = new THREE.Mesh(
-  new THREE.BoxGeometry(2.8, 0.08, 2.8),
-  new THREE.MeshStandardMaterial({
-    color: 0xffffff,
-    emissive: 0xffffff,
-    emissiveIntensity: 1.0,
-    roughness: 0.2,
-    metalness: 0.0,
-  }),
-);   
+    // Внутренняя поверхность задней стенки.
+    const backWallInnerOffset = cabinBackOffset - 0.04;
+
+    // Передний край.
+    // После предыдущей правки внутренняя обшивка начинается
+    // с cabinVisualInset. Плинтус начинаем ещё немного глубже,
+    // чтобы возле двери вообще ничего не торчало.
+    const skirtingFrontOffset = cabinVisualInset + 0.5;
+
+    // ------------------------------------------
+    // ЛЕВЫЙ БОКОВОЙ ПЛИНТУС
+    // ------------------------------------------
+
+    const leftSkirtingStart = makePos(
+      skirtingFrontOffset,
+      -sideWallInnerOffset,
+      skirtingFloorY,
+    );
+
+    const leftSkirtingEnd = makePos(
+      backWallInnerOffset,
+      -sideWallInnerOffset,
+      skirtingFloorY,
+    );
+
+    addMiteredSkirtingMesh({
+      name: `${config.id}_skirting_left`,
+
+      start: leftSkirtingStart,
+      end: leftSkirtingEnd,
+
+      // От левой стенки внутрь кабины.
+      inward: slide.clone(),
+
+      size: skirtingSize,
+      material: materials.cabinSkirtingMat,
+
+      // Передний торец прямой,
+      // задний запилен под 45°.
+      miterStart: false,
+      miterEnd: true,
+    });
+
+    // ------------------------------------------
+    // ПРАВЫЙ БОКОВОЙ ПЛИНТУС
+    // ------------------------------------------
+
+    const rightSkirtingStart = makePos(
+      skirtingFrontOffset,
+      sideWallInnerOffset,
+      skirtingFloorY,
+    );
+
+    const rightSkirtingEnd = makePos(
+      backWallInnerOffset,
+      sideWallInnerOffset,
+      skirtingFloorY,
+    );
+
+    addMiteredSkirtingMesh({
+      name: `${config.id}_skirting_right`,
+
+      start: rightSkirtingStart,
+      end: rightSkirtingEnd,
+
+      // От правой стенки внутрь кабины.
+      inward: slide.clone().multiplyScalar(-1),
+
+      size: skirtingSize,
+      material: materials.cabinSkirtingMat,
+
+      miterStart: false,
+      miterEnd: true,
+    });
+
+    // ------------------------------------------
+    // ЗАДНИЙ ПЛИНТУС
+    // ------------------------------------------
+
+    const backSkirtingStart = makePos(
+      backWallInnerOffset,
+      -sideWallInnerOffset,
+      skirtingFloorY,
+    );
+
+    const backSkirtingEnd = makePos(
+      backWallInnerOffset,
+      sideWallInnerOffset,
+      skirtingFloorY,
+    );
+
+    addMiteredSkirtingMesh({
+      name: `${config.id}_skirting_back`,
+
+      start: backSkirtingStart,
+      end: backSkirtingEnd,
+
+      // От задней стены внутрь кабины,
+      // то есть в сторону, противоположную normal.
+      inward: normal.clone().multiplyScalar(-1),
+
+      size: skirtingSize,
+      material: materials.cabinSkirtingMat,
+
+      // Оба конца заднего плинтуса запилены.
+      miterStart: true,
+      miterEnd: true,
+    });
+
+    // === ОСВЕЩЕНИЕ КАБИНЫ ===
+    // То же RectAreaLight, что используется в центральном лифте.
+    const cabinLight = new THREE.RectAreaLight(0xfff0dd, 4.0, 3.2, 3.2);
+
+    cabinLight.name = `${config.id}_Light`;
+
+    cabinLight.position.copy(
+      makePos(style.cabinDepth * 0.45, 0, this.floorY + style.cabinH - 0.12),
+    );
+
+    // RectAreaLight направлен вертикально вниз.
+    cabinLight.rotation.x = -Math.PI / 2;
+
+    group.add(cabinLight);
+
+    const cabinLamp = new THREE.Mesh(
+      new THREE.BoxGeometry(2.8, 0.08, 2.8),
+      new THREE.MeshStandardMaterial({
+        color: 0xffffff,
+        emissive: 0xffffff,
+        emissiveIntensity: 1.0,
+        roughness: 0.2,
+        metalness: 0.0,
+      }),
+    );
 
     cabinLamp.position.copy(
-      makePos(style.cabinDepth * 0.45, 0, this.floorY + style.cabinH - 0.08),
+      makePos(style.cabinDepth * 0.45, 0, this.floorY + style.cabinH - 0.17),
     );
     group.add(cabinLamp);
 
@@ -2484,72 +2621,52 @@ const cabinLamp = new THREE.Mesh(
 
     this.registerMesh(group);
 
-if (config.id === "room2_exit") {
-  this.scene.updateMatrixWorld(true);
+    if (config.id === "room2_exit") {
+      this.scene.updateMatrixWorld(true);
 
-  const centralPos = new THREE.Vector3(
-    0,
-    4.88,
-    11.25,
-  );
+      const centralPos = new THREE.Vector3(0, 4.88, 11.25);
 
-  const newExitPos = new THREE.Vector3(
-    0,
-    4.88,
-    -39.75,
-  );
+      const newExitPos = new THREE.Vector3(0, 4.88, -39.75);
 
-  const lights = [];
+      const lights = [];
 
-  this.scene.traverse((obj) => {
-    if (!obj.isLight) return;
+      this.scene.traverse((obj) => {
+        if (!obj.isLight) return;
 
-    const worldPos = new THREE.Vector3();
-    obj.getWorldPosition(worldPos);
+        const worldPos = new THREE.Vector3();
+        obj.getWorldPosition(worldPos);
 
-    lights.push({
-      name: obj.name || "(no name)",
-      type: obj.type,
-      intensity: obj.intensity,
-      visible: obj.visible,
+        lights.push({
+          name: obj.name || "(no name)",
+          type: obj.type,
+          intensity: obj.intensity,
+          visible: obj.visible,
 
-      worldPosition: worldPos.toArray(),
+          worldPosition: worldPos.toArray(),
 
-      distanceToCentral:
-        worldPos.distanceTo(centralPos),
+          distanceToCentral: worldPos.distanceTo(centralPos),
 
-      distanceToNewExit:
-        worldPos.distanceTo(newExitPos),
+          distanceToNewExit: worldPos.distanceTo(newExitPos),
 
-      parent:
-        obj.parent?.name || "(no name)",
-    });
-  });
+          parent: obj.parent?.name || "(no name)",
+        });
+      });
 
-  console.log(
-    "============ ALL LIGHTS NEAR ELEVATORS ============",
-  );
+      console.log("============ ALL LIGHTS NEAR ELEVATORS ============");
 
-  console.table(
-    lights
-      .filter(
-        (light) =>
-          light.distanceToCentral < 12 ||
-          light.distanceToNewExit < 12,
-      )
-      .sort(
-        (a, b) =>
-          Math.min(
-            a.distanceToCentral,
-            a.distanceToNewExit,
-          ) -
-          Math.min(
-            b.distanceToCentral,
-            b.distanceToNewExit,
+      console.table(
+        lights
+          .filter(
+            (light) =>
+              light.distanceToCentral < 12 || light.distanceToNewExit < 12,
+          )
+          .sort(
+            (a, b) =>
+              Math.min(a.distanceToCentral, a.distanceToNewExit) -
+              Math.min(b.distanceToCentral, b.distanceToNewExit),
           ),
-      ),
-  );
-}
+      );
+    }
 
     return {
       id: config.id,
@@ -2742,8 +2859,6 @@ if (config.id === "room2_exit") {
     return group;
   }
 
- 
-
   buildThirdRoom() {
     // Черновик уровня 3:
     // длинная комната, ниша на дальней стене и две простые фигуры.
@@ -2835,6 +2950,16 @@ if (config.id === "room2_exit") {
       1.25,
       0,
     );
+    // === СТАРТОВЫЙ ЛИФТ СЕКТОРА 3 ===
+    this.room3StartElevator = this.createRoomElevator({
+      id: "room3_start",
+      name: "Room3StartElevator",
+
+      wall: "front_out",
+
+      x: 0,
+      z: frontZ,
+    });
 
     // === НИША НА ДАЛЬНЕЙ СТЕНЕ ===
     this.buildRoom3NicheVisual();
@@ -3092,17 +3217,6 @@ if (config.id === "room2_exit") {
     this.world.addBody(glassBody);
   }
 
-  buildPhysicsBoundaries() {
-    // Совместимость со старым кодом:
-    // пока физика всех частей всё ещё строится сразу,
-    // но уже разнесена по методам и buildTarget.
-    this.buildRoom1Physics();
-    this.buildRoom2Physics();
-    this.buildElevatorPhysics();
-
-    this.setBuildTarget("static");
-  }
-
   buildRoom1Physics() {
     this.setBuildTarget("room");
 
@@ -3157,53 +3271,50 @@ if (config.id === "room2_exit") {
     // Старого бокового физического проёма больше нет.
     this.createPhysicsWall(16, wallCenterY, centerZ, 1, wallH / 2, roomD / 2);
 
-  // === ДАЛЬНЯЯ ФИЗИЧЕСКАЯ СТЕНА С ПРОЁМОМ ПОД НОВЫЙ ЛИФТ ===
+    // === ДАЛЬНЯЯ ФИЗИЧЕСКАЯ СТЕНА С ПРОЁМОМ ПОД НОВЫЙ ЛИФТ ===
 
-const exitElW = 7.5;
-const exitElH = 10.0;
+    const exitElW = 7.5;
+    const exitElH = 10.0;
 
-const exitSideW = (roomW - exitElW) / 2;
+    const exitSideW = (roomW - exitElW) / 2;
 
-const exitLeftX =
-  -(exitElW / 2) - exitSideW / 2;
+    const exitLeftX = -(exitElW / 2) - exitSideW / 2;
 
-const exitRightX =
-  exitElW / 2 + exitSideW / 2;
+    const exitRightX = exitElW / 2 + exitSideW / 2;
 
-// Левая часть дальней стены
-this.createPhysicsWall(
-  exitLeftX,
-  wallCenterY,
-  backZ - 1,
-  exitSideW / 2,
-  wallH / 2,
-  1,
-);
+    // Левая часть дальней стены
+    this.createPhysicsWall(
+      exitLeftX,
+      wallCenterY,
+      backZ - 1,
+      exitSideW / 2,
+      wallH / 2,
+      1,
+    );
 
-// Правая часть дальней стены
-this.createPhysicsWall(
-  exitRightX,
-  wallCenterY,
-  backZ - 1,
-  exitSideW / 2,
-  wallH / 2,
-  1,
-);
+    // Правая часть дальней стены
+    this.createPhysicsWall(
+      exitRightX,
+      wallCenterY,
+      backZ - 1,
+      exitSideW / 2,
+      wallH / 2,
+      1,
+    );
 
-// Верхняя перемычка над проёмом
-const exitTopH = wallH - exitElH;
+    // Верхняя перемычка над проёмом
+    const exitTopH = wallH - exitElH;
 
-const exitTopCenterY =
-  this.floorY + exitElH + exitTopH / 2;
+    const exitTopCenterY = this.floorY + exitElH + exitTopH / 2;
 
-this.createPhysicsWall(
-  0,
-  exitTopCenterY,
-  backZ - 1,
-  exitElW / 2,
-  exitTopH / 2,
-  1,
-);
+    this.createPhysicsWall(
+      0,
+      exitTopCenterY,
+      backZ - 1,
+      exitElW / 2,
+      exitTopH / 2,
+      1,
+    );
 
     // Полка-цель в правом углу комнаты
     this.buildRoom2GoalShelfPhysics();
@@ -3268,486 +3379,6 @@ this.createPhysicsWall(
     this.addBody(cylApproxBody);
   }
 
-  buildElevatorPhysics() {
-    this.setBuildTarget("elevator");
-
-    // Размеры должны совпадать с buildElevatorCabinVisual().
-    const elW = 7.5;
-    const elD = 5.0;
-    const elH = 10.0;
-
-    const elZ = 11.25;
-    const elCenterY = this.floorY + elH / 2;
-
-    const wallThickness = 0.1;
-    const floorThickness = 0.1;
-    const ceilingThickness = 0.1;
-
-    // === ПОЛ КАБИНЫ ===
-    this.createPhysicsWall(
-      0,
-      this.floorY - floorThickness,
-      elZ,
-      elW / 2,
-      floorThickness,
-      elD / 2,
-      this.matStandard,
-    );
-
-    // === ЛЕВАЯ СТЕНА ===
-    this.createPhysicsWall(
-      -elW / 2,
-      elCenterY,
-      elZ,
-      wallThickness,
-      elH / 2,
-      elD / 2,
-      this.matSlippery,
-    );
-
-    // === ПРАВАЯ СТЕНА ===
-    this.createPhysicsWall(
-      elW / 2,
-      elCenterY,
-      elZ,
-      wallThickness,
-      elH / 2,
-      elD / 2,
-      this.matSlippery,
-    );
-
-    // === ПОТОЛОК КАБИНЫ ===
-    this.createPhysicsWall(
-      0,
-      this.floorY + elH + ceilingThickness,
-      elZ,
-      elW / 2,
-      ceilingThickness,
-      elD / 2,
-      this.matStandard,
-    );
-  }
-
-  createElevatorFrameVisual({
-    name,
-    position,
-    rotationY = 0,
-    frameMat,
-    shaftMat,
-    parent = this.scene,
-  }) {
-    const doorH = 10.0;
-    const doorY = this.floorY + doorH / 2;
-
-    const frameGroup = new THREE.Group();
-    frameGroup.name = name;
-
-    // Все детали создаются в локальных координатах.
-    // Благодаря этому всю конструкцию можно целиком
-    // перемещать и поворачивать как один объект.
-
-    const left = new THREE.Mesh(
-      new THREE.BoxGeometry(0.6, 10.0, 0.3),
-      frameMat,
-    );
-    left.position.set(-3.75, doorY, 0);
-
-    const right = new THREE.Mesh(
-      new THREE.BoxGeometry(0.6, 10.0, 0.3),
-      frameMat,
-    );
-    right.position.set(3.75, doorY, 0);
-
-    const top = new THREE.Mesh(new THREE.BoxGeometry(8.1, 0.1, 0.3), frameMat);
-    top.position.set(0, doorY + 4.95, 0);
-
-    const bottom = new THREE.Mesh(
-      new THREE.BoxGeometry(8.1, 0.1, 0.3),
-      frameMat,
-    );
-    bottom.position.set(0, this.floorY + 0.05, 0);
-
-    // Чёрные полосы за верхней и нижней частями рамы.
-    const floorHole = new THREE.Mesh(
-      new THREE.BoxGeometry(8.1, 0.08, 0.5),
-      shaftMat,
-    );
-    floorHole.position.set(0, this.floorY + 0.04, 0);
-
-    const ceilingHole = new THREE.Mesh(
-      new THREE.BoxGeometry(8.1, 0.08, 0.5),
-      shaftMat,
-    );
-    ceilingHole.position.set(0, doorY + 4.95, 0);
-
-    [left, right, top, bottom, floorHole, ceilingHole].forEach((mesh) => {
-      mesh.castShadow = true;
-      mesh.receiveShadow = true;
-      mesh.userData.skipWallMaterialUpdate = true;
-
-      frameGroup.add(mesh);
-    });
-
-    frameGroup.position.copy(position);
-    frameGroup.rotation.y = rotationY;
-
-    parent.add(frameGroup);
-
-    return frameGroup;
-  }
-
-  buildElevatorDoors() {
-    const doorW = 3.8;
-    const doorH = 10.0;
-    const doorD = 0.4;
-    const doorY = this.floorY + doorH / 2;
-
-    const zEntrance = 14.3;
-    const zExit = 8.2;
-
-  const doorMat = new THREE.MeshStandardMaterial({
-  color: 0xdcdcdc,
-  roughness: 0.55,
-  metalness: 0.35,
-});
-
-    const seamMat = new THREE.MeshStandardMaterial({
-      color: 0x121517,
-      roughness: 0.8,
-      metalness: 0.15,
-    });
-
-    const frameMat = new THREE.MeshStandardMaterial({
-      color: 0x333333,
-      roughness: 0.5,
-      metalness: 0.9,
-    });
-
-    // Матовый черный материал для "бездонной пустоты" (не отражает свет!)
-    const shaftMat = new THREE.MeshStandardMaterial({
-      color: 0x101214,
-      roughness: 0.85,
-      metalness: 0.2,
-    });
-
-    const revealMat = new THREE.MeshStandardMaterial({
-      color: 0x555b61, // мягкий металлический серый
-      roughness: 0.35,
-      metalness: 0.9,
-    });
-
-    // Создаем рамы.
-    this.entranceFrame = this.createElevatorFrameVisual({
-      name: "ElevatorEntranceFrame",
-      position: new THREE.Vector3(0, 0, 14.78),
-      rotationY: 0,
-      frameMat,
-      shaftMat,
-      parent: this.scene,
-    });
-
-    this.exitFrame = this.createElevatorFrameVisual({
-      name: "ElevatorExitFrame",
-      position: new THREE.Vector3(0, 0, 7.72),
-      rotationY: 0,
-      frameMat,
-      shaftMat,
-      parent: this.scene,
-    });
-
-    const createDoorLeaf = (side, zPos) => {
-      const mesh = new THREE.Mesh(
-        new THREE.BoxGeometry(doorW, doorH, doorD),
-        doorMat,
-      );
-      mesh.castShadow = true;
-      mesh.receiveShadow = true;
-
-      // Это не обычная плиточная стена, а дверь лифта.
-      // Камера должна видеть её как препятствие,
-      // но атмосфера/плиточные текстуры не должны её перекрашивать.
-      mesh.userData.skipWallMaterialUpdate = true;
-
-      // === ЧЁРНАЯ "РЕЗИНОВАЯ" ВСТАВКА НА ВНУТРЕННЕМ КРАЕ СТВОРКИ ===
-      // Она закрывает серый торец двери и даёт полноценный шов.
-      // Состоит из:
-      // 1) торцевой чёрной вставки;
-      // 2) тонкой накладки с лицевой стороны;
-      // 3) тонкой накладки с обратной стороны.
-      const seamWidth = 0.08;
-      const seamHeight = doorH + 0.02;
-      const seamThickness = 0.012;
-
-      // Поддержка и для числового side (-1 / 1), и для строкового ("left" / "right")
-      const isLeftLeaf = side === -1 || side === "left";
-
-      // Внутренний край створки.
-      // Для левой створки это правый край, для правой — левый.
-      const innerEdgeX = isLeftLeaf ? doorW / 2 : -doorW / 2;
-
-      // Направление наружу от внутреннего края створки.
-      const edgeDir = isLeftLeaf ? 1 : -1;
-
-      // 1. Чёрная торцевая вставка.
-      // Ставим её чуть СНАРУЖИ серого торца, чтобы не было z-fighting.
-      const edgeCapThickness = 0.035;
-      const edgeCap = new THREE.Mesh(
-        new THREE.BoxGeometry(edgeCapThickness, seamHeight, doorD + 0.02),
-        seamMat,
-      );
-
-      edgeCap.position.set(
-        innerEdgeX + edgeDir * (edgeCapThickness / 2 + 0.002),
-        0,
-        0,
-      );
-
-      edgeCap.castShadow = true;
-      edgeCap.receiveShadow = true;
-      mesh.add(edgeCap);
-
-      // 2. Тонкие накладки на лицевой и обратной стороне.
-      // Они дают видимый центральный шов, когда двери закрыты.
-      const seamOffsetZ = doorD / 2 + seamThickness / 2 + 0.003;
-
-      const createSeamStrip = (zOffset) => {
-        const strip = new THREE.Mesh(
-          new THREE.BoxGeometry(seamWidth, seamHeight, seamThickness),
-          seamMat,
-        );
-
-        strip.position.set(
-          innerEdgeX - edgeDir * (seamWidth / 2 - 0.01),
-          0,
-          zOffset,
-        );
-
-        strip.castShadow = true;
-        strip.receiveShadow = true;
-
-        mesh.add(strip);
-      };
-
-      createSeamStrip(seamOffsetZ);
-      createSeamStrip(-seamOffsetZ);
-
-      this.scene.add(mesh);
-
-      // Дверь должна быть препятствием не только для физики,
-      // но и для камеры. Иначе камерой можно заглядывать внутрь закрытого лифта.
-      if (this.sceneManager && Array.isArray(this.sceneManager.walls)) {
-        this.sceneManager.walls.push({
-          mesh,
-          isElevatorDoor: true,
-          skipMaterialUpdate: true,
-        });
-      }
-
-      const body = new CANNON.Body({
-        mass: 0,
-        type: CANNON.Body.KINEMATIC,
-        material: this.matStandard,
-        collisionFilterGroup: CONFIG.PHYSICS.GROUPS.SCENE,
-        collisionFilterMask:
-          CONFIG.PHYSICS.GROUPS.OBJECTS | CONFIG.PHYSICS.GROUPS.TINY,
-      });
-      body.addShape(
-        new CANNON.Box(new CANNON.Vec3(doorW / 2, doorH / 2, doorD / 2)),
-      );
-
-      body.position.set(side === "left" ? -doorW / 2 : doorW / 2, doorY, zPos);
-
-      this.world.addBody(body);
-      return { mesh, body };
-    };
-
-    this.entranceLeft = createDoorLeaf("left", zEntrance);
-    this.entranceRight = createDoorLeaf("right", zEntrance);
-    this.exitLeft = createDoorLeaf("left", zExit);
-    this.exitRight = createDoorLeaf("right", zExit);
-
-    const elevatorBackWallMat =
-      this.mainElevatorCabinVisual?.userData?.backWallMaterial;
-
-    if (!elevatorBackWallMat) {
-      throw new Error(
-        "[ELEVATOR] Main cabin wall material was not created before the doors.",
-      );
-    }
-
-    // Глухие металлические стенки кабины.
-    // Это односторонние плоскости, видимые только изнутри лифта.
-    const cabinFrontZ = 13.75;
-    const cabinBackZ = 8.75;
-
-    // Передняя глухая стенка.
-    // Она стоит у входа в кабину и должна смотреть внутрь лифта, то есть в сторону -Z.
-    this.entranceSolidWall = new THREE.Mesh(
-      new THREE.PlaneGeometry(7.5, 10.0),
-      elevatorBackWallMat,
-    );
-    this.entranceSolidWall.position.set(0, doorY, cabinFrontZ);
-    this.entranceSolidWall.rotation.set(0, Math.PI, 0);
-    this.entranceSolidWall.castShadow = false;
-    this.entranceSolidWall.receiveShadow = true;
-    this.entranceSolidWall.userData.skipWallMaterialUpdate = true;
-    this.registerMesh(this.entranceSolidWall);
-    if (this.sceneManager && Array.isArray(this.sceneManager.walls)) {
-      this.sceneManager.walls.push({
-        mesh: this.entranceSolidWall,
-        isElevatorCabinWall: true,
-        skipMaterialUpdate: true,
-      });
-    }
-
-    // Задняя глухая стенка.
-    // Она стоит в глубине кабины и должна смотреть внутрь лифта, то есть в сторону +Z.
-    this.exitSolidWall = new THREE.Mesh(
-      new THREE.PlaneGeometry(7.5, 10.0),
-      elevatorBackWallMat,
-    );
-    this.exitSolidWall.position.set(0, doorY, cabinBackZ);
-    this.exitSolidWall.rotation.set(0, 0, 0);
-    this.exitSolidWall.castShadow = false;
-    this.exitSolidWall.receiveShadow = true;
-    this.exitSolidWall.userData.skipWallMaterialUpdate = true;
-    this.registerMesh(this.exitSolidWall);
-    if (this.sceneManager && Array.isArray(this.sceneManager.walls)) {
-      this.sceneManager.walls.push({
-        mesh: this.exitSolidWall,
-        isElevatorCabinWall: true,
-        skipMaterialUpdate: true,
-      });
-    }
-    // === ФИЗИКА ГЛУХИХ СТЕНОК КАБИНЫ ===
-    // В каждый момент активна только одна из них.
-    // Вторая отключается через collisionFilterMask в setElevatorMode().
-
-    const createSolidWallBody = (z) => {
-      const body = new CANNON.Body({
-        mass: 0,
-        type: CANNON.Body.STATIC,
-        material: this.matSlippery,
-
-        collisionFilterGroup: CONFIG.PHYSICS.GROUPS.SCENE,
-        collisionFilterMask:
-          CONFIG.PHYSICS.GROUPS.OBJECTS | CONFIG.PHYSICS.GROUPS.TINY,
-      });
-
-      body.addShape(
-        new CANNON.Box(
-          new CANNON.Vec3(
-            7.5 / 2, // половина ширины
-            10.0 / 2, // половина высоты
-            0.1, // половина толщины
-          ),
-        ),
-      );
-
-      body.position.set(0, doorY, z);
-
-      this.addBody(body);
-
-      return body;
-    };
-
-    this.entranceSolidWallBody = createSolidWallBody(cabinFrontZ);
-    this.exitSolidWallBody = createSolidWallBody(cabinBackZ);
-    this.entranceOpenState = 0.0;
-    this.targetEntranceOpenState = 0.0;
-    this.exitOpenState = 0.0;
-    this.targetExitOpenState = 0.0;
-
-    this.setElevatorMode("entering");
-  }
-
-  setElevatorMode(mode) {
-    const activeCollisionMask =
-      CONFIG.PHYSICS.GROUPS.OBJECTS | CONFIG.PHYSICS.GROUPS.TINY;
-
-    if (mode === "entering") {
-      // Игрок заходит со стороны комнаты 1.
-      // Входная сторона открывается дверями,
-      // противоположная сторона является глухой стеной.
-
-      this.entranceLeft.mesh.visible = true;
-      this.entranceRight.mesh.visible = true;
-      this.entranceFrame.visible = true;
-      this.entranceSolidWall.visible = false;
-
-      this.exitLeft.mesh.visible = false;
-      this.exitRight.mesh.visible = false;
-      this.exitFrame.visible = false;
-      this.exitSolidWall.visible = true;
-
-      // Передняя глухая стенка выключена.
-      if (this.entranceSolidWallBody) {
-        this.entranceSolidWallBody.collisionFilterMask = 0;
-        this.entranceSolidWallBody.collisionResponse = false;
-      }
-
-      // Задняя глухая стенка включена.
-      if (this.exitSolidWallBody) {
-        this.exitSolidWallBody.collisionFilterMask = activeCollisionMask;
-        this.exitSolidWallBody.collisionResponse = true;
-        this.exitSolidWallBody.aabbNeedsUpdate = true;
-      }
-    } else if (mode === "exiting") {
-      // Игрок выходит в новую комнату.
-      // Теперь входная сторона становится глухой стеной,
-      // а выходная сторона открывается дверями.
-
-      this.entranceLeft.mesh.visible = false;
-      this.entranceRight.mesh.visible = false;
-      this.entranceFrame.visible = false;
-      this.entranceSolidWall.visible = true;
-
-      this.exitLeft.mesh.visible = true;
-      this.exitRight.mesh.visible = true;
-      this.exitFrame.visible = true;
-      this.exitSolidWall.visible = false;
-
-      // Передняя глухая стенка включена.
-      if (this.entranceSolidWallBody) {
-        this.entranceSolidWallBody.collisionFilterMask = activeCollisionMask;
-        this.entranceSolidWallBody.collisionResponse = true;
-        this.entranceSolidWallBody.aabbNeedsUpdate = true;
-      }
-
-      // Задняя глухая стенка выключена.
-      if (this.exitSolidWallBody) {
-        this.exitSolidWallBody.collisionFilterMask = 0;
-        this.exitSolidWallBody.collisionResponse = false;
-      }
-    }
-  }
-
-  buildElevatorLight() {
-    const elZ = 11.25;
-    const ceilingY = this.floorY + 10.0; // Это уровень 2.5
-
-    // 1. Делаем лампу тонким БОКСОМ (толщина 0.1), чтобы не было мерцания
-    const lampGeo = new THREE.BoxGeometry(3.5, 0.1, 3.5);
-    this.elevatorLampMat = new THREE.MeshStandardMaterial({
-      color: 0xffffff,
-      emissive: 0xffffff,
-      emissiveIntensity: 0,
-      roughness: 0.1,
-    });
-
-    const lampMesh = new THREE.Mesh(lampGeo, this.elevatorLampMat);
-    // Опускаем чуть ниже (на 0.05), чтобы бокс не касался потолка
-    lampMesh.position.set(0, ceilingY - 0.05, elZ);
-    this.scene.add(lampMesh);
-
-    // 2. Источник света (PointLight)
-    this.elevatorLight = new THREE.PointLight(0xfff0dd, 0, 15);
-    this.elevatorLight.position.set(0, ceilingY - 0.5, elZ);
-    this.elevatorLight.castShadow = true;
-    this.elevatorLight.shadow.bias = -0.001;
-    this.scene.add(this.elevatorLight);
-  }
-
   registerRoomElevator(elevator) {
     if (!elevator || !elevator.id) {
       console.warn("[ELEVATOR] Tried to register room elevator without id.");
@@ -3806,30 +3437,12 @@ this.createPhysicsWall(
     return elevator ? elevator.openState : 0.0;
   }
 
-  // === ЕДИНЫЙ API ДВЕРЕЙ ВСЕХ ЛИФТОВ ===
+  // === ЕДИНЫЙ API ДВЕРЕЙ ЛИФТОВ ===
   //
-  // Центральный лифт пока физически остаётся старой системой,
-  // но снаружи управляется так же, как создаваемые комнатные лифты.
-  //
-  // Известные id:
-  // "main_entrance" — сторона центрального лифта у комнаты 1;
-  // "main_exit"     — сторона центрального лифта у комнат 2/3;
-  // "room2_exit"    — финальный боковой лифт комнаты 2.
+  // Все лифты создаются через createRoomElevator()
+  // и хранятся в roomElevators.
 
   setElevatorOpen(id, isOpen) {
-    const targetState = isOpen ? 1.0 : 0.0;
-
-    if (id === "main_entrance") {
-      this.targetEntranceOpenState = targetState;
-      return;
-    }
-
-    if (id === "main_exit") {
-      this.targetExitOpenState = targetState;
-      return;
-    }
-
-    // Все новые комнатные лифты уже хранятся в roomElevators.
     this.setRoomElevatorOpen(id, isOpen);
   }
 
@@ -3842,14 +3455,6 @@ this.createPhysicsWall(
   }
 
   getElevatorOpenState(id) {
-    if (id === "main_entrance") {
-      return this.entranceOpenState ?? 0.0;
-    }
-
-    if (id === "main_exit") {
-      return this.exitOpenState ?? 0.0;
-    }
-
     return this.getRoomElevatorOpenState(id);
   }
 
@@ -3886,100 +3491,58 @@ this.createPhysicsWall(
     }
   }
 
-  // === СТАРЫЕ ИМЕНА ДЛЯ ВРЕМЕННОЙ СОВМЕСТИМОСТИ ===
-  //
-  // main.js пока продолжает вызывать эти методы.
-  // После перевода кат-сцены на общий API их можно будет удалить.
-
-  openEntrance() {
-    this.openElevator("main_entrance");
-  }
-
-  closeEntrance() {
-    this.closeElevator("main_entrance");
-  }
-
-  openExit() {
-    this.openElevator("main_exit");
-  }
-
-  closeExit() {
-    this.closeElevator("main_exit");
-  }
-
   updateDoors(dt) {
+    // Общие обновления комнаты.
     this.syncPushableObjects();
     this.updateRoom2Puzzle();
 
-    if (!this.entranceLeft) return;
-
-    // Скорость дверей.
-    // Раньше updateDoors(dt) случайно вызывался дважды за кадр,
-    // поэтому 1.6 примерно возвращает прежнее ощущение скорости, но уже правильно.
+    // Единая скорость створок для всех универсальных лифтов.
     const doorSpeed = 1.6;
 
-    this.entranceOpenState = THREE.MathUtils.lerp(
-      this.entranceOpenState,
-      this.targetEntranceOpenState,
-      dt * doorSpeed,
-    );
-
-    this.exitOpenState = THREE.MathUtils.lerp(
-      this.exitOpenState,
-      this.targetExitOpenState,
-      dt * doorSpeed,
-    );
-
-    const closedX = 1.9;
-
-    // Створки не должны полностью растворяться в чёрных карманах.
-    // 5.25 оставляет небольшой видимый край двери, будто она заехала в паз.
-    const openX = 5.25;
-
-    // --- ДВИГАЕМ ВХОДНЫЕ ДВЕРИ ---
-    const entOffset = closedX + (openX - closedX) * this.entranceOpenState;
-    this.entranceLeft.body.position.x = -entOffset;
-    this.entranceRight.body.position.x = entOffset;
-    this.entranceLeft.mesh.position.copy(this.entranceLeft.body.position);
-    this.entranceRight.mesh.position.copy(this.entranceRight.body.position);
-
-    // --- ДВИГАЕМ ВЫХОДНЫЕ ДВЕРИ ---
-    const exitOffset = closedX + (openX - closedX) * this.exitOpenState;
-    this.exitLeft.body.position.x = -exitOffset;
-    this.exitRight.body.position.x = exitOffset;
-    this.exitLeft.mesh.position.copy(this.exitLeft.body.position);
-    this.exitRight.mesh.position.copy(this.exitRight.body.position);
-
-    // --- ДВИГАЕМ КОМНАТНЫЕ ЛИФТЫ ---
-    // Пока сюда попадает только финальный лифт уровня 2.
-    // Позже здесь будут обновляться room2_entry, room2_exit, room3_entry и т.д.
+    // Все текущие лифты теперь создаются через createRoomElevator()
+    // и хранятся в roomElevators.
     this.updateRoomElevators(dt, doorSpeed);
   }
 
-  buildLightingPanels() {
+  buildLightingPanels(levelId = this.currentRoomId) {
+    // В этих массивах должны находиться только светильники
+    // текущей активной комнаты.
     this.sceneManager.corridorPanels = [];
     this.sceneManager.labPanels = [];
 
     const createLightPanel = (x, y, z, isCorridor = false) => {
-      const group = new THREE.Group();
-      group.position.set(x, y, z);
-      group.userData = {
+      // Общий контейнер одного потолочного светильника.
+      // Внутри него находятся и геометрия, и реальные источники света.
+      // Благодаря этому весь светильник удаляется вместе с currentRoomGroup.
+      const root = new THREE.Group();
+      root.name = `Room${levelId}_Light_${x}_${z}`;
+      root.position.set(x, y, z);
+
+      root.userData = {
         intensity: isCorridor ? 1.0 : 0.0,
-        isCorridor: isCorridor,
+        isCorridor,
         isAnimating: false,
       };
 
+      // === КОРПУС ===
       const housingGeo = new THREE.BoxGeometry(4.2, 0.2, 4.2);
+
       const housingMat = new THREE.MeshStandardMaterial({
         color: 0xd0d0d0,
         roughness: 0.6,
         metalness: 0.3,
       });
-      const housing = new THREE.Mesh(housingGeo, housingMat);
-      housing.position.y = -0.1;
-      group.add(housing);
 
+      const housing = new THREE.Mesh(housingGeo, housingMat);
+      housing.position.set(0, -0.1, 0);
+      housing.castShadow = false;
+      housing.receiveShadow = true;
+
+      root.add(housing);
+
+      // === СВЕТЯЩИЙСЯ ДИФФУЗОР ===
       const diffuserGeo = new THREE.PlaneGeometry(3.8, 3.8);
+
       const diffuserMat = new THREE.MeshStandardMaterial({
         color: 0xdddddd,
         emissive: 0xffffff,
@@ -3987,75 +3550,104 @@ this.createPhysicsWall(
         roughness: 0.6,
         metalness: 0.1,
       });
+
       const diffuser = new THREE.Mesh(diffuserGeo, diffuserMat);
+
       diffuser.rotation.x = Math.PI / 2;
-      diffuser.position.y = -0.201;
-      group.add(diffuser);
+      diffuser.position.set(0, -0.201, 0);
 
-      this.scene.add(group);
+      root.add(diffuser);
 
+      // === ОСНОВНОЙ СВЕТ ===
       const rectLight = new THREE.RectAreaLight(
         0xffffff,
         isCorridor ? 15.0 : 0.0,
         3.8,
         3.8,
       );
-      rectLight.position.set(x, y - 0.21, z);
-      rectLight.lookAt(x, -10, z);
-      rectLight.visible = isCorridor;
-      this.scene.add(rectLight);
 
+      rectLight.position.set(0, -0.21, 0);
+      rectLight.rotation.x = -Math.PI / 2;
+      rectLight.visible = isCorridor;
+
+      root.add(rectLight);
+
+      // === СВЕТ ДЛЯ ТЕНЕЙ ===
       const shadowLight = new THREE.SpotLight(0xffffff, isCorridor ? 3.0 : 0.0);
-      shadowLight.position.set(x, y - 0.25, z);
+
+      shadowLight.position.set(0, -0.25, 0);
       shadowLight.angle = Math.PI / 3.5;
       shadowLight.penumbra = 1.0;
       shadowLight.decay = 1.5;
       shadowLight.distance = 40;
+
       shadowLight.castShadow = true;
       shadowLight.shadow.mapSize.set(1024, 1024);
       shadowLight.shadow.bias = -0.0001;
       shadowLight.visible = isCorridor;
 
+      // Цель прожектора находится непосредственно под лампой.
       const targetObj = new THREE.Object3D();
-      targetObj.position.set(x, -10, z);
-      this.scene.add(targetObj);
-      shadowLight.target = targetObj;
-      this.scene.add(shadowLight);
+      targetObj.position.set(0, -20, 0);
 
-      return { group, diffuser, rectLight, shadowLight };
+      root.add(targetObj);
+
+      shadowLight.target = targetObj;
+
+      root.add(shadowLight);
+
+      // ВАЖНО:
+      // светильник является частью текущей комнаты,
+      // а не глобальной сцены.
+      this.currentRoomGroup.add(root);
+
+      return {
+        group: root,
+        diffuser,
+        rectLight,
+        shadowLight,
+      };
     };
 
-    // Позиции для ПЕРВОЙ комнаты (Белой)
-    const room1Pos = [
-      { x: -7.5, z: 22.5 },
-      { x: 7.5, z: 22.5 },
-      { x: -7.5, z: 37.5 },
-      { x: 7.5, z: 37.5 },
-    ];
+    // ==========================================
+    // КОНФИГУРАЦИЯ СВЕТА КАЖДОГО СЕКТОРА
+    // ==========================================
 
-    // Позиции для ВТОРОЙ комнаты.
-    const room2Pos = [
-      // Ближний ряд основной части комнаты
-      { x: -7.5, z: -7.5 },
-      { x: 7.5, z: -7.5 },
+    let positions = [];
 
-      // Дальний ряд.
-      // Коридора больше нет, поэтому снова используем
-      // две симметричные лампы на всю ширину комнаты.
-      { x: -7.5, z: -30.0 },
-      { x: 7.5, z: -30.0 },
-    ];
+    if (levelId === 1) {
+      positions = [
+        { x: -7.5, z: 22.5 },
+        { x: 7.5, z: 22.5 },
+        { x: -7.5, z: 37.5 },
+        { x: 7.5, z: 37.5 },
+      ];
+    }
 
-  room1Pos.forEach((pos) =>
-  this.sceneManager.corridorPanels.push(
-    createLightPanel(pos.x, this.ceilingY, pos.z, true),
-  ),
-);
+    if (levelId === 2) {
+      positions = [
+        { x: -7.5, z: -7.5 },
+        { x: 7.5, z: -7.5 },
+        { x: -7.5, z: -30.0 },
+        { x: 7.5, z: -30.0 },
+      ];
+    }
 
-room2Pos.forEach((pos) =>
-  this.sceneManager.corridorPanels.push(
-    createLightPanel(pos.x, this.ceilingY, pos.z, true),
-  ),
-);
+    if (levelId === 3) {
+      // У третьего сектора свой независимый набор.
+      // Сейчас нужны все четыре светильника.
+      positions = [
+        { x: -7.5, z: -7.5 },
+        { x: 7.5, z: -7.5 },
+        { x: -7.5, z: -30.0 },
+        { x: 7.5, z: -30.0 },
+      ];
+    }
+
+    positions.forEach((pos) => {
+      this.sceneManager.corridorPanels.push(
+        createLightPanel(pos.x, this.ceilingY, pos.z, true),
+      );
+    });
   }
 }

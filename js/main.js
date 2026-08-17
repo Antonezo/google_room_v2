@@ -2518,10 +2518,14 @@ setupStateReactions() {
             pad.material.emissiveIntensity = 0.08;
           }
 
-          // Общий механизм разблокировки выходного лифта.
-          this.unlockExitElevator(1);
+        // Общий механизм разблокировки выходного лифта.
+this.unlockExitElevator(1);
 
-          console.log("[ROOM 1] Temporary unlock pad activated.");
+// Активируем дисплей финишного лифта:
+// NEXT 02
+this.levelBuilder?.activateExitElevator(1);
+
+console.log("[ROOM 1] Temporary unlock pad activated.");
         }
       }
 

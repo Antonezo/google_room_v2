@@ -70,6 +70,16 @@ export class LevelBuilder {
     // Оно больше не связано со старой промежуточной дверью.
     this.room2PuzzleSolved = false;
 
+    // Пульсация красного дна ячейки комнаты 2.
+    this.room2SocketFloorMaterial = null;
+    this.room2SocketPulseTime = 0;
+    this.room2SocketGlowLight = null;
+
+    // Ждём настоящий цикл:
+    // стартовый лифт открылся -> затем полностью закрылся.
+    this.room2SocketSawStartElevatorOpen = false;
+    this.room2SocketCountdownStarted = false;
+
     // Комнатные лифты.
     this.roomElevators = new Map();
 
@@ -78,6 +88,7 @@ export class LevelBuilder {
     this.onRoom2PuzzleSolved = null;
 
     this.buildTarget = "static";
+    this.elevatorDoorPulseTime = 0;
   }
 
   setBuildTarget(target) {
@@ -223,6 +234,12 @@ export class LevelBuilder {
     // При полной перестройке комнаты её головоломка
     // снова считается нерешённой.
     this.room2PuzzleSolved = false;
+    this.room2SocketFloorMaterial = null;
+    this.room2SocketPulseTime = 0;
+    this.room2SocketGlowLight = null;
+
+    this.room2SocketSawStartElevatorOpen = false;
+    this.room2SocketCountdownStarted = false;
 
     if (audioManager?.stopBoxSlide) {
       audioManager.stopBoxSlide();
@@ -315,6 +332,192 @@ export class LevelBuilder {
     return mesh;
   }
 
+  addPanelWall(
+    width,
+    height,
+    pos,
+    rot,
+
+    // Положение начала этого куска внутри общей сетки стены.
+    // 0 = кусок начинается с самого начала полной стены.
+    gridStart = 0,
+
+    color = 0xe4e7e9,
+    panelWidth = 5.0,
+  ) {
+    // ==========================================
+    // ОСНОВНАЯ ГЛАДКАЯ СТЕНА
+    // ==========================================
+
+    const wallMat = new THREE.MeshStandardMaterial({
+      color,
+      side: THREE.DoubleSide,
+
+      roughness: 0.48,
+      metalness: 0.06,
+
+      dithering: true,
+    });
+
+    const mesh = this.sceneManager.createWallMesh(
+      width,
+      height,
+      pos,
+      rot,
+      wallMat,
+    );
+
+    mesh.userData.skipWallMaterialUpdate = true;
+
+    // ==========================================
+    // ОБЩАЯ СЕТКА ПАНЕЛЕЙ
+    // ==========================================
+
+    const seamMaterial = new THREE.MeshStandardMaterial({
+      color: 0x899196,
+
+      roughness: 0.65,
+      metalness: 0.12,
+
+      side: THREE.DoubleSide,
+    });
+
+    const seamWidth = 0.045;
+
+    // Этот кусок стены занимает диапазон
+    // gridStart ... gridStart + width
+    // внутри общей стены.
+    const segmentStart = gridStart;
+    const segmentEnd = gridStart + width;
+
+    const epsilon = 0.0001;
+
+    // Ищем первый настоящий шов сетки 5.0,
+    // который попадает в этот кусок стены.
+    let seamGridPos =
+      Math.ceil((segmentStart - epsilon) / panelWidth) * panelWidth;
+
+    while (seamGridPos <= segmentEnd + epsilon) {
+      // Переводим координату общей сетки
+      // в локальную координату текущего меша.
+      const localX = seamGridPos - segmentStart - width / 2;
+
+      const seam = new THREE.Mesh(
+        new THREE.PlaneGeometry(seamWidth, height),
+        seamMaterial,
+      );
+      seam.position.set(localX, 0, 0.006);
+
+      seam.castShadow = false;
+      seam.receiveShadow = false;
+
+      seam.userData.skipWallMaterialUpdate = true;
+
+      mesh.add(seam);
+
+      seamGridPos += panelWidth;
+    }
+
+    this.registerMesh(mesh);
+
+    return mesh;
+  }
+
+addPanelWallWithElevatorOpening({
+  wallWidth,
+  wallHeight,
+  wallZ,
+  rotationY = 0,
+
+  openingWidth = 7.5,
+  openingHeight = 10.0,
+
+  reverseGrid = false,
+}) {
+  const sideW =
+    (wallWidth - openingWidth) / 2;
+
+  const leftX =
+    -(openingWidth / 2) - sideW / 2;
+
+  const rightX =
+    openingWidth / 2 + sideW / 2;
+
+  const topH =
+    wallHeight - openingHeight;
+
+  const topCenterY =
+    this.floorY +
+    openingHeight +
+    topH / 2;
+
+  const wallCenterY =
+    this.floorY + wallHeight / 2;
+
+  // При развороте стены на PI
+  // сетка панелей идёт в обратную сторону.
+  const leftGridStart =
+    reverseGrid
+      ? sideW + openingWidth
+      : 0;
+
+  const rightGridStart =
+    reverseGrid
+      ? 0
+      : sideW + openingWidth;
+
+  // Левая часть стены
+  this.addPanelWall(
+    sideW,
+    wallHeight,
+    new THREE.Vector3(
+      leftX,
+      wallCenterY,
+      wallZ,
+    ),
+    new THREE.Vector3(
+      0,
+      rotationY,
+      0,
+    ),
+    leftGridStart,
+  );
+
+  // Правая часть стены
+  this.addPanelWall(
+    sideW,
+    wallHeight,
+    new THREE.Vector3(
+      rightX,
+      wallCenterY,
+      wallZ,
+    ),
+    new THREE.Vector3(
+      0,
+      rotationY,
+      0,
+    ),
+    rightGridStart,
+  );
+
+  // Перемычка над лифтом
+  this.addPanelWall(
+    openingWidth,
+    topH,
+    new THREE.Vector3(
+      0,
+      topCenterY,
+      wallZ,
+    ),
+    new THREE.Vector3(
+      0,
+      rotationY,
+      0,
+    ),
+    sideW,
+  );
+}
+
   addAlwaysTiledSurface(
     width,
     height,
@@ -350,6 +553,42 @@ export class LevelBuilder {
 
       mesh.geometry.attributes.uv.needsUpdate = true;
     }
+
+    return mesh;
+  }
+
+  addPlainSurface(
+    width,
+    height,
+    pos,
+    rot,
+    {
+      color = 0xe4e7e9,
+      roughness = 0.45,
+      metalness = 0.08,
+      emissive = 0x000000,
+      emissiveIntensity = 0.0,
+      side = THREE.DoubleSide,
+    } = {},
+  ) {
+    const mat = new THREE.MeshStandardMaterial({
+      color,
+      side,
+
+      roughness,
+      metalness,
+
+      emissive,
+      emissiveIntensity,
+
+      dithering: true,
+    });
+
+    const mesh = this.sceneManager.createWallMesh(width, height, pos, rot, mat);
+
+    mesh.userData.skipWallMaterialUpdate = true;
+
+    this.registerMesh(mesh);
 
     return mesh;
   }
@@ -610,7 +849,11 @@ export class LevelBuilder {
     const elW = 7.5; // Лифт: ширина 3 плитки
     const elH = 10.0; // Лифт: высота 4 плитки
 
-    // Пол и потолок комнаты №1
+    // ==========================================
+    // ПОЛ И ПОТОЛОК
+    // ==========================================
+
+    // Их пока не меняем.
     this.addTiledWall(
       roomW,
       roomD,
@@ -625,81 +868,62 @@ export class LevelBuilder {
       new THREE.Vector3(Math.PI / 2, 0, 0),
     );
 
-    // Левая, правая, задняя стены комнаты №1
-    this.addTiledWall(
+    // ==========================================
+    // ЛЕВАЯ, ПРАВАЯ И ЗАДНЯЯ СТЕНЫ
+    // ==========================================
+
+    // Левая стена
+    this.addPanelWall(
       roomD,
       wallH,
       new THREE.Vector3(-15, wallCenterY, 30),
       new THREE.Vector3(0, Math.PI / 2, 0),
     );
 
-    this.addTiledWall(
+    // Правая стена
+    this.addPanelWall(
       roomD,
       wallH,
       new THREE.Vector3(15, wallCenterY, 30),
       new THREE.Vector3(0, -Math.PI / 2, 0),
     );
 
-    this.addTiledWall(
+    // Задняя стена
+    this.addPanelWall(
       roomW,
       wallH,
       new THREE.Vector3(0, wallCenterY, 45),
       new THREE.Vector3(0, Math.PI, 0),
     );
 
-    // === ПЕРЕДНЯЯ СТЕНА КОМНАТЫ №1 С ПРОЁМОМ ПОД ЛИФТ ===
-    const sideW = (roomW - elW) / 2;
-    const leftX = -(elW / 2) - sideW / 2;
-    const rightX = elW / 2 + sideW / 2;
+this.addPanelWallWithElevatorOpening({
+  wallWidth: roomW,
+  wallHeight: wallH,
 
-    // Левая часть передней стены
-    this.addTiledWall(
-      sideW,
-      wallH,
-      new THREE.Vector3(leftX, wallCenterY, 15),
-      new THREE.Vector3(0, 0, 0),
-      0,
-      0,
-    );
+  wallZ: 15,
+  rotationY: 0,
 
-    // Правая часть передней стены
-    this.addTiledWall(
-      sideW,
-      wallH,
-      new THREE.Vector3(rightX, wallCenterY, 15),
-      new THREE.Vector3(0, 0, 0),
-      1.25,
-      0,
-    );
+  openingWidth: elW,
+  openingHeight: elH,
 
-    // Козырек над лифтом
-    const topH = this.ceilingY - (this.floorY + elH);
-    const topCenterY = this.floorY + elH + topH / 2;
-
-    this.addTiledWall(
-      elW,
-      topH,
-      new THREE.Vector3(0, topCenterY, 15),
-      new THREE.Vector3(0, 0, 0),
-      1.25,
-      0,
-    );
-
+  reverseGrid: false,
+});
     // === ФИНИШНЫЙ ЛИФТ СЕКТОРА 1 ===
     //
     // Используем тот же универсальный шаблон,
     // что и для всех остальных лифтов.
-    this.room1ExitElevator = this.createRoomElevator({
-      id: "room1_exit",
-      name: "Room1ExitElevator",
+this.room1ExitElevator = this.createRoomElevator({
+  id: "room1_exit",
+  name: "Room1ExitElevator",
 
-      // Передняя стена комнаты находится на z = 15.
-      // Кабина должна уходить наружу комнаты по -Z.
-      wall: "front",
+  wall: "front",
 
-      x: 0,
-      z: 15,
-    });
+  x: 0,
+  z: 15,
+
+  levelNumber: 1,
+  elevatorRole: "exit",
+});
 
     // Временная обучающая площадка комнаты 1.
     // Позже её можно будет заменить настоящим заданием,
@@ -781,116 +1005,65 @@ export class LevelBuilder {
     this.buildRoom2LeftWallWithSocketVisual(wallH);
 
     // ПРАВАЯ СТЕНА КОМНАТЫ №2
-    // Старого бокового лифта здесь больше нет.
-    this.addTiledWall(
+    this.addPanelWall(
       roomD,
       wallH,
       new THREE.Vector3(15, wallCenterY, centerZ),
       new THREE.Vector3(0, -Math.PI / 2, 0),
     );
 
-    // === ДАЛЬНЯЯ СТЕНА С ПРОЁМОМ ПОД НОВЫЙ ЛИФТ 2 → 3 ===
-    //
-    // Новый лифт располагается точно по центру дальней стены,
-    // напротив центрального входного лифта.
-
+    // === ДАЛЬНЯЯ СТЕНА С ПРОЁМОМ ПОД НОВЫЙ ЛИФТ 2 → 3 ===//
     const exitElW = 7.5;
-    const exitElH = 10.0;
+const exitElH = 10.0;
 
-    // Ширина стены слева и справа от проёма.
-    const exitSideW = (roomW - exitElW) / 2;
+this.addPanelWallWithElevatorOpening({
+  wallWidth: roomW,
+  wallHeight: wallH,
 
-    // Центры двух боковых участков.
-    const exitLeftX = -(exitElW / 2) - exitSideW / 2;
+  wallZ: backZ,
+  rotationY: 0,
 
-    const exitRightX = exitElW / 2 + exitSideW / 2;
+  openingWidth: exitElW,
+  openingHeight: exitElH,
 
-    // Левая часть дальней стены
-    this.addTiledWall(
-      exitSideW,
-      wallH,
-      new THREE.Vector3(exitLeftX, wallCenterY, backZ),
-      new THREE.Vector3(0, 0, 0),
-      0,
-      0,
-    );
+  reverseGrid: false,
+});
+   
 
-    // Правая часть дальней стены
-    this.addTiledWall(
-      exitSideW,
-      wallH,
-      new THREE.Vector3(exitRightX, wallCenterY, backZ),
-      new THREE.Vector3(0, 0, 0),
-      1.25,
-      0,
-    );
-
-    // Перемычка над проёмом
-    const exitTopH = wallH - exitElH;
-
-    const exitTopCenterY = this.floorY + exitElH + exitTopH / 2;
-
-    this.addTiledWall(
-      exitElW,
-      exitTopH,
-      new THREE.Vector3(0, exitTopCenterY, backZ),
-      new THREE.Vector3(0, 0, 0),
-      1.25,
-      0,
-    );
 
     // ПЕРЕДНЯЯ СТЕНА С ПРОЁМОМ ПОД СТАРТОВЫЙ ЛИФТ
-    const elW = 7.5;
-    const sideW = (roomW - elW) / 2;
-    const leftX = -(elW / 2) - sideW / 2;
-    const rightX = elW / 2 + sideW / 2;
+const elW = 7.5;
+const elH = 10.0;
 
-    // Из-за поворота Math.PI UV идут зеркально относительно первой комнаты,
-    // поэтому смещение ставим на левую часть, а не на правую.
-    this.addTiledWall(
-      sideW,
-      wallH,
-      new THREE.Vector3(leftX, wallCenterY, frontZ),
-      new THREE.Vector3(0, Math.PI, 0),
-      1.25,
-      0,
-    );
+this.addPanelWallWithElevatorOpening({
+  wallWidth: roomW,
+  wallHeight: wallH,
 
-    this.addTiledWall(
-      sideW,
-      wallH,
-      new THREE.Vector3(rightX, wallCenterY, frontZ),
-      new THREE.Vector3(0, Math.PI, 0),
-      0,
-      0,
-    );
+  wallZ: frontZ,
+  rotationY: Math.PI,
 
-    const elH = 10.0;
-    const topH = wallH - elH;
-    const topCenterY = this.floorY + elH + topH / 2;
+  openingWidth: elW,
+  openingHeight: elH,
 
-    this.addTiledWall(
-      elW,
-      topH,
-      new THREE.Vector3(0, topCenterY, frontZ),
-      new THREE.Vector3(0, Math.PI, 0),
-      1.25,
-      0,
-    );
+  reverseGrid: true,
+});
 
     // === СТАРТОВЫЙ ЛИФТ СЕКТОРА 2 ===
     //
     // После перехода игрок появляется внутри этой кабины,
     // а затем двери открываются в комнату.
-    this.room2StartElevator = this.createRoomElevator({
-      id: "room2_start",
-      name: "Room2StartElevator",
+this.room2StartElevator = this.createRoomElevator({
+  id: "room2_start",
+  name: "Room2StartElevator",
 
-      wall: "front_out",
+  wall: "front_out",
 
-      x: 0,
-      z: frontZ,
-    });
+  x: 0,
+  z: frontZ,
+
+  levelNumber: 2,
+  elevatorRole: "start",
+});
 
     // Толкаемые блоки-ступеньки комнаты №2.
     this.buildRoom2PushableBlocks();
@@ -902,15 +1075,18 @@ export class LevelBuilder {
     // === НОВЫЙ ВЫХОДНОЙ ЛИФТ КОМНАТЫ 2 → 3 ===
     // Стоит по центру дальней стены.
     // Кабина уходит наружу комнаты по -Z.
-    this.room2ExitElevator = this.createRoomElevator({
-      id: "room2_exit",
-      name: "Room2ExitElevator",
+   this.room2ExitElevator = this.createRoomElevator({
+  id: "room2_exit",
+  name: "Room2ExitElevator",
 
-      wall: "back",
+  wall: "back",
 
-      x: 0,
-      z: backZ,
-    });
+  x: 0,
+  z: backZ,
+
+  levelNumber: 2,
+  elevatorRole: "exit",
+});
   }
 
   getRoom2GoalShelfConfig() {
@@ -1069,16 +1245,93 @@ export class LevelBuilder {
     this.createRoom2GoalMarkerCube(centerX, centerZ, cfg.topY);
   }
 
+  createRedMetalCubeTexture() {
+    const canvas = document.createElement("canvas");
+
+    canvas.width = 512;
+    canvas.height = 512;
+
+    const ctx = canvas.getContext("2d");
+
+    // ==========================================
+    // БАЗОВЫЙ КРАСНЫЙ МЕТАЛЛ
+    // ==========================================
+
+    const gradient = ctx.createLinearGradient(0, 0, canvas.width, 0);
+
+    gradient.addColorStop(0.0, "#A61F24");
+    gradient.addColorStop(0.18, "#D53138");
+    gradient.addColorStop(0.5, "#F04A50");
+    gradient.addColorStop(0.82, "#D53138");
+    gradient.addColorStop(1.0, "#95191E");
+
+    ctx.fillStyle = gradient;
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+    // ==========================================
+    // ШЛИФОВКА МЕТАЛЛА
+    // ==========================================
+
+    for (let y = 0; y < canvas.height; y += 2) {
+      const alpha = 0.025 + Math.random() * 0.035;
+
+      ctx.fillStyle = `rgba(255,255,255,${alpha})`;
+      ctx.fillRect(0, y, canvas.width, 1);
+    }
+
+    for (let y = 1; y < canvas.height; y += 4) {
+      const alpha = 0.015 + Math.random() * 0.018;
+
+      ctx.fillStyle = `rgba(40,0,0,${alpha})`;
+      ctx.fillRect(0, y, canvas.width, 1);
+    }
+
+    // Несколько очень слабых царапин
+    for (let i = 0; i < 35; i++) {
+      const y = Math.random() * canvas.height;
+      const x = Math.random() * canvas.width;
+      const length = 20 + Math.random() * 100;
+
+      ctx.strokeStyle = "rgba(255,210,210,0.05)";
+      ctx.lineWidth = 1;
+
+      ctx.beginPath();
+      ctx.moveTo(x, y);
+      ctx.lineTo(Math.min(canvas.width, x + length), y);
+      ctx.stroke();
+    }
+
+    const texture = new THREE.CanvasTexture(canvas);
+
+    texture.colorSpace = THREE.SRGBColorSpace;
+
+    texture.wrapS = THREE.RepeatWrapping;
+    texture.wrapT = THREE.RepeatWrapping;
+
+    texture.repeat.set(1.4, 1.4);
+
+    texture.needsUpdate = true;
+
+    return texture;
+  }
+
   createRoom2GoalMarkerCube(centerX, centerZ, shelfTopY) {
     const cfg = this.getRoom2GoalShelfConfig();
 
     const size = cfg.markerSize;
     const half = size / 2;
 
+    const redMetalTexture = this.createRedMetalCubeTexture();
+
     const markerMat = new THREE.MeshStandardMaterial({
-      color: 0xe53935, // красный кубик
-      roughness: 0.52,
-      metalness: 0.0,
+      color: 0xffffff,
+
+      map: redMetalTexture,
+
+      metalness: 0.72,
+      roughness: 0.32,
+
+      dithering: true,
     });
 
     const marker = new THREE.Mesh(
@@ -1087,6 +1340,97 @@ export class LevelBuilder {
     );
 
     marker.name = "Room2GoalMarkerCube";
+
+    // ==========================================
+    // МЕТАЛЛИЧЕСКИЕ РЁБРА ПО КРАЯМ КУБА
+    // ==========================================
+
+    const edgeMat = new THREE.MeshStandardMaterial({
+      // Светлый алюминий
+      color: 0xc4c9cc,
+
+      metalness: 0.88,
+      roughness: 0.3,
+
+      dithering: true,
+    });
+
+    const edgeThickness = 0.11;
+
+    // Рёбра немного выступают наружу,
+    // поэтому визуально куб выглядит более массивным.
+    const edgeLength = size + edgeThickness * 0.35;
+
+    const addEdge = (name, sx, sy, sz, x, y, z) => {
+      const edge = new THREE.Mesh(new THREE.BoxGeometry(sx, sy, sz), edgeMat);
+
+      edge.name = name;
+      edge.position.set(x, y, z);
+
+      edge.castShadow = true;
+      edge.receiveShadow = true;
+      edge.userData.skipWallMaterialUpdate = true;
+
+      marker.add(edge);
+
+      return edge;
+    };
+
+    const h = size / 2;
+
+    // ==========================================
+    // 4 РЕБРА ВДОЛЬ X
+    // ==========================================
+
+    for (const y of [-h, h]) {
+      for (const z of [-h, h]) {
+        addEdge(
+          "GoalCube_Edge_X",
+          edgeLength,
+          edgeThickness,
+          edgeThickness,
+          0,
+          y,
+          z,
+        );
+      }
+    }
+
+    // ==========================================
+    // 4 РЕБРА ВДОЛЬ Y
+    // ==========================================
+
+    for (const x of [-h, h]) {
+      for (const z of [-h, h]) {
+        addEdge(
+          "GoalCube_Edge_Y",
+          edgeThickness,
+          edgeLength,
+          edgeThickness,
+          x,
+          0,
+          z,
+        );
+      }
+    }
+
+    // ==========================================
+    // 4 РЕБРА ВДОЛЬ Z
+    // ==========================================
+
+    for (const x of [-h, h]) {
+      for (const y of [-h, h]) {
+        addEdge(
+          "GoalCube_Edge_Z",
+          edgeThickness,
+          edgeThickness,
+          edgeLength,
+          x,
+          y,
+          0,
+        );
+      }
+    }
 
     // Ставим кубик чуть выше физической верхней площадки полки,
     // чтобы он не пересекался с ней при старте.
@@ -1099,7 +1443,7 @@ export class LevelBuilder {
     this.registerMesh(marker);
 
     const body = new CANNON.Body({
-      mass: 12,
+      mass: 38,
       material: this.matBox,
       position: new CANNON.Vec3(
         marker.position.x,
@@ -1115,8 +1459,8 @@ export class LevelBuilder {
 
     body.addShape(new CANNON.Box(new CANNON.Vec3(half, half, half)));
 
-    body.linearDamping = 0.12;
-    body.angularDamping = 0.35;
+    body.linearDamping = 0.18;
+    body.angularDamping = 0.48;
     body.sleepSpeedLimit = 0.03;
     body.sleepTimeLimit = 0.8;
 
@@ -1193,6 +1537,121 @@ export class LevelBuilder {
     return insideX && insideZ && insideY;
   }
 
+  updateRoom2SocketPulse(dt) {
+    if (this.currentRoomId !== 2) return;
+    if (!this.room2SocketFloorMaterial) return;
+
+    const minIntensity = 0.04;
+    const maxIntensity = 0.42;
+
+    // Интенсивность реального света.
+    const minLightIntensity = 0.0;
+    const maxLightIntensity = 0.75;
+
+    // ==========================================
+    // ЗАДАНИЕ УЖЕ ВЫПОЛНЕНО
+    // ==========================================
+
+    if (this.room2PuzzleSolved) {
+      // Дно возвращаем в спокойное бордовое состояние.
+      this.room2SocketFloorMaterial.emissiveIntensity = minIntensity;
+
+      // Настоящее свечение полностью выключаем.
+      if (this.room2SocketGlowLight) {
+        this.room2SocketGlowLight.intensity = 0;
+      }
+
+      return;
+    }
+
+    // ==========================================
+    // ЖДЁМ СТАРТОВЫЙ ЛИФТ
+    // ==========================================
+
+    const startElevator = this.getRoomElevator("room2_start");
+
+    if (!startElevator) {
+      this.room2SocketFloorMaterial.emissiveIntensity = minIntensity;
+
+      if (this.room2SocketGlowLight) {
+        this.room2SocketGlowLight.intensity = 0;
+      }
+
+      return;
+    }
+
+    // Сначала убеждаемся, что двери действительно открывались.
+    if (startElevator.openState > 0.9) {
+      this.room2SocketSawStartElevatorOpen = true;
+    }
+
+    // После открытия ждём полного закрытия.
+    if (
+      this.room2SocketSawStartElevatorOpen &&
+      !this.room2SocketCountdownStarted &&
+      startElevator.targetOpenState === 0.0 &&
+      startElevator.openState < 0.03
+    ) {
+      this.room2SocketCountdownStarted = true;
+      this.room2SocketPulseTime = 0;
+    }
+
+    // Пока лифт ещё не завершил цикл —
+    // никакой подсказки.
+    if (!this.room2SocketCountdownStarted) {
+      this.room2SocketFloorMaterial.emissiveIntensity = minIntensity;
+
+      if (this.room2SocketGlowLight) {
+        this.room2SocketGlowLight.intensity = 0;
+      }
+
+      return;
+    }
+
+    // ==========================================
+    // 10 СЕКУНД БЕЗ ПОДСКАЗКИ
+    // ==========================================
+
+    this.room2SocketPulseTime += dt;
+
+    const pulseDelay = 10.0;
+
+    if (this.room2SocketPulseTime < pulseDelay) {
+      this.room2SocketFloorMaterial.emissiveIntensity = minIntensity;
+
+      if (this.room2SocketGlowLight) {
+        this.room2SocketGlowLight.intensity = 0;
+      }
+
+      return;
+    }
+
+    // ==========================================
+    // ПУЛЬСАЦИЯ
+    // ==========================================
+
+    const pulseTime = this.room2SocketPulseTime - pulseDelay;
+
+    const pulse =
+      0.5 + 0.5 * Math.sin(pulseTime * ((Math.PI * 2) / 2.8) - Math.PI / 2);
+
+    // Пульсирует сама поверхность.
+    this.room2SocketFloorMaterial.emissiveIntensity = THREE.MathUtils.lerp(
+      minIntensity,
+      maxIntensity,
+      pulse,
+    );
+
+    // И одновременно реальный красный свет.
+    if (this.room2SocketGlowLight) {
+      this.room2SocketGlowLight.intensity = THREE.MathUtils.lerp(
+        minLightIntensity,
+        maxLightIntensity,
+        pulse,
+      );
+    }
+  }
+
   updateRoom2Puzzle() {
     if (this.currentRoomId !== 2) {
       return;
@@ -1209,6 +1668,10 @@ export class LevelBuilder {
     }
 
     this.room2PuzzleSolved = true;
+
+    // Активируем дисплей
+    // финишного лифта.
+    this.activateExitElevator(2);
 
     if (typeof this.onRoom2PuzzleSolved === "function") {
       this.onRoom2PuzzleSolved();
@@ -1236,7 +1699,13 @@ export class LevelBuilder {
     const roomBackZ = -37.5;
 
     // Отверстие ставим в левой несущей стене, рядом с проходом у перегородки.
-    const socketZ = -13.75;
+    const socketFrameThickness = 0.05;
+
+    // Сдвигаем всю ячейку чуть вправо по стене,
+    // чтобы левый край рамки лёг по шву панели.
+    const socketShiftRight = socketFrameThickness;
+
+    const socketZ = -13.75 - socketShiftRight;
 
     // Размер отверстия: 1x1 плитка.
     const socketSize = TILE;
@@ -1269,6 +1738,9 @@ export class LevelBuilder {
       socketSize,
       socketDepth,
 
+      socketFrameThickness,
+      socketShiftRight,
+
       socketZMin,
       socketZMax,
 
@@ -1284,6 +1756,19 @@ export class LevelBuilder {
   buildRoom2LeftWallWithSocketVisual(wallH) {
     const cfg = this.getRoom2LeftWallSocketConfig();
     const wallCenterY = this.floorY + wallH / 2;
+    // ==========================================
+    // ОБЩАЯ СЕТКА ПАНЕЛЕЙ ДЛЯ ЛЕВОЙ СТЕНЫ
+    // ==========================================
+    //
+    // Важно:
+    // эта стена повёрнута на Math.PI / 2,
+    // поэтому для неё удобнее считать сетку
+    // от ПЕРЕДНЕГО края стены (roomFrontZ),
+    // а не от дальнего.
+    //
+    // Тогда все 3 куска стены будут ссылаться
+    // на одну и ту же 45-единичную сетку.
+    const frontGridOriginZ = cfg.roomFrontZ;
 
     // === ЛЕВАЯ СТЕНА ВОКРУГ ОТВЕРСТИЯ ===
 
@@ -1292,28 +1777,31 @@ export class LevelBuilder {
     const backCenterZ = cfg.roomBackZ + backLen / 2;
 
     if (backLen > 0.01) {
-      this.addTiledWall(
+      const backGridStart = frontGridOriginZ - cfg.socketZMin;
+
+      this.addPanelWall(
         backLen,
         wallH,
         new THREE.Vector3(cfg.wallX, wallCenterY, backCenterZ),
         new THREE.Vector3(0, Math.PI / 2, 0),
-        0,
-        0,
+
+        backGridStart,
       );
     }
-
     // Участок стены от отверстия до передней стены
     const frontLen = cfg.roomFrontZ - cfg.socketZMax;
     const frontCenterZ = cfg.socketZMax + frontLen / 2;
 
     if (frontLen > 0.01) {
-      this.addTiledWall(
+      const frontGridStart = 0;
+
+      this.addPanelWall(
         frontLen,
         wallH,
         new THREE.Vector3(cfg.wallX, wallCenterY, frontCenterZ),
         new THREE.Vector3(0, Math.PI / 2, 0),
-        cfg.socketZMax - cfg.roomBackZ,
-        0,
+
+        frontGridStart,
       );
     }
 
@@ -1322,62 +1810,183 @@ export class LevelBuilder {
     const topCenterY = cfg.socketTopY + topH / 2;
 
     if (topH > 0.01) {
-      this.addTiledWall(
+      const topGridStart = frontGridOriginZ - cfg.socketZMax;
+
+      this.addPanelWall(
         cfg.socketSize,
         topH,
         new THREE.Vector3(cfg.wallX, topCenterY, cfg.socketZ),
         new THREE.Vector3(0, Math.PI / 2, 0),
-        cfg.socketZMin - cfg.roomBackZ,
-        cfg.socketTopY - this.floorY,
+
+        topGridStart,
       );
     }
-
     // === ВНУТРЕННОСТИ ЯЧЕЙКИ ===
 
-    // Задняя стенка ячейки — тоже плиточная, как стены
-    this.addAlwaysTiledSurface(
+    // Общий стиль для внутренних стенок ячейки.
+    // Светлый гладкий тех-материал без плитки.
+    const socketInnerWallStyle = {
+      color: 0xdfe4e7,
+      roughness: 0.42,
+      metalness: 0.08,
+    };
+
+    const socketInnerCeilingStyle = {
+      color: 0xcfd6db,
+      roughness: 0.48,
+      metalness: 0.1,
+    };
+
+    const socketFloorStyle = {
+      // Глубокий бордовый основной цвет.
+      color: 0x68151a,
+
+      roughness: 0.58,
+      metalness: 0.02,
+
+      // Тоже тёмно-красное свечение,
+      // чтобы даже максимум не уходил в ярко-алый.
+      emissive: 0xa81218,
+      emissiveIntensity: 0.04,
+    };
+    // Задняя стенка ячейки
+    this.addPlainSurface(
       cfg.socketSize,
       cfg.socketSize,
       new THREE.Vector3(cfg.socketBackX - 0.03, cfg.socketCenterY, cfg.socketZ),
       new THREE.Vector3(0, Math.PI / 2, 0),
-      cfg.socketZMin - cfg.roomBackZ,
-      0,
+      socketInnerWallStyle,
     );
 
-    // Дальняя внутренняя стенка ячейки
-    this.addAlwaysTiledSurface(
+    // Дальняя внутренняя боковина ячейки
+    this.addPlainSurface(
       cfg.socketDepth,
       cfg.socketSize,
       new THREE.Vector3(cfg.socketCenterX, cfg.socketCenterY, cfg.socketZMin),
       new THREE.Vector3(0, 0, 0),
+      socketInnerWallStyle,
     );
 
-    // Ближняя внутренняя стенка ячейки
-    this.addAlwaysTiledSurface(
+    // Ближняя внутренняя боковина ячейки
+    this.addPlainSurface(
       cfg.socketDepth,
       cfg.socketSize,
       new THREE.Vector3(cfg.socketCenterX, cfg.socketCenterY, cfg.socketZMax),
       new THREE.Vector3(0, Math.PI, 0),
+      socketInnerWallStyle,
     );
 
     // Потолок ячейки
-    this.addAlwaysTiledSurface(
+    this.addPlainSurface(
       cfg.socketDepth,
       cfg.socketSize,
       new THREE.Vector3(cfg.socketCenterX, cfg.socketTopY, cfg.socketZ),
       new THREE.Vector3(Math.PI / 2, 0, Math.PI / 2),
+      socketInnerCeilingStyle,
     );
 
-    // Красный квадрат на полу внутри ячейки.
-    // Это визуальная подсказка: сюда нужно задвинуть красный кубик.
-    this.addTiledWall(
+    // Красный квадрат на дне ячейки
+    const socketFloor = this.addPlainSurface(
       cfg.socketDepth,
       cfg.socketSize,
       new THREE.Vector3(cfg.socketCenterX, this.floorY + 0.01, cfg.socketZ),
       new THREE.Vector3(-Math.PI / 2, 0, Math.PI / 2),
-      0,
-      0,
-      0xe53935,
+      socketFloorStyle,
+    );
+
+    // Сохраняем материал, чтобы затем мягко пульсировать emissiveIntensity.
+    this.room2SocketFloorMaterial = socketFloor.material;
+    this.room2SocketPulseTime = 0;
+
+    // ==========================================
+    // МЯГКОЕ КРАСНОЕ СВЕЧЕНИЕ НАД ЯЧЕЙКОЙ
+    // ==========================================
+
+    const socketGlowLight = new THREE.PointLight(
+      0xff2630, // красный оттенок
+      0.0, // интенсивность управляется пульсацией
+      3.2, // радиус действия
+      2.0, // затухание
+    );
+
+    socketGlowLight.name = "Room2SocketGlowLight";
+
+    // Ставим источник немного выше красного дна,
+    // внутри самой ячейки.
+    socketGlowLight.position.set(
+      cfg.socketCenterX,
+      this.floorY + 0.35,
+      cfg.socketZ,
+    );
+
+    socketGlowLight.castShadow = false;
+
+    this.room2SocketGlowLight = socketGlowLight;
+
+    // Добавляем в группу текущей комнаты,
+    // чтобы свет автоматически удалялся при смене сектора.
+    this.registerMesh(socketGlowLight);
+
+    this.room2SocketSawStartElevatorOpen = false;
+    this.room2SocketCountdownStarted = false;
+    // ==========================================
+    // П-ОБРАЗНАЯ СЕРАЯ РАМКА У ВХОДА В ЯЧЕЙКУ
+    // ==========================================
+
+    const socketFrameStyle = {
+      color: 0x899196,
+      roughness: 0.46,
+      metalness: 0.12,
+    };
+
+    const frameThickness = cfg.socketFrameThickness ?? 0.14;
+
+    // Чуть выдвигаем рамку в сторону комнаты,
+    // чтобы она лежала поверх стены.
+    const frameFrontX = cfg.wallX + 0.012;
+
+    // Высота боковых стоек:
+    // от пола ячейки до верхнего внешнего края рамки.
+    const sideFrameHeight = cfg.socketSize + frameThickness;
+    const sideFrameCenterY = this.floorY + sideFrameHeight / 2;
+
+    // Левая вертикальная стойка
+    this.addPlainSurface(
+      frameThickness,
+      sideFrameHeight,
+      new THREE.Vector3(
+        frameFrontX,
+        sideFrameCenterY,
+        cfg.socketZMin - frameThickness / 2,
+      ),
+      new THREE.Vector3(0, Math.PI / 2, 0),
+      socketFrameStyle,
+    );
+
+    // Правая вертикальная стойка
+    this.addPlainSurface(
+      frameThickness,
+      sideFrameHeight,
+      new THREE.Vector3(
+        frameFrontX,
+        sideFrameCenterY,
+        cfg.socketZMax + frameThickness / 2,
+      ),
+      new THREE.Vector3(0, Math.PI / 2, 0),
+      socketFrameStyle,
+    );
+
+    // Верхняя перекладина
+    this.addPlainSurface(
+      cfg.socketSize + frameThickness * 2,
+      frameThickness,
+      new THREE.Vector3(
+        frameFrontX,
+        cfg.socketTopY + frameThickness / 2,
+        cfg.socketZ,
+      ),
+      new THREE.Vector3(0, Math.PI / 2, 0),
+      socketFrameStyle,
     );
   }
 
@@ -1498,29 +2107,10 @@ export class LevelBuilder {
       doorH: 10.0,
       doorD: 0.4,
 
-      // === ВНЕШНЯЯ РАМА И НИША ===
-
-      // Общая ширина рамы.
-      frameOuterW: 8.35,
-
-      // Боковые стойки становятся чуть массивнее.
-      frameSideW: 0.72,
-
-      // Верхняя перемычка теперь полноценная,
-      // а не тонкая чёрная полоска.
-      frameTopH: 0.62,
-
-      // Нижний порог оставляем заметно тоньше.
-      frameBottomH: 0.16,
-
-      // Реальная глубина металлической рамы.
-      frameDepth: 0.42,
-
-      // Насколько портал лифта визуально утоплен относительно стены.
-      nicheDepth: 0.48,
-
-      // Светлая внутренняя поверхность ниши.
-      nicheRevealColor: 0xb8c0c6,
+      // Старая простая рама.
+      frameOuterW: 8.1,
+      frameSideW: 0.6,
+      frameThinH: 0.1,
 
       closedOffset: 1.9,
 
@@ -1528,18 +2118,20 @@ export class LevelBuilder {
       // чтобы их светлые внутренние края не выглядывали в проём.
       openOffset: 5.25,
 
+      // Размеры кабины.
       cabinDepth: 5.0,
       cabinW: 7.5,
       cabinH: 10.0,
 
-      doorColor: 0xdcdcdc,
-      seamColor: 0x121517,
+      // Материалы лифта.
+      doorColor: 0xd6dbe0,
+      seamColor: 0x3e4449,
       frameColor: 0x333333,
 
       cabinWallColor: 0xd9dde0,
       cabinFloorColor: 0x4b5256,
 
-      // Потолок делаем заметно светлее.
+      // Потолок.
       cabinCeilingColor: 0xd4d9dd,
 
       // Металлические декоративные элементы.
@@ -1609,17 +2201,378 @@ export class LevelBuilder {
     return texture;
   }
 
+  createElevatorDoorCircuitPngTextures() {
+    const loader = new THREE.TextureLoader();
+
+    const setupTexture = (texture, mirrorX = false) => {
+      texture.colorSpace = THREE.SRGBColorSpace;
+
+      texture.wrapS = THREE.ClampToEdgeWrapping;
+      texture.wrapT = THREE.ClampToEdgeWrapping;
+
+      // Показываем ВЕСЬ PNG на створке.
+      texture.repeat.set(mirrorX ? -1 : 1, 1);
+      texture.offset.set(mirrorX ? 1 : 0, 0);
+
+      texture.anisotropy = 4;
+      texture.needsUpdate = true;
+
+      return texture;
+    };
+
+    const left = setupTexture(loader.load("Image/elevator-circuit.png"), false);
+    const right = setupTexture(loader.load("Image/elevator-circuit.png"), true);
+
+    return { left, right };
+  }
+
+  createElevatorDoorCircuitTextures(flipX = false) {
+    const size = 1024;
+
+    const baseCanvas = document.createElement("canvas");
+    baseCanvas.width = size;
+    baseCanvas.height = size;
+    const baseCtx = baseCanvas.getContext("2d");
+
+    const glowCanvas = document.createElement("canvas");
+    glowCanvas.width = size;
+    glowCanvas.height = size;
+    const glowCtx = glowCanvas.getContext("2d");
+
+    const mapX = (x) => (flipX ? size - x : x);
+
+    const drawRoundedTrack = (
+      ctx,
+      points,
+      width,
+      color,
+      alpha = 1,
+      radius = 28,
+      shadowBlur = 0,
+      shadowColor = color,
+    ) => {
+      if (!points || points.length < 2) return;
+
+      const pts = points.map(([x, y]) => [mapX(x), y]);
+
+      ctx.save();
+      ctx.beginPath();
+      ctx.lineJoin = "round";
+      ctx.lineCap = "round";
+      ctx.lineWidth = width;
+      ctx.strokeStyle = color;
+      ctx.globalAlpha = alpha;
+
+      if (shadowBlur > 0) {
+        ctx.shadowBlur = shadowBlur;
+        ctx.shadowColor = shadowColor;
+      }
+
+      ctx.moveTo(pts[0][0], pts[0][1]);
+
+      if (pts.length === 2) {
+        ctx.lineTo(pts[1][0], pts[1][1]);
+      } else {
+        for (let i = 1; i < pts.length - 1; i++) {
+          const [cx, cy] = pts[i];
+          const [nx, ny] = pts[i + 1];
+          ctx.arcTo(cx, cy, nx, ny, radius);
+        }
+
+        const last = pts[pts.length - 1];
+        ctx.lineTo(last[0], last[1]);
+      }
+
+      ctx.stroke();
+      ctx.restore();
+    };
+
+    const drawNode = (
+      ctx,
+      x,
+      y,
+      radius,
+      strokeColor,
+      fillColor = "transparent",
+      alpha = 1,
+      shadowBlur = 0,
+      shadowColor = strokeColor,
+    ) => {
+      ctx.save();
+      ctx.beginPath();
+      ctx.globalAlpha = alpha;
+      ctx.lineWidth = 3;
+      ctx.strokeStyle = strokeColor;
+      ctx.fillStyle = fillColor;
+
+      if (shadowBlur > 0) {
+        ctx.shadowBlur = shadowBlur;
+        ctx.shadowColor = shadowColor;
+      }
+
+      ctx.arc(mapX(x), y, radius, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.stroke();
+      ctx.restore();
+    };
+
+    // ==========================================
+    // БАЗА ДВЕРИ: СВЕТЛЫЙ МЕТАЛЛ
+    // ==========================================
+    const grad = baseCtx.createLinearGradient(0, 0, size, 0);
+    grad.addColorStop(0.0, "#A5ADB4");
+    grad.addColorStop(0.18, "#BCC4CA");
+    grad.addColorStop(0.5, "#D9E0E4");
+    grad.addColorStop(0.82, "#BCC4CA");
+    grad.addColorStop(1.0, "#A5ADB4");
+
+    baseCtx.fillStyle = grad;
+    baseCtx.fillRect(0, 0, size, size);
+
+    // Лёгкая шлифовка металла
+    for (let y = 0; y < size; y += 2) {
+      const alpha = 0.012 + Math.random() * 0.014;
+      baseCtx.fillStyle = `rgba(255,255,255,${alpha})`;
+      baseCtx.fillRect(0, y, size, 1);
+    }
+
+    for (let y = 1; y < size; y += 4) {
+      const alpha = 0.006 + Math.random() * 0.01;
+      baseCtx.fillStyle = `rgba(0,0,0,${alpha})`;
+      baseCtx.fillRect(0, y, size, 1);
+    }
+
+    // ==========================================
+    // ОСНОВНОЙ УЗОР "ПЛАТА" НА ВСЮ ПЛОЩАДЬ СТВОРКИ
+    // ==========================================
+    const mainTracks = [
+      // Верхняя внешняя Г-образная дорожка
+      [
+        [90, 120],
+        [250, 120],
+        [250, 210],
+      ],
+
+      // Верхняя внутренняя вертикаль
+      [
+        [370, 150],
+        [370, 260],
+      ],
+
+      // Средняя ломаная дорожка
+      [
+        [150, 290],
+        [150, 390],
+        [250, 390],
+        [250, 470],
+      ],
+
+      // Нижняя крупная дорожка
+      [
+        [160, 560],
+        [160, 660],
+        [250, 660],
+        [250, 760],
+        [340, 760],
+      ],
+
+      // Нижняя короткая горизонталь
+      [
+        [330, 720],
+        [430, 720],
+      ],
+    ];
+
+    const secondaryTracks = [
+      // Тонкие верхние ответвления
+      [
+        [430, 180],
+        [430, 250],
+      ],
+      [
+        [520, 160],
+        [520, 230],
+      ],
+
+      // Малые ответвления у середины
+      [
+        [300, 360],
+        [360, 360],
+      ],
+      [
+        [300, 440],
+        [360, 440],
+      ],
+
+      // Нижние тонкие ответвления
+      [
+        [300, 620],
+        [360, 620],
+      ],
+      [
+        [300, 700],
+        [360, 700],
+      ],
+
+      // Еле заметные дополнительные линии
+      [
+        [110, 430],
+        [110, 500],
+      ],
+      [
+        [120, 780],
+        [220, 780],
+      ],
+    ];
+
+    // ==========================================
+    // РИСУЕМ ОСНОВНЫЕ ДОРОЖКИ
+    // ==========================================
+    for (const points of mainTracks) {
+      // Тонкая серая подложка
+      drawRoundedTrack(baseCtx, points, 4, "#A8B0B7", 0.14, 16);
+
+      // Основная светящаяся линия — уже намного тоньше
+      drawRoundedTrack(
+        glowCtx,
+        points,
+        1.8,
+        "rgba(190,245,255,0.95)",
+        1,
+        16,
+        2,
+        "rgba(150,225,255,0.28)",
+      );
+    }
+
+    for (const points of secondaryTracks) {
+      drawRoundedTrack(baseCtx, points, 2.5, "#A8B0B7", 0.1, 12);
+
+      drawRoundedTrack(
+        glowCtx,
+        points,
+        1.1,
+        "rgba(190,245,255,0.85)",
+        1,
+        12,
+        1,
+        "rgba(150,225,255,0.18)",
+      );
+    }
+
+    // ==========================================
+    // КОНТАКТНЫЕ ТОЧКИ / УЗЛЫ
+    // ==========================================
+    const nodeMap = new Map();
+
+    const addNode = (x, y, r) => {
+      const key = `${x}_${y}`;
+      const old = nodeMap.get(key);
+      if (!old || r > old) {
+        nodeMap.set(key, r);
+      }
+    };
+
+    for (const track of mainTracks) {
+      for (let i = 0; i < track.length; i++) {
+        const [x, y] = track[i];
+        addNode(x, y, i === 0 || i === track.length - 1 ? 10 : 8);
+      }
+    }
+
+    for (const track of secondaryTracks) {
+      for (let i = 0; i < track.length; i++) {
+        const [x, y] = track[i];
+        addNode(x, y, i === 0 || i === track.length - 1 ? 7 : 6);
+      }
+    }
+
+    for (const [key, r] of nodeMap.entries()) {
+      const [x, y] = key.split("_").map(Number);
+
+      drawNode(baseCtx, x, y, r, "#66717A", "rgba(220,228,233,0.18)", 1);
+
+      drawNode(
+        glowCtx,
+        x,
+        y,
+        r,
+        "rgba(255,255,255,0.92)",
+        "rgba(180,240,255,0.34)",
+        1,
+        8,
+        "rgba(120,220,255,0.95)",
+      );
+    }
+
+    const baseTexture = new THREE.CanvasTexture(baseCanvas);
+    baseTexture.wrapS = THREE.ClampToEdgeWrapping;
+    baseTexture.wrapT = THREE.ClampToEdgeWrapping;
+    baseTexture.needsUpdate = true;
+
+    const glowTexture = new THREE.CanvasTexture(glowCanvas);
+    glowTexture.wrapS = THREE.ClampToEdgeWrapping;
+    glowTexture.wrapT = THREE.ClampToEdgeWrapping;
+    glowTexture.needsUpdate = true;
+
+    return {
+      baseTexture,
+      glowTexture,
+    };
+  }
+
   createElevatorMaterials(style = this.getElevatorStyle()) {
     const wallGradientTexture = this.createElevatorWallGradientTexture();
+    const circuitTextures = this.createElevatorDoorCircuitPngTextures();
 
     const backWallGradientTexture = wallGradientTexture.clone();
     backWallGradientTexture.needsUpdate = true;
 
     return {
-      doorMat: new THREE.MeshStandardMaterial({
+      doorMatLeft: new THREE.MeshStandardMaterial({
         color: style.doorColor,
-        roughness: 0.55,
-        metalness: 0.35,
+        roughness: 0.52,
+        metalness: 0.28,
+      }),
+
+      doorMatRight: new THREE.MeshStandardMaterial({
+        color: style.doorColor,
+        roughness: 0.52,
+        metalness: 0.28,
+      }),
+
+      doorCircuitMatLeft: new THREE.MeshStandardMaterial({
+        map: circuitTextures.left,
+        alphaMap: circuitTextures.left,
+        emissiveMap: circuitTextures.left,
+        color: 0xbfefff,
+        emissive: new THREE.Color(0x79dcff),
+        emissiveIntensity: 0.22,
+        transparent: true,
+        depthWrite: false,
+        roughness: 0.2,
+        metalness: 0.0,
+        side: THREE.DoubleSide,
+      }),
+
+      doorCircuitMatRight: new THREE.MeshStandardMaterial({
+        map: circuitTextures.right,
+        alphaMap: circuitTextures.right,
+        emissiveMap: circuitTextures.right,
+        color: 0xbfefff,
+        emissive: new THREE.Color(0x79dcff),
+        emissiveIntensity: 0.22,
+        transparent: true,
+        depthWrite: false,
+        roughness: 0.2,
+        metalness: 0.0,
+        side: THREE.DoubleSide,
+      }),
+
+      doorAccentMat: new THREE.MeshStandardMaterial({
+        color: style.cabinTrimColor,
+        roughness: 0.48,
+        metalness: 0.58,
       }),
 
       seamMat: new THREE.MeshStandardMaterial({
@@ -1638,11 +2591,15 @@ export class LevelBuilder {
         metalness: 0.08,
       }),
 
+      outerFrameMat: new THREE.MeshStandardMaterial({
+        color: 0xb8bfc5,
+        roughness: 0.56,
+        metalness: 0.22,
+      }),
+
       cabinSideWallMat: new THREE.MeshStandardMaterial({
         color: 0xffffff,
         map: wallGradientTexture,
-        // Для задней стены отдельно клонируем карту,
-        // чтобы потом можно было независимо крутить/масштабировать.
         roughness: 0.34,
         metalness: 0.62,
       }),
@@ -1788,6 +2745,200 @@ export class LevelBuilder {
     };
   }
 
+  createElevatorLevelDisplayTexture(levelNumber = 1, label = "SECTOR") {
+    const canvas = document.createElement("canvas");
+    canvas.width = 1024;
+    canvas.height = 320;
+
+    const ctx = canvas.getContext("2d");
+    const w = canvas.width;
+    const h = canvas.height;
+
+    const roundRect = (x, y, width, height, radius) => {
+      ctx.beginPath();
+      ctx.moveTo(x + radius, y);
+      ctx.lineTo(x + width - radius, y);
+      ctx.quadraticCurveTo(x + width, y, x + width, y + radius);
+      ctx.lineTo(x + width, y + height - radius);
+      ctx.quadraticCurveTo(
+        x + width,
+        y + height,
+        x + width - radius,
+        y + height,
+      );
+      ctx.lineTo(x + radius, y + height);
+      ctx.quadraticCurveTo(x, y + height, x, y + height - radius);
+      ctx.lineTo(x, y + radius);
+      ctx.quadraticCurveTo(x, y, x + radius, y);
+      ctx.closePath();
+    };
+
+    ctx.clearRect(0, 0, w, h);
+
+    // ==========================================
+    // ТЁМНО-СЕРЫЙ ЭКРАН
+    // ==========================================
+
+    roundRect(12, 12, w - 24, h - 24, 26);
+    ctx.save();
+    ctx.clip();
+
+    const bg = ctx.createLinearGradient(0, 0, 0, h);
+    bg.addColorStop(0.0, "#5E6A70");
+    bg.addColorStop(0.18, "#47535A");
+    bg.addColorStop(0.55, "#303A40");
+    bg.addColorStop(1.0, "#20282D");
+
+    ctx.fillStyle = bg;
+    ctx.fillRect(0, 0, w, h);
+
+    // Мягкое голубоватое свечение из центра
+    const centerGlow = ctx.createRadialGradient(
+      w / 2,
+      h / 2,
+      0,
+      w / 2,
+      h / 2,
+      w * 0.42,
+    );
+    centerGlow.addColorStop(0, "rgba(150, 235, 255, 0.18)");
+    centerGlow.addColorStop(1, "rgba(150, 235, 255, 0.0)");
+
+    ctx.fillStyle = centerGlow;
+    ctx.fillRect(0, 0, w, h);
+
+    // Верхний блик стекла
+    const reflection = ctx.createLinearGradient(0, 18, 0, h * 0.48);
+    reflection.addColorStop(0.0, "rgba(255,255,255,0.22)");
+    reflection.addColorStop(0.28, "rgba(255,255,255,0.08)");
+    reflection.addColorStop(1.0, "rgba(255,255,255,0.0)");
+    ctx.fillStyle = reflection;
+    ctx.fillRect(28, 20, w - 56, h * 0.42);
+
+    // Лёгкие горизонтальные линии
+    for (let y = 28; y < h - 24; y += 4) {
+      ctx.fillStyle =
+        y % 8 === 0 ? "rgba(255,255,255,0.025)" : "rgba(0,0,0,0.02)";
+      ctx.fillRect(22, y, w - 44, 1);
+    }
+
+    // ==========================================
+    // ТЕКСТ ДИСПЛЕЯ
+    // ==========================================
+
+    // Пустая строка означает:
+    // дисплей существует, но ничего не показывает.
+    if (label) {
+      // ------------------------------------------
+      // ВЕРХНЯЯ ПОДПИСЬ
+      // ------------------------------------------
+
+      ctx.save();
+
+      ctx.font = "700 42px Arial";
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+
+      ctx.lineWidth = 4;
+      ctx.strokeStyle = "rgba(30, 38, 44, 0.92)";
+      ctx.strokeText(label, w / 2, 62);
+
+      ctx.fillStyle = "#EAFDFF";
+      ctx.fillText(label, w / 2, 62);
+
+      ctx.restore();
+
+      // Боковые декоративные линии
+      ctx.strokeStyle = "rgba(200,245,255,0.75)";
+      ctx.lineWidth = 3;
+
+      ctx.beginPath();
+      ctx.moveTo(120, 62);
+      ctx.lineTo(355, 62);
+      ctx.stroke();
+
+      ctx.beginPath();
+      ctx.moveTo(w - 120, 62);
+      ctx.lineTo(w - 355, 62);
+      ctx.stroke();
+
+      // ------------------------------------------
+      // НОМЕР
+      // ------------------------------------------
+
+      const text = String(levelNumber).padStart(2, "0");
+
+      ctx.save();
+
+      ctx.font = "700 132px Arial";
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+
+      ctx.lineWidth = 8;
+      ctx.strokeStyle = "rgba(20, 28, 34, 0.95)";
+      ctx.strokeText(text, w / 2, h / 2 + 42);
+
+      ctx.shadowColor = "rgba(160,240,255,0.35)";
+      ctx.shadowBlur = 5;
+
+      ctx.fillStyle = "#F8FFFF";
+      ctx.fillText(text, w / 2, h / 2 + 42);
+
+      ctx.restore();
+    }
+
+    ctx.restore();
+
+    // Внутренняя тонкая светлая рамка в текстуре
+    roundRect(15, 15, w - 30, h - 30, 24);
+    ctx.strokeStyle = "rgba(180,235,250,0.42)";
+    ctx.lineWidth = 3;
+    ctx.stroke();
+
+    const texture = new THREE.CanvasTexture(canvas);
+    texture.colorSpace = THREE.SRGBColorSpace;
+    texture.wrapS = THREE.ClampToEdgeWrapping;
+    texture.wrapT = THREE.ClampToEdgeWrapping;
+    texture.needsUpdate = true;
+
+    return texture;
+  }
+
+  createElevatorRunningDotsTexture() {
+    const canvas = document.createElement("canvas");
+    canvas.width = 256;
+    canvas.height = 24;
+
+    const ctx = canvas.getContext("2d");
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+    const count = 12;
+    const cy = canvas.height / 2;
+
+    for (let i = 0; i < count; i++) {
+      const x = ((i + 0.5) * canvas.width) / count;
+
+      ctx.save();
+      ctx.shadowColor = "rgba(120, 235, 255, 0.95)";
+      ctx.shadowBlur = 10;
+
+      ctx.fillStyle = "rgba(185, 250, 255, 0.98)";
+      ctx.beginPath();
+      ctx.arc(x, cy, 2.5, 0, Math.PI * 2);
+      ctx.fill();
+
+      ctx.restore();
+    }
+
+    const texture = new THREE.CanvasTexture(canvas);
+    texture.colorSpace = THREE.SRGBColorSpace;
+    texture.wrapS = THREE.RepeatWrapping;
+    texture.wrapT = THREE.RepeatWrapping;
+    texture.needsUpdate = true;
+
+    return texture;
+  }
+
   createRoomElevator(config) {
     if (!config || !config.id) {
       console.warn("[ELEVATOR] createRoomElevator: missing config.id");
@@ -1820,6 +2971,71 @@ export class LevelBuilder {
         y,
         wallZ + normal.z * normalOffset + slide.z * slideOffset,
       );
+    };
+
+    const addDoorCircuitOverlay = (mesh, side) => {
+      const overlayMaterial =
+        side === -1
+          ? materials.doorCircuitMatLeft
+          : materials.doorCircuitMatRight;
+
+      // Размер светящейся накладки.
+      // Эти числа тоже можно потом чуть подкрутить.
+      const overlayWidth = style.doorW * 0.92;
+      const overlayHeight = style.doorH * 0.94;
+
+      // Насколько накладка выступает над поверхностью двери.
+      const overlayDepthOffset = style.doorD / 2 + 0.006;
+
+      const addOverlayFace = (normalSign) => {
+        const overlay = new THREE.Mesh(
+          new THREE.PlaneGeometry(overlayWidth, overlayHeight),
+          overlayMaterial,
+        );
+
+        if (basis.slideAxis === "x") {
+          // Обычные фронтальные лифты:
+          // створка лежит в плоскости XY, поэтому PlaneGeometry
+          // вообще не нужно поворачивать вокруг Y.
+          overlay.rotation.set(0, normalSign > 0 ? 0 : Math.PI, 0);
+
+          // Толщина двери здесь идёт по Z.
+          overlay.position.set(0, 0, normalSign * overlayDepthOffset);
+        } else {
+          // Боковая ориентация:
+          // ширина створки идёт по Z, поэтому плоскость XY
+          // действительно нужно повернуть на 90° вокруг Y.
+          overlay.rotation.set(
+            0,
+            normalSign > 0 ? Math.PI / 2 : -Math.PI / 2,
+            0,
+          );
+
+          // Толщина двери здесь идёт по X.
+          overlay.position.set(normalSign * overlayDepthOffset, 0, 0);
+        }
+
+        overlay.renderOrder = 3;
+        overlay.castShadow = false;
+        overlay.receiveShadow = false;
+
+        mesh.add(overlay);
+      };
+
+      // basis.normal указывает от стены внутрь кабины.
+      // Наружная сторона двери (со стороны комнаты)
+      // всегда находится в противоположном направлении.
+      let exteriorFaceSign;
+
+      if (basis.depthAxis === "z") {
+        exteriorFaceSign = -Math.sign(basis.normal.z);
+      } else {
+        exteriorFaceSign = -Math.sign(basis.normal.x);
+      }
+
+      addOverlayFace(exteriorFaceSign);
+
+      return overlayMaterial;
     };
 
     // Создаёт BoxGeometry, где:
@@ -2016,14 +3232,28 @@ export class LevelBuilder {
 
     // === КАБИНА ===
 
-    const cabinCenterOffset = style.cabinDepth / 2;
-    const cabinBackOffset = style.cabinDepth;
+    // Расстояние между плоскостью стены комнаты
+    // и настоящим началом кабины.
+    //
+    // В этом пространстве ниже построим короткий портал.
+    const cabinStartOffset = 0.7;
 
-    // Визуальная внутренняя обшивка начинается немного глубже,
-    // чтобы её светлые торцы не выглядывали перед чёрной рамой.
-    const cabinVisualInset = 0.42;
+    // ВАЖНО:
+    // глубина самой кабины НЕ уменьшается.
+    // Мы просто целиком переносим её дальше от комнаты.
+    const cabinCenterOffset = cabinStartOffset + style.cabinDepth / 2;
+
+    const cabinBackOffset = cabinStartOffset + style.cabinDepth;
+
+    // Раньше 0.42 был нужен, чтобы скрывать торцы у самого входа.
+    // Теперь у нас есть отдельный портал, поэтому можем
+    // начать внутреннюю обшивку почти сразу за ним.
+    const cabinVisualInset = 0.08;
+
     const cabinVisualDepth = style.cabinDepth - cabinVisualInset;
-    const cabinVisualCenterOffset = cabinVisualInset + cabinVisualDepth / 2;
+
+    const cabinVisualCenterOffset =
+      cabinStartOffset + cabinVisualInset + cabinVisualDepth / 2;
 
     addBoxMesh(
       `${config.id}_floor`,
@@ -2061,6 +3291,9 @@ export class LevelBuilder {
     // Размер центральной потолочной кассеты.
     const ceilingPanelDepth = 3.5;
     const ceilingPanelWidth = 5.7;
+    // Центр декоративной потолочной кассеты.
+    // Она должна ехать вместе с кабиной.
+    const ceilingDecorCenterOffset = cabinStartOffset + style.cabinDepth * 0.48;
 
     // Светлая внутренняя панель.
     addBoxMesh(
@@ -2068,7 +3301,7 @@ export class LevelBuilder {
       ceilingPanelDepth,
       0.055,
       ceilingPanelWidth,
-      style.cabinDepth * 0.48,
+      ceilingDecorCenterOffset,
       0,
       ceilingDecorY,
       materials.cabinPanelMat,
@@ -2084,7 +3317,7 @@ export class LevelBuilder {
       ceilingTrimThickness,
       0.08,
       ceilingPanelWidth + 0.32,
-      style.cabinDepth * 0.48 - ceilingPanelDepth / 2,
+      ceilingDecorCenterOffset - ceilingPanelDepth / 2,
       0,
       ceilingDecorY - 0.015,
       materials.cabinTrimMat,
@@ -2097,7 +3330,7 @@ export class LevelBuilder {
       ceilingTrimThickness,
       0.08,
       ceilingPanelWidth + 0.32,
-      style.cabinDepth * 0.48 + ceilingPanelDepth / 2,
+      ceilingDecorCenterOffset + ceilingPanelDepth / 2,
       0,
       ceilingDecorY - 0.015,
       materials.cabinTrimMat,
@@ -2110,7 +3343,7 @@ export class LevelBuilder {
       ceilingPanelDepth,
       0.08,
       ceilingTrimThickness,
-      style.cabinDepth * 0.48,
+      ceilingDecorCenterOffset,
       -(ceilingPanelWidth / 2 + ceilingTrimThickness / 2),
       ceilingDecorY - 0.015,
       materials.cabinTrimMat,
@@ -2123,7 +3356,7 @@ export class LevelBuilder {
       ceilingPanelDepth,
       0.08,
       ceilingTrimThickness,
-      style.cabinDepth * 0.48,
+      ceilingDecorCenterOffset,
       ceilingPanelWidth / 2 + ceilingTrimThickness / 2,
       ceilingDecorY - 0.015,
       materials.cabinTrimMat,
@@ -2199,7 +3432,7 @@ export class LevelBuilder {
       cabinY,
     );
 
-    addBoxMesh(
+    const cabinSideA = addBoxMesh(
       `${config.id}_side_a`,
       cabinVisualDepth,
       style.cabinH,
@@ -2211,7 +3444,7 @@ export class LevelBuilder {
       true,
     );
 
-    addBoxMesh(
+    const cabinSideB = addBoxMesh(
       `${config.id}_side_b`,
       cabinVisualDepth,
       style.cabinH,
@@ -2258,7 +3491,7 @@ export class LevelBuilder {
     // После предыдущей правки внутренняя обшивка начинается
     // с cabinVisualInset. Плинтус начинаем ещё немного глубже,
     // чтобы возле двери вообще ничего не торчало.
-    const skirtingFrontOffset = cabinVisualInset + 0.5;
+    const skirtingFrontOffset = cabinStartOffset + cabinVisualInset + 0.15;
 
     // ------------------------------------------
     // ЛЕВЫЙ БОКОВОЙ ПЛИНТУС
@@ -2367,7 +3600,7 @@ export class LevelBuilder {
     cabinLight.name = `${config.id}_Light`;
 
     cabinLight.position.copy(
-      makePos(style.cabinDepth * 0.45, 0, this.floorY + style.cabinH - 0.12),
+      makePos(ceilingDecorCenterOffset, 0, this.floorY + style.cabinH - 0.12),
     );
 
     // RectAreaLight направлен вертикально вниз.
@@ -2387,63 +3620,546 @@ export class LevelBuilder {
     );
 
     cabinLamp.position.copy(
-      makePos(style.cabinDepth * 0.45, 0, this.floorY + style.cabinH - 0.17),
+      makePos(ceilingDecorCenterOffset, 0, this.floorY + style.cabinH - 0.17),
     );
     group.add(cabinLamp);
 
-    // === РАМА ===
-    // Такие же размеры, как у центрального лифта:
-    // верх/низ 8.1, боковые стойки 0.6.
+    // ==========================================
+    // КОРОТКИЙ ВХОДНОЙ ПОРТАЛ
+    // ==========================================
+    //
+    // Кабина начинается на cabinStartOffset.
+    // Портал соединяет плоскость комнаты с кабиной,
+    // не уменьшая внутренний объём лифта.
 
-    const frameOffset = config.frameOffset ?? 0.22;
+    const portalDepth = cabinStartOffset - 0.02;
+    const portalCenterOffset = portalDepth / 2;
 
+    const portalWallThickness = 0.12;
+
+    // Левая внутренняя стенка портала.
     addBoxMesh(
-      `${config.id}_frame_top`,
-      0.3,
-      style.frameThinH,
-      style.frameOuterW,
-      frameOffset,
+      `${config.id}_portal_left`,
+      portalDepth,
+      style.cabinH,
+      portalWallThickness,
+      portalCenterOffset,
+      -style.cabinW / 2 + portalWallThickness / 2,
+      cabinY,
+      materials.outerFrameMat,
+      true,
+    );
+
+    // Правая внутренняя стенка портала.
+    addBoxMesh(
+      `${config.id}_portal_right`,
+      portalDepth,
+      style.cabinH,
+      portalWallThickness,
+      portalCenterOffset,
+      style.cabinW / 2 - portalWallThickness / 2,
+      cabinY,
+      materials.outerFrameMat,
+      true,
+    );
+
+    // Потолок портала.
+    addBoxMesh(
+      `${config.id}_portal_top`,
+      portalDepth,
+      portalWallThickness,
+      style.cabinW,
+      portalCenterOffset,
       0,
-      this.floorY + style.doorH - style.frameThinH / 2,
-      materials.frameMat,
-      false,
+      this.floorY + style.cabinH - portalWallThickness / 2,
+      materials.outerFrameMat,
+      true,
     );
 
+    // Пол короткого входного портала.
+    // Соединяет пол комнаты с отодвинутой назад кабиной.
     addBoxMesh(
-      `${config.id}_frame_bottom`,
-      0.3,
-      style.frameThinH,
-      style.frameOuterW,
-      frameOffset,
+      `${config.id}_portal_floor`,
+      cabinStartOffset,
+      0.08,
+      style.cabinW,
+      cabinStartOffset / 2,
       0,
-      this.floorY + style.frameThinH / 2,
-      materials.frameMat,
+      this.floorY + 0.04,
+      materials.outerFrameMat,
+      false,
+    );
+
+    // Физический пол портала.
+    addCabinPhysics(
+      cabinStartOffset,
+      0.08,
+      style.cabinW,
+      cabinStartOffset / 2,
+      0,
+      this.floorY + 0.04,
+    );
+
+    // ==========================================
+    // ВНЕШНЯЯ ОБЪЁМНАЯ РАМА ПОРТАЛА
+    // ==========================================
+    //
+    // Рама строится от реального внутреннего проёма портала,
+    // поэтому её размеры автоматически связаны с кабиной.
+
+    // Чистая ширина прохода между внутренними стенками портала.
+    const frameInnerWidth = style.cabinW - portalWallThickness * 2;
+
+    // Насколько широкими будут боковые стойки рамы.
+    const outerFrameSideWidth = 0.62;
+
+    // Высота верхней перемычки.
+    const outerFrameTopHeight = 0.62;
+
+    // Полная наружная ширина рамы.
+    const outerFrameWidth = frameInnerWidth + outerFrameSideWidth * 2;
+
+    // Глубина рамы.
+    // Часть выступает в комнату, часть слегка заходит в портал.
+    const outerFrameDepth = 0.24;
+    const outerFrameOffset = -0.05;
+
+    // Общая высота вместе с верхней перемычкой.
+    const outerFrameHeight = style.doorH + outerFrameTopHeight;
+
+    // ------------------------------------------
+    // ЛЕВАЯ СТОЙКА
+    // ------------------------------------------
+
+    addBoxMesh(
+      `${config.id}_outer_frame_left`,
+      outerFrameDepth,
+      outerFrameHeight,
+      outerFrameSideWidth,
+      outerFrameOffset,
+
+      -(frameInnerWidth / 2 + outerFrameSideWidth / 2),
+
+      this.floorY + outerFrameHeight / 2,
+      materials.outerFrameMat,
+      false,
+    );
+
+    // ------------------------------------------
+    // ПРАВАЯ СТОЙКА
+    // ------------------------------------------
+
+    addBoxMesh(
+      `${config.id}_outer_frame_right`,
+      outerFrameDepth,
+      outerFrameHeight,
+      outerFrameSideWidth,
+      outerFrameOffset,
+
+      frameInnerWidth / 2 + outerFrameSideWidth / 2,
+
+      this.floorY + outerFrameHeight / 2,
+      materials.outerFrameMat,
+      false,
+    );
+
+    // ------------------------------------------
+    // ВЕРХНЯЯ ПЕРЕМЫЧКА
+    // ------------------------------------------
+
+    addBoxMesh(
+      `${config.id}_outer_frame_top`,
+      outerFrameDepth,
+      outerFrameTopHeight,
+      outerFrameWidth,
+      outerFrameOffset,
+      0,
+
+      this.floorY + style.doorH + outerFrameTopHeight / 2,
+
+      materials.outerFrameMat,
+      false,
+    );
+
+    // ==========================================
+    // ДИСПЛЕЙ НОМЕРА УРОВНЯ
+    // ==========================================
+  const levelNumber =
+  config.levelNumber ?? this.currentRoomId;
+
+const elevatorRole =
+  config.elevatorRole ?? "start";
+
+const displayLabel =
+  elevatorRole === "exit"
+    ? ""
+    : "SECTOR";
+
+const displayTexture =
+  this.createElevatorLevelDisplayTexture(
+    levelNumber,
+    displayLabel,
+  );
+
+    // Размеры дисплея
+    const displayWidth = 3.25;
+    const displayHeight = 1.12;
+    const displayDepth = 0.18;
+
+    // Немного опускаем ближе к раме, чтобы не "висел" слишком высоко
+    const displayY =
+      this.floorY + style.doorH + outerFrameTopHeight + displayHeight / 2 + 0.1;
+
+    // Центр корпуса дисплея
+    const displayNormalOffset =
+      outerFrameOffset - outerFrameDepth / 2 - displayDepth / 2 - 0.02;
+
+    // Материалы
+    const displayBodyMat = new THREE.MeshStandardMaterial({
+      color: 0xa9b6be,
+      roughness: 0.28,
+      metalness: 0.72,
+    });
+
+    const displayBezelMat = new THREE.MeshStandardMaterial({
+      color: 0xe2edf2,
+      roughness: 0.16,
+      metalness: 0.88,
+    });
+
+    // ЭТО ГЛАВНЫЙ ЭКРАН С ТЕКСТОМ.
+    // Он НЕ стеклянный, а именно яркая световая панель.
+    // Поэтому текст будет чётче.
+    const displayScreenMat = new THREE.MeshStandardMaterial({
+      color: 0xffffff,
+      map: displayTexture,
+
+      emissive: 0xffffff,
+      emissiveMap: displayTexture,
+      emissiveIntensity: 0.82,
+
+      roughness: 0.16,
+      metalness: 0.0,
+
+      transparent: false,
+      toneMapped: false,
+    });
+
+    // ЭТО ОТДЕЛЬНОЕ ПЕРЕДНЕЕ СТЕКЛО.
+    // На нём НЕТ текста.
+    const displayGlassMat = new THREE.MeshPhysicalMaterial({
+      color: 0xffffff,
+      roughness: 0.04,
+      metalness: 0.0,
+
+      transparent: true,
+      opacity: 0.18,
+
+      transmission: 0.0,
+      thickness: 0.0,
+
+      clearcoat: 1.0,
+      clearcoatRoughness: 0.04,
+    });
+
+    const displayGlowBaseMat = new THREE.MeshStandardMaterial({
+      color: 0x11181c,
+      roughness: 0.35,
+      metalness: 0.15,
+    });
+
+    const antsTextureH = this.createElevatorRunningDotsTexture();
+    antsTextureH.repeat.set(7, 1);
+
+    const antsTextureV = this.createElevatorRunningDotsTexture();
+    antsTextureV.repeat.set(1, 7);
+
+    const displayAntsMatH = new THREE.MeshStandardMaterial({
+      color: 0xffffff,
+      map: antsTextureH,
+
+      emissive: 0x9eefff,
+      emissiveMap: antsTextureH,
+      emissiveIntensity: 1.15,
+
+      transparent: true,
+      opacity: 1.0,
+      depthWrite: false,
+      roughness: 0.2,
+      metalness: 0.0,
+      toneMapped: false,
+    });
+
+    const displayAntsMatV = new THREE.MeshStandardMaterial({
+      color: 0xffffff,
+      map: antsTextureV,
+
+      emissive: 0x9eefff,
+      emissiveMap: antsTextureV,
+      emissiveIntensity: 1.15,
+
+      transparent: true,
+      opacity: 1.0,
+      depthWrite: false,
+      roughness: 0.2,
+      metalness: 0.0,
+      toneMapped: false,
+    });
+
+    // ------------------------------------------
+    // ОСНОВНОЙ КОРПУС
+    // ------------------------------------------
+
+    addBoxMesh(
+      `${config.id}_level_display_body`,
+      displayDepth,
+      displayHeight,
+      displayWidth,
+      displayNormalOffset,
+      0,
+      displayY,
+      displayBodyMat,
+      false,
+    );
+
+    // ------------------------------------------
+    // ПЕРЕДНЯЯ МЕТАЛЛИЧЕСКАЯ РАМКА
+    // ------------------------------------------
+
+    const bezelThickness = 0.09;
+    const bezelDepth = 0.03;
+    const bezelNormalOffset =
+      displayNormalOffset - displayDepth / 2 - bezelDepth / 2 - 0.004;
+
+    // Верх
+    addBoxMesh(
+      `${config.id}_level_display_bezel_top`,
+      bezelDepth,
+      bezelThickness,
+      displayWidth,
+      bezelNormalOffset,
+      0,
+      displayY + displayHeight / 2 - bezelThickness / 2,
+      displayBezelMat,
+      false,
+    );
+
+    // Низ
+    addBoxMesh(
+      `${config.id}_level_display_bezel_bottom`,
+      bezelDepth,
+      bezelThickness,
+      displayWidth,
+      bezelNormalOffset,
+      0,
+      displayY - displayHeight / 2 + bezelThickness / 2,
+      displayBezelMat,
+      false,
+    );
+
+    // Левая сторона
+    addBoxMesh(
+      `${config.id}_level_display_bezel_left`,
+      bezelDepth,
+      displayHeight - bezelThickness * 2,
+      bezelThickness,
+      bezelNormalOffset,
+      -(displayWidth / 2 - bezelThickness / 2),
+      displayY,
+      displayBezelMat,
+      false,
+    );
+
+    // Правая сторона
+    addBoxMesh(
+      `${config.id}_level_display_bezel_right`,
+      bezelDepth,
+      displayHeight - bezelThickness * 2,
+      bezelThickness,
+      bezelNormalOffset,
+      displayWidth / 2 - bezelThickness / 2,
+      displayY,
+      displayBezelMat,
+      false,
+    );
+
+    // ------------------------------------------
+    // ЯРКИЙ ЭКРАН С ТЕКСТУРОЙ
+    // ------------------------------------------
+
+    const screenWidth = displayWidth - bezelThickness * 2 - 0.05;
+    const screenHeight = displayHeight - bezelThickness * 2 - 0.05;
+    const screenDepth = 0.03;
+
+    const screenNormalOffset =
+      displayNormalOffset - displayDepth / 2 - screenDepth / 2 + 0.012;
+
+    addBoxMesh(
+      `${config.id}_level_display_screen`,
+      screenDepth,
+      screenHeight,
+      screenWidth,
+      screenNormalOffset,
+      0,
+      displayY,
+      displayScreenMat,
+      false,
+    );
+
+    // ------------------------------------------
+    // ПЕРЕДНЕЕ ТОНКОЕ СТЕКЛО
+    // ------------------------------------------
+
+    const glassWidth = screenWidth;
+    const glassHeight = screenHeight;
+    const glassDepth = 0.012;
+
+    const glassNormalOffset =
+      screenNormalOffset - screenDepth / 2 - glassDepth / 2 - 0.003;
+
+    addBoxMesh(
+      `${config.id}_level_display_glass`,
+      glassDepth,
+      glassHeight,
+      glassWidth,
+      glassNormalOffset,
+      0,
+      displayY,
+      displayGlassMat,
+      false,
+    );
+
+    // ------------------------------------------
+    // ТЁМНАЯ ВНУТРЕННЯЯ ОКАНТОВКА
+    // ------------------------------------------
+
+    const glowDepth = 0.016;
+    const glowThickness = 0.04;
+    const glowNormalOffset =
+      glassNormalOffset - glassDepth / 2 - glowDepth / 2 - 0.001;
+
+    // Тёмная база под "муравьёв"
+    addBoxMesh(
+      `${config.id}_level_display_glow_top_base`,
+      glowDepth,
+      glowThickness,
+      glassWidth - 0.06,
+      glowNormalOffset,
+      0,
+      displayY + glassHeight / 2 - glowThickness / 2,
+      displayGlowBaseMat,
       false,
     );
 
     addBoxMesh(
-      `${config.id}_frame_side_a`,
-      0.3,
-      style.doorH,
-      style.frameSideW,
-      frameOffset,
-      -style.cabinW / 2,
-      doorY,
-      materials.frameMat,
+      `${config.id}_level_display_glow_bottom_base`,
+      glowDepth,
+      glowThickness,
+      glassWidth - 0.06,
+      glowNormalOffset,
+      0,
+      displayY - glassHeight / 2 + glowThickness / 2,
+      displayGlowBaseMat,
       false,
     );
 
     addBoxMesh(
-      `${config.id}_frame_side_b`,
-      0.3,
-      style.doorH,
-      style.frameSideW,
-      frameOffset,
-      style.cabinW / 2,
-      doorY,
-      materials.frameMat,
+      `${config.id}_level_display_glow_left_base`,
+      glowDepth,
+      glassHeight - glowThickness * 2 - 0.02,
+      glowThickness,
+      glowNormalOffset,
+      -(glassWidth / 2 - glowThickness / 2),
+      displayY,
+      displayGlowBaseMat,
       false,
     );
+
+    addBoxMesh(
+      `${config.id}_level_display_glow_right_base`,
+      glowDepth,
+      glassHeight - glowThickness * 2 - 0.02,
+      glowThickness,
+      glowNormalOffset,
+      glassWidth / 2 - glowThickness / 2,
+      displayY,
+      displayGlowBaseMat,
+      false,
+    );
+
+    // ------------------------------------------
+    // БЕГУЩИЕ ГОЛУБЫЕ ТОЧКИ
+    // ------------------------------------------
+
+    const antsDepth = 0.008;
+    const antsThickness = 0.022;
+    const antsNormalOffset =
+      glowNormalOffset - glowDepth / 2 - antsDepth / 2 - 0.0015;
+
+    // Верх
+    const antsTop = addBoxMesh(
+      `${config.id}_level_display_ants_top`,
+      antsDepth,
+      antsThickness,
+      glassWidth - 0.08,
+      antsNormalOffset,
+      0,
+      displayY + glassHeight / 2 - antsThickness / 2,
+      displayAntsMatH,
+      false,
+    );
+
+    // Низ
+    const antsBottom = addBoxMesh(
+      `${config.id}_level_display_ants_bottom`,
+      antsDepth,
+      antsThickness,
+      glassWidth - 0.08,
+      antsNormalOffset,
+      0,
+      displayY - glassHeight / 2 + antsThickness / 2,
+      displayAntsMatH,
+      false,
+    );
+
+    // Лево
+    const antsLeft = addBoxMesh(
+      `${config.id}_level_display_ants_left`,
+      antsDepth,
+      glassHeight - antsThickness * 2 - 0.02,
+      antsThickness,
+      antsNormalOffset,
+      -(glassWidth / 2 - antsThickness / 2),
+      displayY,
+      displayAntsMatV,
+      false,
+    );
+
+    // Право
+    const antsRight = addBoxMesh(
+      `${config.id}_level_display_ants_right`,
+      antsDepth,
+      glassHeight - antsThickness * 2 - 0.02,
+      antsThickness,
+      antsNormalOffset,
+      glassWidth / 2 - antsThickness / 2,
+      displayY,
+      displayAntsMatV,
+      false,
+    );
+    // ==========================================
+    // ДЕКОРАТИВНЫЙ ПОРОГ У ВХОДА
+    // ==========================================
+    //
+    // Он закрывает чёрную полоску пола у входа,
+    // но не влияет на физику.
+
+    const thresholdDepth = 0.22;
+    const thresholdHeight = 0.035;
+    const thresholdWidth = style.cabinW - 0.04;
+
+    // Ставим порог почти у плоскости комнаты.
+    const thresholdOffset = thresholdDepth / 2 + 0.01;
 
     // === ДВЕРИ ===
 
@@ -2451,10 +4167,10 @@ export class LevelBuilder {
     const slideDistance = style.openOffset - style.closedOffset;
 
     const addDoorSeams = (mesh, side) => {
-      const seamWidth = 0.08;
+      const seamWidth = 0.05;
       const seamHeight = style.doorH + 0.02;
-      const seamThickness = 0.012;
-      const edgeCapThickness = 0.035;
+      const seamThickness = 0.01;
+      const edgeCapThickness = 0.022;
 
       if (basis.slideAxis === "x") {
         // Обычная ориентация: створки едут по X.
@@ -2550,9 +4266,11 @@ export class LevelBuilder {
     };
 
     const createLeaf = (side) => {
+      const doorMaterial =
+        side === -1 ? materials.doorMatLeft : materials.doorMatRight;
       const mesh = new THREE.Mesh(
         makeBoxGeometry(style.doorD, style.doorH, style.doorW),
-        materials.doorMat,
+        doorMaterial,
       );
 
       mesh.castShadow = true;
@@ -2560,6 +4278,7 @@ export class LevelBuilder {
       mesh.userData.skipWallMaterialUpdate = true;
 
       addDoorSeams(mesh, side);
+      const glowMaterial = addDoorCircuitOverlay(mesh, side);
 
       const closedPosition = side * style.closedOffset;
       mesh.position.copy(makePos(doorOffset, closedPosition, doorY));
@@ -2596,6 +4315,7 @@ export class LevelBuilder {
         mesh,
         body,
         side,
+        glowMaterial,
         closedPosition: body.position[basis.slideAxis],
       };
     };
@@ -2603,13 +4323,41 @@ export class LevelBuilder {
     const leafA = createLeaf(-1);
     const leafB = createLeaf(1);
 
-    this.registerRoomElevator({
-      id: config.id,
-      slideAxis: basis.slideAxis,
-      slideDistance,
-      openState: 0.0,
-      targetOpenState: 0.0,
-      leaves: [leafA, leafB],
+this.registerRoomElevator({
+  id: config.id,
+
+  levelNumber,
+  elevatorRole,
+
+  slideAxis: basis.slideAxis,
+  slideDistance,
+
+  openState: 0.0,
+  targetOpenState: 0.0,
+
+  leaves: [leafA, leafB],
+
+  glowMaterials: [
+    leafA.glowMaterial,
+    leafB.glowMaterial,
+  ],
+
+  displayScreenMaterial: displayScreenMat,
+
+  antMaterials: [
+        {
+          material: displayAntsMatH,
+          texture: antsTextureH,
+          axis: "x",
+          direction: 1,
+        },
+        {
+          material: displayAntsMatV,
+          texture: antsTextureV,
+          axis: "y",
+          direction: -1,
+        },
+      ],
     });
 
     group.traverse((obj) => {
@@ -2891,75 +4639,82 @@ export class LevelBuilder {
     );
 
     // Левая стена
-    this.addTiledWall(
-      roomD,
-      wallH,
-      new THREE.Vector3(-15, wallCenterY, centerZ),
-      new THREE.Vector3(0, Math.PI / 2, 0),
-    );
+  this.addPanelWall(
+  roomD,
+  wallH,
+  new THREE.Vector3(
+    -15,
+    wallCenterY,
+    centerZ,
+  ),
+  new THREE.Vector3(
+    0,
+    Math.PI / 2,
+    0,
+  ),
+);
 
     // Правая стена
-    this.addTiledWall(
-      roomD,
-      wallH,
-      new THREE.Vector3(15, wallCenterY, centerZ),
-      new THREE.Vector3(0, -Math.PI / 2, 0),
-    );
+ this.addPanelWall(
+  roomD,
+  wallH,
+  new THREE.Vector3(
+    15,
+    wallCenterY,
+    centerZ,
+  ),
+  new THREE.Vector3(
+    0,
+    -Math.PI / 2,
+    0,
+  ),
+);
 
     // Дальняя стена
-    this.addTiledWall(
-      roomW,
-      wallH,
-      new THREE.Vector3(0, wallCenterY, backZ),
-      new THREE.Vector3(0, 0, 0),
-    );
+   this.addPanelWall(
+  roomW,
+  wallH,
+  new THREE.Vector3(
+    0,
+    wallCenterY,
+    backZ,
+  ),
+  new THREE.Vector3(
+    0,
+    0,
+    0,
+  ),
+);
 
     // Передняя стена с проёмом под стартовый лифт
     const elW = 7.5;
-    const sideW = (roomW - elW) / 2;
-    const leftX = -(elW / 2) - sideW / 2;
-    const rightX = elW / 2 + sideW / 2;
+const elH = 10.0;
 
-    this.addTiledWall(
-      sideW,
-      wallH,
-      new THREE.Vector3(leftX, wallCenterY, frontZ),
-      new THREE.Vector3(0, Math.PI, 0),
-      1.25,
-      0,
-    );
+this.addPanelWallWithElevatorOpening({
+  wallWidth: roomW,
+  wallHeight: wallH,
 
-    this.addTiledWall(
-      sideW,
-      wallH,
-      new THREE.Vector3(rightX, wallCenterY, frontZ),
-      new THREE.Vector3(0, Math.PI, 0),
-      0,
-      0,
-    );
+  wallZ: frontZ,
+  rotationY: Math.PI,
 
-    const elH = 10.0;
-    const topH = wallH - elH;
-    const topCenterY = this.floorY + elH + topH / 2;
+  openingWidth: elW,
+  openingHeight: elH,
 
-    this.addTiledWall(
-      elW,
-      topH,
-      new THREE.Vector3(0, topCenterY, frontZ),
-      new THREE.Vector3(0, Math.PI, 0),
-      1.25,
-      0,
-    );
+  reverseGrid: true,
+});
     // === СТАРТОВЫЙ ЛИФТ СЕКТОРА 3 ===
-    this.room3StartElevator = this.createRoomElevator({
-      id: "room3_start",
-      name: "Room3StartElevator",
+this.room3StartElevator = this.createRoomElevator({
+  id: "room3_start",
+  name: "Room3StartElevator",
 
-      wall: "front_out",
+  wall: "front_out",
 
-      x: 0,
-      z: frontZ,
-    });
+  x: 0,
+  z: frontZ,
+
+  levelNumber: 3,
+  elevatorRole: "start",
+});
 
     // === НИША НА ДАЛЬНЕЙ СТЕНЕ ===
     this.buildRoom3NicheVisual();
@@ -3379,36 +5134,70 @@ export class LevelBuilder {
     this.addBody(cylApproxBody);
   }
 
-  registerRoomElevator(elevator) {
-    if (!elevator || !elevator.id) {
-      console.warn("[ELEVATOR] Tried to register room elevator without id.");
-      return null;
-    }
-
-    if (!this.roomElevators) {
-      this.roomElevators = new Map();
-    }
-
-    const normalizedElevator = {
-      id: elevator.id,
-      openState: elevator.openState ?? 0.0,
-      targetOpenState: elevator.targetOpenState ?? 0.0,
-
-      // Ось, вдоль которой разъезжаются створки: "x" или "z".
-      slideAxis: elevator.slideAxis || "x",
-
-      // Насколько далеко створки уходят в открытом состоянии.
-      slideDistance: elevator.slideDistance ?? 3.4,
-
-      // [{ mesh, body?, side, closedPosition }]
-      // side: -1 для левой/нижней створки, +1 для правой/верхней.
-      leaves: elevator.leaves || [],
-    };
-
-    this.roomElevators.set(normalizedElevator.id, normalizedElevator);
-
-    return normalizedElevator;
+ registerRoomElevator(elevator) {
+  if (!elevator || !elevator.id) {
+    console.warn(
+      "[ELEVATOR] Tried to register room elevator without id.",
+    );
+    return null;
   }
+
+  if (!this.roomElevators) {
+    this.roomElevators = new Map();
+  }
+
+  const normalizedElevator = {
+    id: elevator.id,
+
+    // Номер сектора, к которому относится этот лифт.
+    levelNumber:
+      elevator.levelNumber ?? this.currentRoomId,
+
+    // Роль лифта:
+    // "start" -> показывает SECTOR XX
+    // "exit"  -> до прохождения пустой
+    elevatorRole:
+      elevator.elevatorRole ?? "start",
+
+    openState:
+      elevator.openState ?? 0.0,
+
+    targetOpenState:
+      elevator.targetOpenState ?? 0.0,
+
+    // Ось, вдоль которой разъезжаются створки: "x" или "z".
+    slideAxis:
+      elevator.slideAxis || "x",
+
+    // Насколько далеко створки уходят в открытом состоянии.
+    slideDistance:
+      elevator.slideDistance ?? 3.4,
+
+    // [{ mesh, body?, side, closedPosition }]
+    // side: -1 для левой/нижней створки,
+    // +1 для правой/верхней.
+    leaves:
+      elevator.leaves || [],
+
+    glowMaterials:
+      elevator.glowMaterials || [],
+
+    // Материал экрана нужен,
+    // чтобы потом менять пустой дисплей на NEXT XX.
+    displayScreenMaterial:
+      elevator.displayScreenMaterial || null,
+
+    antMaterials:
+      elevator.antMaterials || [],
+  };
+
+  this.roomElevators.set(
+    normalizedElevator.id,
+    normalizedElevator,
+  );
+
+  return normalizedElevator;
+}
 
   setRoomElevatorOpen(id, isOpen) {
     if (!this.roomElevators) return;
@@ -3437,6 +5226,63 @@ export class LevelBuilder {
     return elevator ? elevator.openState : 0.0;
   }
 
+  setRoomElevatorDisplay(id, label, levelNumber) {
+    const elevator = this.getRoomElevator(id);
+
+    if (!elevator || !elevator.displayScreenMaterial) {
+      return;
+    }
+
+    const material = elevator.displayScreenMaterial;
+
+    // Старая динамическая текстура
+    const oldTexture = material.map;
+
+    const newTexture = this.createElevatorLevelDisplayTexture(
+      levelNumber,
+      label,
+    );
+
+    material.map = newTexture;
+    material.emissiveMap = newTexture;
+    material.needsUpdate = true;
+
+    if (oldTexture) {
+      oldTexture.dispose();
+    }
+  }
+
+  activateExitElevator(levelNumber) {
+  if (!this.roomElevators) return null;
+
+  // Находим выходной лифт именно текущего сектора.
+  const exitElevator =
+    [...this.roomElevators.values()].find(
+      (elevator) =>
+        elevator.elevatorRole === "exit" &&
+        elevator.levelNumber === levelNumber,
+    );
+
+  if (!exitElevator) {
+    console.warn(
+      `[ELEVATOR] Exit elevator for sector ${levelNumber} not found.`,
+    );
+
+    return null;
+  }
+
+  const nextLevelNumber =
+    levelNumber + 1;
+
+  this.setRoomElevatorDisplay(
+    exitElevator.id,
+    "NEXT",
+    nextLevelNumber,
+  );
+
+  return exitElevator;
+}
+
   // === ЕДИНЫЙ API ДВЕРЕЙ ЛИФТОВ ===
   //
   // Все лифты создаются через createRoomElevator()
@@ -3460,6 +5306,10 @@ export class LevelBuilder {
 
   updateRoomElevators(dt, doorSpeed = 1.6) {
     if (!this.roomElevators || this.roomElevators.size === 0) return;
+    this.elevatorDoorPulseTime += dt * 1.9;
+
+    const doorGlowPulse =
+      0.05 + 0.48 * (0.5 + 0.5 * Math.sin(this.elevatorDoorPulseTime));
 
     for (const elevator of this.roomElevators.values()) {
       elevator.openState = THREE.MathUtils.lerp(
@@ -3470,6 +5320,31 @@ export class LevelBuilder {
 
       const axis = elevator.slideAxis;
       const slideDistance = elevator.slideDistance;
+      if (Array.isArray(elevator.glowMaterials)) {
+        for (const mat of elevator.glowMaterials) {
+          if (!mat) continue;
+          mat.emissiveIntensity = doorGlowPulse;
+        }
+      }
+      if (Array.isArray(elevator.antMaterials)) {
+        for (const ant of elevator.antMaterials) {
+          if (!ant || !ant.texture) continue;
+
+          const speed = 0.65 * dt * (ant.direction ?? 1);
+
+          if (ant.axis === "y") {
+            ant.texture.offset.y = (ant.texture.offset.y + speed) % 1;
+          } else {
+            ant.texture.offset.x = (ant.texture.offset.x + speed) % 1;
+          }
+
+          if (ant.material) {
+            ant.material.emissiveIntensity =
+              0.85 +
+              0.3 * (0.5 + 0.5 * Math.sin(this.elevatorDoorPulseTime * 1.4));
+          }
+        }
+      }
 
       for (const leaf of elevator.leaves) {
         if (!leaf || !leaf.mesh) continue;
@@ -3494,13 +5369,15 @@ export class LevelBuilder {
   updateDoors(dt) {
     // Общие обновления комнаты.
     this.syncPushableObjects();
+
+    // Постоянная мягкая пульсация ячейки.
+    this.updateRoom2SocketPulse(dt);
+
     this.updateRoom2Puzzle();
 
     // Единая скорость створок для всех универсальных лифтов.
     const doorSpeed = 1.6;
 
-    // Все текущие лифты теперь создаются через createRoomElevator()
-    // и хранятся в roomElevators.
     this.updateRoomElevators(dt, doorSpeed);
   }
 

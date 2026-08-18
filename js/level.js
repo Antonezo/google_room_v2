@@ -332,6 +332,259 @@ export class LevelBuilder {
     return mesh;
   }
 
+  addSciFiFloor({
+    width,
+    depth,
+    centerZ,
+
+    panelSize = 5.0,
+
+    baseColor = 0xbfc5c8,
+    panelColor = 0xd8dddf,
+
+    seamColor = 0x667078,
+    glowColor = 0xb8f4ff,
+  }) {
+    const root = new THREE.Group();
+    root.name = "SciFiFloor";
+
+    // ==========================================
+    // НИЖНЯЯ ОСНОВА
+    // ==========================================
+
+    const baseMaterial = new THREE.MeshStandardMaterial({
+      color: baseColor,
+
+      roughness: 0.72,
+      metalness: 0.08,
+
+      side: THREE.DoubleSide,
+      dithering: true,
+    });
+
+    const base = new THREE.Mesh(
+      new THREE.PlaneGeometry(width, depth),
+      baseMaterial,
+    );
+
+    base.rotation.x = -Math.PI / 2;
+
+    base.position.set(0, this.floorY, centerZ);
+
+    base.receiveShadow = true;
+    base.userData.skipWallMaterialUpdate = true;
+
+    root.add(base);
+
+    // ==========================================
+    // МАТЕРИАЛЫ ПАНЕЛЕЙ
+    // ==========================================
+
+    const panelMaterial = new THREE.MeshStandardMaterial({
+      color: panelColor,
+
+      roughness: 0.56,
+      metalness: 0.1,
+
+      dithering: true,
+    });
+
+    const insetMaterial = new THREE.MeshPhysicalMaterial({
+      color: 0xd7dde0,
+
+      roughness: 0.32,
+      metalness: 0.02,
+
+      clearcoat: 0.5,
+      clearcoatRoughness: 0.22,
+
+      reflectivity: 0.34,
+
+      dithering: true,
+    });
+
+    const seamMaterial = new THREE.MeshStandardMaterial({
+      color: 0x4e5961,
+
+      roughness: 0.62,
+      metalness: 0.25,
+
+      dithering: true,
+    });
+
+    const glowMaterial = new THREE.MeshStandardMaterial({
+      color: 0xcdf6ff,
+
+      emissive: 0xcdf6ff,
+      emissiveIntensity: 0.34,
+
+      roughness: 0.5,
+      metalness: 0.04,
+
+      toneMapped: false,
+    });
+
+    // ==========================================
+    // РАЗМЕРЫ
+    // ==========================================
+
+    const columns = Math.round(width / panelSize);
+
+    const rows = Math.round(depth / panelSize);
+
+    const gap = 0.18;
+
+    const panelWidth = panelSize - gap;
+
+    const panelDepth = panelSize - gap;
+
+    // Небольшая высота панели над основой.
+    const panelHeight = 0.06;
+
+    const startX = -width / 2 + panelSize / 2;
+
+    const startZ = centerZ - depth / 2 + panelSize / 2;
+
+    // ==========================================
+    // ПАНЕЛИ
+    // ==========================================
+
+    for (let row = 0; row < rows; row++) {
+      for (let column = 0; column < columns; column++) {
+        const x = startX + column * panelSize;
+
+        const z = startZ + row * panelSize;
+
+        // ------------------------------
+        // ОСНОВНАЯ ПАНЕЛЬ
+        // ------------------------------
+        const panel = new THREE.Mesh(
+          new THREE.BoxGeometry(panelWidth, panelHeight, panelDepth),
+          panelMaterial,
+        );
+
+        panel.position.set(x, this.floorY + panelHeight / 2 + 0.01, z);
+
+        panel.castShadow = false;
+        panel.receiveShadow = true;
+
+        panel.userData.skipWallMaterialUpdate = true;
+
+        root.add(panel);
+
+        // ------------------------------
+        // ВНУТРЕННЯЯ ВСТАВКА / РАМКА
+        // ------------------------------
+        const insetMargin = 0.34;
+        const insetHeight = 0.012;
+
+        const inset = new THREE.Mesh(
+          new THREE.BoxGeometry(
+            panelWidth - insetMargin * 2,
+            insetHeight,
+            panelDepth - insetMargin * 2,
+          ),
+          insetMaterial,
+        );
+
+        inset.position.set(
+          x,
+          this.floorY + panelHeight + insetHeight / 2 + 0.012,
+          z,
+        );
+
+        inset.castShadow = false;
+        inset.receiveShadow = true;
+
+        inset.userData.skipWallMaterialUpdate = true;
+
+        root.add(inset);
+      }
+    }
+
+    // ==========================================
+    // ТЁМНЫЕ ШВЫ ПО X
+    // ==========================================
+
+    const seamWidth = 0.1;
+    const seamHeight = 0.025;
+
+    for (let column = 1; column < columns; column++) {
+      const x = -width / 2 + column * panelSize;
+
+      const seam = new THREE.Mesh(
+        new THREE.BoxGeometry(seamWidth, seamHeight, depth),
+        seamMaterial,
+      );
+
+      seam.position.set(x, this.floorY + 0.025, centerZ);
+
+      seam.userData.skipWallMaterialUpdate = true;
+
+      root.add(seam);
+    }
+
+    // ==========================================
+    // ТЁМНЫЕ ШВЫ ПО Z
+    // ==========================================
+
+    for (let row = 1; row < rows; row++) {
+      const z = centerZ - depth / 2 + row * panelSize;
+
+      const seam = new THREE.Mesh(
+        new THREE.BoxGeometry(width, seamHeight, seamWidth),
+        seamMaterial,
+      );
+
+      seam.position.set(0, this.floorY + 0.025, z);
+
+      seam.userData.skipWallMaterialUpdate = true;
+
+      root.add(seam);
+    }
+
+    // ==========================================
+    // СВЕТЯЩИЕСЯ ЛИНИИ
+    // ==========================================
+
+    const glowWidth = 0.035;
+    const glowHeight = 0.012;
+
+    for (let column = 1; column < columns; column++) {
+      const x = -width / 2 + column * panelSize;
+
+      const glow = new THREE.Mesh(
+        new THREE.BoxGeometry(glowWidth, glowHeight, depth),
+        glowMaterial,
+      );
+
+      glow.position.set(x, this.floorY + 0.075, centerZ);
+
+      glow.userData.skipWallMaterialUpdate = true;
+
+      root.add(glow);
+    }
+
+    for (let row = 1; row < rows; row++) {
+      const z = centerZ - depth / 2 + row * panelSize;
+
+      const glow = new THREE.Mesh(
+        new THREE.BoxGeometry(width, glowHeight, glowWidth),
+        glowMaterial,
+      );
+
+      glow.position.set(0, this.floorY + 0.075, z);
+
+      glow.userData.skipWallMaterialUpdate = true;
+
+      root.add(glow);
+    }
+
+    this.registerMesh(root);
+
+    return root;
+  }
+
   addPanelWall(
     width,
     height,
@@ -423,100 +676,62 @@ export class LevelBuilder {
     return mesh;
   }
 
-addPanelWallWithElevatorOpening({
-  wallWidth,
-  wallHeight,
-  wallZ,
-  rotationY = 0,
-
-  openingWidth = 7.5,
-  openingHeight = 10.0,
-
-  reverseGrid = false,
-}) {
-  const sideW =
-    (wallWidth - openingWidth) / 2;
-
-  const leftX =
-    -(openingWidth / 2) - sideW / 2;
-
-  const rightX =
-    openingWidth / 2 + sideW / 2;
-
-  const topH =
-    wallHeight - openingHeight;
-
-  const topCenterY =
-    this.floorY +
-    openingHeight +
-    topH / 2;
-
-  const wallCenterY =
-    this.floorY + wallHeight / 2;
-
-  // При развороте стены на PI
-  // сетка панелей идёт в обратную сторону.
-  const leftGridStart =
-    reverseGrid
-      ? sideW + openingWidth
-      : 0;
-
-  const rightGridStart =
-    reverseGrid
-      ? 0
-      : sideW + openingWidth;
-
-  // Левая часть стены
-  this.addPanelWall(
-    sideW,
+  addPanelWallWithElevatorOpening({
+    wallWidth,
     wallHeight,
-    new THREE.Vector3(
-      leftX,
-      wallCenterY,
-      wallZ,
-    ),
-    new THREE.Vector3(
-      0,
-      rotationY,
-      0,
-    ),
-    leftGridStart,
-  );
+    wallZ,
+    rotationY = 0,
 
-  // Правая часть стены
-  this.addPanelWall(
-    sideW,
-    wallHeight,
-    new THREE.Vector3(
-      rightX,
-      wallCenterY,
-      wallZ,
-    ),
-    new THREE.Vector3(
-      0,
-      rotationY,
-      0,
-    ),
-    rightGridStart,
-  );
+    openingWidth = 7.5,
+    openingHeight = 10.0,
 
-  // Перемычка над лифтом
-  this.addPanelWall(
-    openingWidth,
-    topH,
-    new THREE.Vector3(
-      0,
-      topCenterY,
-      wallZ,
-    ),
-    new THREE.Vector3(
-      0,
-      rotationY,
-      0,
-    ),
-    sideW,
-  );
-}
+    reverseGrid = false,
+  }) {
+    const sideW = (wallWidth - openingWidth) / 2;
+
+    const leftX = -(openingWidth / 2) - sideW / 2;
+
+    const rightX = openingWidth / 2 + sideW / 2;
+
+    const topH = wallHeight - openingHeight;
+
+    const topCenterY = this.floorY + openingHeight + topH / 2;
+
+    const wallCenterY = this.floorY + wallHeight / 2;
+
+    // При развороте стены на PI
+    // сетка панелей идёт в обратную сторону.
+    const leftGridStart = reverseGrid ? sideW + openingWidth : 0;
+
+    const rightGridStart = reverseGrid ? 0 : sideW + openingWidth;
+
+    // Левая часть стены
+    this.addPanelWall(
+      sideW,
+      wallHeight,
+      new THREE.Vector3(leftX, wallCenterY, wallZ),
+      new THREE.Vector3(0, rotationY, 0),
+      leftGridStart,
+    );
+
+    // Правая часть стены
+    this.addPanelWall(
+      sideW,
+      wallHeight,
+      new THREE.Vector3(rightX, wallCenterY, wallZ),
+      new THREE.Vector3(0, rotationY, 0),
+      rightGridStart,
+    );
+
+    // Перемычка над лифтом
+    this.addPanelWall(
+      openingWidth,
+      topH,
+      new THREE.Vector3(0, topCenterY, wallZ),
+      new THREE.Vector3(0, rotationY, 0),
+      sideW,
+    );
+  }
 
   addAlwaysTiledSurface(
     width,
@@ -853,7 +1068,6 @@ addPanelWallWithElevatorOpening({
     // ПОЛ И ПОТОЛОК
     // ==========================================
 
-    // Их пока не меняем.
     this.addTiledWall(
       roomW,
       roomD,
@@ -896,34 +1110,34 @@ addPanelWallWithElevatorOpening({
       new THREE.Vector3(0, Math.PI, 0),
     );
 
-this.addPanelWallWithElevatorOpening({
-  wallWidth: roomW,
-  wallHeight: wallH,
+    this.addPanelWallWithElevatorOpening({
+      wallWidth: roomW,
+      wallHeight: wallH,
 
-  wallZ: 15,
-  rotationY: 0,
+      wallZ: 15,
+      rotationY: 0,
 
-  openingWidth: elW,
-  openingHeight: elH,
+      openingWidth: elW,
+      openingHeight: elH,
 
-  reverseGrid: false,
-});
+      reverseGrid: false,
+    });
     // === ФИНИШНЫЙ ЛИФТ СЕКТОРА 1 ===
     //
     // Используем тот же универсальный шаблон,
     // что и для всех остальных лифтов.
-this.room1ExitElevator = this.createRoomElevator({
-  id: "room1_exit",
-  name: "Room1ExitElevator",
+    this.room1ExitElevator = this.createRoomElevator({
+      id: "room1_exit",
+      name: "Room1ExitElevator",
 
-  wall: "front",
+      wall: "front",
 
-  x: 0,
-  z: 15,
+      x: 0,
+      z: 15,
 
-  levelNumber: 1,
-  elevatorRole: "exit",
-});
+      levelNumber: 1,
+      elevatorRole: "exit",
+    });
 
     // Временная обучающая площадка комнаты 1.
     // Позже её можно будет заменить настоящим заданием,
@@ -982,17 +1196,20 @@ this.room1ExitElevator = this.createRoomElevator({
     const centerZ = -15.0;
     const backZ = frontZ - roomD; // -37.5
 
-    // ПОЛ второй комнаты
-    this.addTiledWall(
-      roomW,
-      roomD,
-      new THREE.Vector3(0, this.floorY, centerZ),
-      new THREE.Vector3(-Math.PI / 2, 0, 0),
-      0,
-      0,
-      0x228b22,
-    );
+    // SCI-FI ПОЛ ВТОРОЙ КОМНАТЫ
+    this.addSciFiFloor({
+      width: roomW,
+      depth: roomD,
+      centerZ,
 
+      panelSize: 5.0,
+
+      baseColor: 0xaeb5b9,
+      panelColor: 0xd9dfe2,
+
+      seamColor: 0x4e5961,
+      glowColor: 0xcdf6ff,
+    });
     // ПОТОЛОК второй комнаты
     this.addTiledWall(
       roomW,
@@ -1014,56 +1231,54 @@ this.room1ExitElevator = this.createRoomElevator({
 
     // === ДАЛЬНЯЯ СТЕНА С ПРОЁМОМ ПОД НОВЫЙ ЛИФТ 2 → 3 ===//
     const exitElW = 7.5;
-const exitElH = 10.0;
+    const exitElH = 10.0;
 
-this.addPanelWallWithElevatorOpening({
-  wallWidth: roomW,
-  wallHeight: wallH,
+    this.addPanelWallWithElevatorOpening({
+      wallWidth: roomW,
+      wallHeight: wallH,
 
-  wallZ: backZ,
-  rotationY: 0,
+      wallZ: backZ,
+      rotationY: 0,
 
-  openingWidth: exitElW,
-  openingHeight: exitElH,
+      openingWidth: exitElW,
+      openingHeight: exitElH,
 
-  reverseGrid: false,
-});
-   
-
+      reverseGrid: false,
+    });
 
     // ПЕРЕДНЯЯ СТЕНА С ПРОЁМОМ ПОД СТАРТОВЫЙ ЛИФТ
-const elW = 7.5;
-const elH = 10.0;
+    const elW = 7.5;
+    const elH = 10.0;
 
-this.addPanelWallWithElevatorOpening({
-  wallWidth: roomW,
-  wallHeight: wallH,
+    this.addPanelWallWithElevatorOpening({
+      wallWidth: roomW,
+      wallHeight: wallH,
 
-  wallZ: frontZ,
-  rotationY: Math.PI,
+      wallZ: frontZ,
+      rotationY: Math.PI,
 
-  openingWidth: elW,
-  openingHeight: elH,
+      openingWidth: elW,
+      openingHeight: elH,
 
-  reverseGrid: true,
-});
+      reverseGrid: true,
+    });
 
     // === СТАРТОВЫЙ ЛИФТ СЕКТОРА 2 ===
     //
     // После перехода игрок появляется внутри этой кабины,
     // а затем двери открываются в комнату.
-this.room2StartElevator = this.createRoomElevator({
-  id: "room2_start",
-  name: "Room2StartElevator",
+    this.room2StartElevator = this.createRoomElevator({
+      id: "room2_start",
+      name: "Room2StartElevator",
 
-  wall: "front_out",
+      wall: "front_out",
 
-  x: 0,
-  z: frontZ,
+      x: 0,
+      z: frontZ,
 
-  levelNumber: 2,
-  elevatorRole: "start",
-});
+      levelNumber: 2,
+      elevatorRole: "start",
+    });
 
     // Толкаемые блоки-ступеньки комнаты №2.
     this.buildRoom2PushableBlocks();
@@ -1075,18 +1290,18 @@ this.room2StartElevator = this.createRoomElevator({
     // === НОВЫЙ ВЫХОДНОЙ ЛИФТ КОМНАТЫ 2 → 3 ===
     // Стоит по центру дальней стены.
     // Кабина уходит наружу комнаты по -Z.
-   this.room2ExitElevator = this.createRoomElevator({
-  id: "room2_exit",
-  name: "Room2ExitElevator",
+    this.room2ExitElevator = this.createRoomElevator({
+      id: "room2_exit",
+      name: "Room2ExitElevator",
 
-  wall: "back",
+      wall: "back",
 
-  x: 0,
-  z: backZ,
+      x: 0,
+      z: backZ,
 
-  levelNumber: 2,
-  elevatorRole: "exit",
-});
+      levelNumber: 2,
+      elevatorRole: "exit",
+    });
   }
 
   getRoom2GoalShelfConfig() {
@@ -1100,7 +1315,7 @@ this.room2StartElevator = this.createRoomElevator({
       shelfD: TILE * 3, // по X (вылет в комнату)
 
       // Высота самой полки: 1 плитка
-      shelfH: TILE,
+      shelfH: TILE * 0.7,
 
       // Белый кубик-цель на полке: 0.9x0.9x0.9 плитки
       markerSize: TILE * 0.9,
@@ -1240,10 +1455,188 @@ this.room2StartElevator = this.createRoomElevator({
         centerZ + cfg.shelfW / 2 - rimThickness / 2,
       ),
     );
+    // ==========================================
+    // ДЕКОРАТИВНАЯ ОПОРА ПОЛКИ — 2 ШТАНГИ К ЗАДНЕЙ СТЕНЕ
+    // ==========================================
 
-    // Подвижный белый кубик на полке
-    this.createRoom2GoalMarkerCube(centerX, centerZ, cfg.topY);
-  }
+    const supportGroup = new THREE.Group();
+    supportGroup.name = "Room2GoalShelfSupport";
+
+    // Светлый металл для штанг
+    const rodMat = new THREE.MeshStandardMaterial({
+      color: 0xb7c0c8,
+
+      roughness: 0.3,
+      metalness: 0.88,
+
+      dithering: true,
+    });
+
+    // Чуть темнее для креплений
+    const mountMat = new THREE.MeshStandardMaterial({
+      color: 0x7f8991,
+
+      roughness: 0.4,
+      metalness: 0.76,
+
+      dithering: true,
+    });
+
+    const shelfBottomY = cfg.topY - cfg.shelfH;
+
+    const wallX = centerX + cfg.shelfD / 2;
+    const wallZ = centerZ + cfg.shelfW / 2;
+
+    const shelfMinX = centerX - cfg.shelfD / 2;
+    const shelfMinZ = centerZ - cfg.shelfW / 2;
+
+    // ------------------------------------------
+    // ПАРАМЕТРЫ ШТАНГ
+    // ------------------------------------------
+
+    // Теперь штанги идут вдоль Z
+    // и крепятся к задней стене (+Z).
+    const rodRadius = 0.13;
+
+    // Небольшой отступ от задней стены,
+    // чтобы крепление не "врезалось" некрасиво.
+    const rodWallInset = 0.22;
+
+    // Насколько штанга доходит до открытого края полки.
+    const rodFrontInset = 0.55;
+
+    // Начало и конец вдоль Z
+    const rodStartZ = shelfMinZ + rodFrontInset;
+    const rodEndZ = wallZ - rodWallInset;
+
+    const rodLength = rodEndZ - rodStartZ;
+    const rodCenterZ = (rodStartZ + rodEndZ) / 2;
+
+    // Штанги должны почти касаться низа полки.
+    // Ставим их так, чтобы верх цилиндра был почти вплотную снизу.
+    const rodY = shelfBottomY - rodRadius + 0.015;
+
+    // Положение двух штанг по X
+    const rodX1 = centerX - cfg.shelfD * 0.18;
+    const rodX2 = centerX + cfg.shelfD * 0.18;
+
+    // ------------------------------------------
+    // ШТАНГА 1
+    // ------------------------------------------
+    const rod1 = new THREE.Mesh(
+      new THREE.CylinderGeometry(rodRadius, rodRadius, rodLength, 20),
+      rodMat,
+    );
+
+    // Cylinder по умолчанию идёт по Y,
+    // поворачиваем вдоль Z.
+    rod1.rotation.x = Math.PI / 2;
+
+    rod1.position.set(rodX1, rodY, rodCenterZ);
+
+    rod1.userData.skipWallMaterialUpdate = true;
+    supportGroup.add(rod1);
+
+    // ------------------------------------------
+    // ШТАНГА 2
+    // ------------------------------------------
+    const rod2 = new THREE.Mesh(
+      new THREE.CylinderGeometry(rodRadius, rodRadius, rodLength, 20),
+      rodMat,
+    );
+
+    rod2.rotation.x = Math.PI / 2;
+
+    rod2.position.set(rodX2, rodY, rodCenterZ);
+
+    rod2.userData.skipWallMaterialUpdate = true;
+    supportGroup.add(rod2);
+
+    // ------------------------------------------
+    // КРЕПЛЕНИЕ 1 НА ЗАДНЕЙ СТЕНЕ
+    // ------------------------------------------
+    const mount1 = new THREE.Mesh(
+      new THREE.BoxGeometry(0.34, 0.22, 0.16),
+      mountMat,
+    );
+
+    mount1.position.set(rodX1, rodY, wallZ - 0.08);
+
+    mount1.userData.skipWallMaterialUpdate = true;
+    supportGroup.add(mount1);
+
+    // ------------------------------------------
+    // КРЕПЛЕНИЕ 2 НА ЗАДНЕЙ СТЕНЕ
+    // ------------------------------------------
+    const mount2 = new THREE.Mesh(
+      new THREE.BoxGeometry(0.34, 0.22, 0.16),
+      mountMat,
+    );
+
+    mount2.position.set(rodX2, rodY, wallZ - 0.08);
+
+    mount2.userData.skipWallMaterialUpdate = true;
+    supportGroup.add(mount2);
+
+    // ------------------------------------------
+    // ВЕРХНИЕ КОНТАКТНЫЕ ПЛОЩАДКИ
+    // Чтобы было видно, что штанги реально упираются в полку.
+    // ------------------------------------------
+    const contactPadY = shelfBottomY - 0.03;
+
+    const contactPad1 = new THREE.Mesh(
+      new THREE.BoxGeometry(0.36, 0.06, 0.5),
+      mountMat,
+    );
+
+    contactPad1.position.set(rodX1, contactPadY, centerZ + cfg.shelfW * 0.12);
+
+    contactPad1.userData.skipWallMaterialUpdate = true;
+    supportGroup.add(contactPad1);
+
+    const contactPad2 = new THREE.Mesh(
+      new THREE.BoxGeometry(0.36, 0.06, 0.5),
+      mountMat,
+    );
+
+    contactPad2.position.set(rodX2, contactPadY, centerZ + cfg.shelfW * 0.12);
+
+    contactPad2.userData.skipWallMaterialUpdate = true;
+    supportGroup.add(contactPad2);
+
+  this.registerMesh(supportGroup);
+
+// ==========================================
+// КРАСНЫЙ КУБ — У ОТКРЫТОГО КРАЯ ПОЛКИ
+// ==========================================
+
+const cubeHalf =
+  cfg.markerSize / 2;
+
+// Небольшой безопасный отступ,
+// чтобы куб не сваливался сам.
+const cubeEdgeMargin = 0.22;
+
+// Полка находится в правом переднем углу.
+// Открытый угол для игрока — направление -X / -Z.
+const cubeX =
+  centerX -
+  cfg.shelfD / 2 +
+  cubeHalf +
+  cubeEdgeMargin;
+
+const cubeZ =
+  centerZ -
+  cfg.shelfW / 2 +
+  cubeHalf +
+  cubeEdgeMargin;
+
+this.createRoom2GoalMarkerCube(
+  cubeX,
+  cubeZ,
+  cfg.topY,
+);
+}
 
   createRedMetalCubeTexture() {
     const canvas = document.createElement("canvas");
@@ -1504,17 +1897,25 @@ this.room2StartElevator = this.createRoomElevator({
     );
 
     // === ТОНКАЯ ЦЕПКАЯ ВЕРХНЯЯ ПЛОЩАДКА ===
-    // Именно по ней шар должен нормально катиться и приземляться.
+    // Делаем её так же, как у жёлтого и зелёного блоков:
+    // тонкий отдельный collider чуть выше поверхности полки.
+
     const topInset = 0.18;
-    const topHalfY = 0.06;
+
+    const topThickness = 0.04;
+    const topGap = 0.01;
 
     this.createPhysicsWall(
       centerX,
-      cfg.topY,
+
+      cfg.topY + topGap + topThickness / 2,
+
       centerZ,
+
       cfg.shelfD / 2 - topInset,
-      topHalfY,
+      topThickness / 2,
       cfg.shelfW / 2 - topInset,
+
       this.matBoxTop,
     );
   }
@@ -3784,22 +4185,16 @@ this.room2StartElevator = this.createRoomElevator({
     // ==========================================
     // ДИСПЛЕЙ НОМЕРА УРОВНЯ
     // ==========================================
-  const levelNumber =
-  config.levelNumber ?? this.currentRoomId;
+    const levelNumber = config.levelNumber ?? this.currentRoomId;
 
-const elevatorRole =
-  config.elevatorRole ?? "start";
+    const elevatorRole = config.elevatorRole ?? "start";
 
-const displayLabel =
-  elevatorRole === "exit"
-    ? ""
-    : "SECTOR";
+    const displayLabel = elevatorRole === "exit" ? "" : "SECTOR";
 
-const displayTexture =
-  this.createElevatorLevelDisplayTexture(
-    levelNumber,
-    displayLabel,
-  );
+    const displayTexture = this.createElevatorLevelDisplayTexture(
+      levelNumber,
+      displayLabel,
+    );
 
     // Размеры дисплея
     const displayWidth = 3.25;
@@ -4323,28 +4718,25 @@ const displayTexture =
     const leafA = createLeaf(-1);
     const leafB = createLeaf(1);
 
-this.registerRoomElevator({
-  id: config.id,
+    this.registerRoomElevator({
+      id: config.id,
 
-  levelNumber,
-  elevatorRole,
+      levelNumber,
+      elevatorRole,
 
-  slideAxis: basis.slideAxis,
-  slideDistance,
+      slideAxis: basis.slideAxis,
+      slideDistance,
 
-  openState: 0.0,
-  targetOpenState: 0.0,
+      openState: 0.0,
+      targetOpenState: 0.0,
 
-  leaves: [leafA, leafB],
+      leaves: [leafA, leafB],
 
-  glowMaterials: [
-    leafA.glowMaterial,
-    leafB.glowMaterial,
-  ],
+      glowMaterials: [leafA.glowMaterial, leafB.glowMaterial],
 
-  displayScreenMaterial: displayScreenMat,
+      displayScreenMaterial: displayScreenMat,
 
-  antMaterials: [
+      antMaterials: [
         {
           material: displayAntsMatH,
           texture: antsTextureH,
@@ -4619,7 +5011,7 @@ this.registerRoomElevator({
     const centerZ = -15.0;
     const backZ = frontZ - roomD; // -37.5
 
-    // Пол уровня 3 — пока другой цвет, чтобы отличать комнату от уровня 2.
+    // Пол уровня 3
     this.addTiledWall(
       roomW,
       roomD,
@@ -4639,82 +5031,58 @@ this.registerRoomElevator({
     );
 
     // Левая стена
-  this.addPanelWall(
-  roomD,
-  wallH,
-  new THREE.Vector3(
-    -15,
-    wallCenterY,
-    centerZ,
-  ),
-  new THREE.Vector3(
-    0,
-    Math.PI / 2,
-    0,
-  ),
-);
+    this.addPanelWall(
+      roomD,
+      wallH,
+      new THREE.Vector3(-15, wallCenterY, centerZ),
+      new THREE.Vector3(0, Math.PI / 2, 0),
+    );
 
     // Правая стена
- this.addPanelWall(
-  roomD,
-  wallH,
-  new THREE.Vector3(
-    15,
-    wallCenterY,
-    centerZ,
-  ),
-  new THREE.Vector3(
-    0,
-    -Math.PI / 2,
-    0,
-  ),
-);
+    this.addPanelWall(
+      roomD,
+      wallH,
+      new THREE.Vector3(15, wallCenterY, centerZ),
+      new THREE.Vector3(0, -Math.PI / 2, 0),
+    );
 
     // Дальняя стена
-   this.addPanelWall(
-  roomW,
-  wallH,
-  new THREE.Vector3(
-    0,
-    wallCenterY,
-    backZ,
-  ),
-  new THREE.Vector3(
-    0,
-    0,
-    0,
-  ),
-);
+    this.addPanelWall(
+      roomW,
+      wallH,
+      new THREE.Vector3(0, wallCenterY, backZ),
+      new THREE.Vector3(0, 0, 0),
+    );
 
     // Передняя стена с проёмом под стартовый лифт
     const elW = 7.5;
-const elH = 10.0;
+    const elH = 10.0;
 
-this.addPanelWallWithElevatorOpening({
-  wallWidth: roomW,
-  wallHeight: wallH,
+    this.addPanelWallWithElevatorOpening({
+      wallWidth: roomW,
+      wallHeight: wallH,
 
-  wallZ: frontZ,
-  rotationY: Math.PI,
+      wallZ: frontZ,
+      rotationY: Math.PI,
 
-  openingWidth: elW,
-  openingHeight: elH,
+      openingWidth: elW,
+      openingHeight: elH,
 
-  reverseGrid: true,
-});
+      reverseGrid: true,
+    });
     // === СТАРТОВЫЙ ЛИФТ СЕКТОРА 3 ===
-this.room3StartElevator = this.createRoomElevator({
-  id: "room3_start",
-  name: "Room3StartElevator",
+    this.room3StartElevator = this.createRoomElevator({
+      id: "room3_start",
+      name: "Room3StartElevator",
 
-  wall: "front_out",
+      wall: "front_out",
 
-  x: 0,
-  z: frontZ,
+      x: 0,
+      z: frontZ,
 
-  levelNumber: 3,
-  elevatorRole: "start",
-});
+      levelNumber: 3,
+      elevatorRole: "start",
+    });
 
     // === НИША НА ДАЛЬНЕЙ СТЕНЕ ===
     this.buildRoom3NicheVisual();
@@ -5134,70 +5502,55 @@ this.room3StartElevator = this.createRoomElevator({
     this.addBody(cylApproxBody);
   }
 
- registerRoomElevator(elevator) {
-  if (!elevator || !elevator.id) {
-    console.warn(
-      "[ELEVATOR] Tried to register room elevator without id.",
-    );
-    return null;
+  registerRoomElevator(elevator) {
+    if (!elevator || !elevator.id) {
+      console.warn("[ELEVATOR] Tried to register room elevator without id.");
+      return null;
+    }
+
+    if (!this.roomElevators) {
+      this.roomElevators = new Map();
+    }
+
+    const normalizedElevator = {
+      id: elevator.id,
+
+      // Номер сектора, к которому относится этот лифт.
+      levelNumber: elevator.levelNumber ?? this.currentRoomId,
+
+      // Роль лифта:
+      // "start" -> показывает SECTOR XX
+      // "exit"  -> до прохождения пустой
+      elevatorRole: elevator.elevatorRole ?? "start",
+
+      openState: elevator.openState ?? 0.0,
+
+      targetOpenState: elevator.targetOpenState ?? 0.0,
+
+      // Ось, вдоль которой разъезжаются створки: "x" или "z".
+      slideAxis: elevator.slideAxis || "x",
+
+      // Насколько далеко створки уходят в открытом состоянии.
+      slideDistance: elevator.slideDistance ?? 3.4,
+
+      // [{ mesh, body?, side, closedPosition }]
+      // side: -1 для левой/нижней створки,
+      // +1 для правой/верхней.
+      leaves: elevator.leaves || [],
+
+      glowMaterials: elevator.glowMaterials || [],
+
+      // Материал экрана нужен,
+      // чтобы потом менять пустой дисплей на NEXT XX.
+      displayScreenMaterial: elevator.displayScreenMaterial || null,
+
+      antMaterials: elevator.antMaterials || [],
+    };
+
+    this.roomElevators.set(normalizedElevator.id, normalizedElevator);
+
+    return normalizedElevator;
   }
-
-  if (!this.roomElevators) {
-    this.roomElevators = new Map();
-  }
-
-  const normalizedElevator = {
-    id: elevator.id,
-
-    // Номер сектора, к которому относится этот лифт.
-    levelNumber:
-      elevator.levelNumber ?? this.currentRoomId,
-
-    // Роль лифта:
-    // "start" -> показывает SECTOR XX
-    // "exit"  -> до прохождения пустой
-    elevatorRole:
-      elevator.elevatorRole ?? "start",
-
-    openState:
-      elevator.openState ?? 0.0,
-
-    targetOpenState:
-      elevator.targetOpenState ?? 0.0,
-
-    // Ось, вдоль которой разъезжаются створки: "x" или "z".
-    slideAxis:
-      elevator.slideAxis || "x",
-
-    // Насколько далеко створки уходят в открытом состоянии.
-    slideDistance:
-      elevator.slideDistance ?? 3.4,
-
-    // [{ mesh, body?, side, closedPosition }]
-    // side: -1 для левой/нижней створки,
-    // +1 для правой/верхней.
-    leaves:
-      elevator.leaves || [],
-
-    glowMaterials:
-      elevator.glowMaterials || [],
-
-    // Материал экрана нужен,
-    // чтобы потом менять пустой дисплей на NEXT XX.
-    displayScreenMaterial:
-      elevator.displayScreenMaterial || null,
-
-    antMaterials:
-      elevator.antMaterials || [],
-  };
-
-  this.roomElevators.set(
-    normalizedElevator.id,
-    normalizedElevator,
-  );
-
-  return normalizedElevator;
-}
 
   setRoomElevatorOpen(id, isOpen) {
     if (!this.roomElevators) return;
@@ -5253,35 +5606,29 @@ this.room3StartElevator = this.createRoomElevator({
   }
 
   activateExitElevator(levelNumber) {
-  if (!this.roomElevators) return null;
+    if (!this.roomElevators) return null;
 
-  // Находим выходной лифт именно текущего сектора.
-  const exitElevator =
-    [...this.roomElevators.values()].find(
+    // Находим выходной лифт именно текущего сектора.
+    const exitElevator = [...this.roomElevators.values()].find(
       (elevator) =>
         elevator.elevatorRole === "exit" &&
         elevator.levelNumber === levelNumber,
     );
 
-  if (!exitElevator) {
-    console.warn(
-      `[ELEVATOR] Exit elevator for sector ${levelNumber} not found.`,
-    );
+    if (!exitElevator) {
+      console.warn(
+        `[ELEVATOR] Exit elevator for sector ${levelNumber} not found.`,
+      );
 
-    return null;
+      return null;
+    }
+
+    const nextLevelNumber = levelNumber + 1;
+
+    this.setRoomElevatorDisplay(exitElevator.id, "NEXT", nextLevelNumber);
+
+    return exitElevator;
   }
-
-  const nextLevelNumber =
-    levelNumber + 1;
-
-  this.setRoomElevatorDisplay(
-    exitElevator.id,
-    "NEXT",
-    nextLevelNumber,
-  );
-
-  return exitElevator;
-}
 
   // === ЕДИНЫЙ API ДВЕРЕЙ ЛИФТОВ ===
   //

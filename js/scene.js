@@ -92,6 +92,7 @@ export function loadGameAssets(onProgress, onComplete) {
     (t) => setupPlasticTexture(t),
   );
 
+
   heatTex = textureLoader.load("Image/heat.png");
 
   ventGridTex = textureLoader.load("Image/ventGrid.png", (tex) => {

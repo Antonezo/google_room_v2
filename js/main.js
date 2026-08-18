@@ -604,7 +604,7 @@ onStartGameplay: () => {
 
     // Задаем красивый стартовый ракурс!
     // При запуске игры камера уже будет наклонена на 30 градусов вниз и висеть над шаром.
-    this.cameraPivot.rotation.x = -Math.PI / 6;
+    this.cameraPivot.rotation.x = -Math.PI / 6; // -30 градусов в радианах
     // =========================================
 
     // Логика захвата курсора
@@ -1399,7 +1399,7 @@ resetElevatorForLevel(levelId) {
     startPos.z,
   );
 
-  this.cameraPivot.rotation.set(-0.6, 0, 0);
+  this.cameraPivot.rotation.set(-0.30, 0, 0);
 
   if (this.cameraController) {
     this.cameraController.currentZoom = 15.0;
@@ -1414,7 +1414,7 @@ resetElevatorForLevel(levelId) {
 
     // Уровень 1 оставляем как раньше.
     this.cameraPivot.position.set(startPos.x, startPos.y + 4.0, startPos.z);
-    this.cameraPivot.rotation.set(-Math.PI / 6, 0, 0);
+   this.cameraPivot.rotation.set(-0.30, 0, 0);
 
     if (this.cameraController) {
       this.cameraController.currentZoom = 15.0;

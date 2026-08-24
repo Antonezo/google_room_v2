@@ -1,228 +1,442 @@
 /* ==========================================================================
-   5. ЗАГРУЗОЧНЫЙ ЭКРАН И ДВЕРИ
+   НОВОЕ СТАРТОВОЕ МЕНЮ
+   Визуальная сцена — статичный WebP.
+   Все кнопки, настройки и экраны остаются настоящими HTML-элементами.
    ========================================================================== */
+
 #loader-doors {
   position: fixed;
-  top: 0;
-  left: 0;
-  width: 100vw;
-  height: 100vh;
+  inset: 0;
   z-index: var(--z-loader);
-  display: flex;
-  background: transparent;
+
   overflow: hidden;
-  transition: visibility 1.4s;
+  visibility: visible;
+  opacity: 1;
+  transform: scale(1);
+
+  background: #07151f;
+
+  transition:
+    opacity 0.7s ease,
+    transform 0.9s cubic-bezier(0.22, 1, 0.36, 1),
+    visibility 0s linear 0s;
 }
-.door {
-  width: 50%;
-  height: 100%;
-  background: #0b0f17;
-  position: relative;
-  transition: transform 1.4s cubic-bezier(0.8, 0, 0.2, 1);
-  display: flex;
-  align-items: center;
-}
-.left-door {
-  overflow: visible;
-  z-index: 2;
-}
-.hex-pattern {
+
+/* Сам фон. loader-menu.css находится в папке css/,
+   поэтому путь к Image идёт через ../ */
+.start-menu-background {
   position: absolute;
   inset: 0;
-  opacity: 0.1;
-  background-size: 56px 100px;
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='56' height='100' viewBox='0 0 56 100'%3E%3Cpath d='M28 66L0 50L0 16L28 0L56 16L56 50L28 66L28 100' fill='none' stroke='%2300f3ff' stroke-width='1.5'/%3E%3C/svg%3E");
-}
-.door-joint {
-  position: absolute;
-  top: 0;
-  width: 2px;
-  height: 100%;
-  background: var(--neon-blue);
-  box-shadow:
-    0 0 20px var(--neon-blue),
-    0 0 40px var(--neon-blue);
-}
-.left-door .door-joint {
-  right: 0;
-}
-.right-door .door-joint {
-  left: 0;
-}
-.loader-center-hub {
-  position: absolute;
-  top: 50%;
-  left: 50%;
 
-  transform: translate(-50%, -50%) scale(1);
+  background-image: url("../Image/menu/start-menu-bg.webp");
+  background-repeat: no-repeat;
+  background-position: center center;
+  background-size: cover;
+
+  transform: scale(1.002);
+  transform-origin: center 58%;
+
+  pointer-events: none;
+}
+
+/* Очень лёгкая виньетка помогает UI читаться,
+   не меняя само изображение в Photoshop. */
+.start-menu-vignette {
+  position: absolute;
+  inset: 0;
+
+  background: radial-gradient(
+    ellipse at 50% 28%,
+    transparent 0%,
+    transparent 34%,
+    rgba(0, 8, 14, 0.06) 58%,
+    rgba(0, 6, 11, 0.22) 100%
+  );
+
+  pointer-events: none;
+}
+
+/* Весь интерактивный UI — отдельный слой.
+   Он никак не связан с дверью на фоновой картинке. */
+.start-menu-ui {
+  position: absolute;
+  inset: 0;
+
   display: flex;
-  flex-direction: column;
-  align-items: center;
+  align-items: flex-start;
   justify-content: center;
 
-  z-index: calc(var(--z-loader) + 1);
+  padding-top: clamp(95px, 10vh, 145px);
+  box-sizing: border-box;
+
   pointer-events: none;
+}
+
+/* Контейнер всех экранов главного меню. */
+#futuristic-start-menu {
+  position: relative;
+
+  width: min(420px, 34vw);
+  max-height: calc(100vh - 130px);
+
+  box-sizing: border-box;
+
+  pointer-events: auto;
 
   opacity: 1;
+  transform: translateY(0) scale(1);
   filter: blur(0);
 
   transition:
-    opacity 0.65s ease,
-    transform 0.65s ease,
-    filter 0.65s ease;
+    opacity 0.42s ease,
+    transform 0.42s cubic-bezier(0.22, 1, 0.36, 1),
+    filter 0.42s ease;
 }
-.loader-center-hub.fade-out-fast {
-  opacity: 0;
-  transform: translate(-50%, -50%) scale(1.2);
-  filter: blur(4px);
 
-  transition:
-    opacity 0.65s ease,
-    transform 0.65s ease,
-    filter 0.65s ease;
-}
-.loader-center-hub.hub-hidden {
+/* MenuManager уже использует класс game-started.
+   Теперь это просто красивое исчезновение UI, без старых дверей/A.I.C.E. */
+#futuristic-start-menu.game-started {
   opacity: 0;
-  transform: translate(-50%, -50%) scale(1.15);
-  filter: blur(4px);
-}
-.loader-center-hub.fade-in-volumetric {
-  animation: fadeInCore 0.6s cubic-bezier(0.2, 0.8, 0.2, 1) forwards;
-}
-@keyframes fadeInCore {
-  0% {
-    opacity: 0;
-    transform: translate(-50%, -50%) scale(0.5);
-    filter: blur(10px);
-  }
-  100% {
-    opacity: 1;
-    transform: translate(-50%, -50%) scale(1);
-    filter: blur(0);
-  }
-}
-.cyber-core {
-  position: relative;
-  width: 130px;
-  height: 130px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-.core-ring {
-  position: absolute;
-  border-radius: 50%;
-  border: 2px solid transparent;
-}
-.outer-ring {
-  width: 100%;
-  height: 100%;
-  border-top: 2px solid rgba(var(--neon-blue-rgb), 0.9);
-  border-bottom: 2px solid rgba(var(--neon-blue-rgb), 0.9);
-  border-right: 2px solid rgba(var(--neon-blue-rgb), 0.1);
-  border-left: 2px solid rgba(var(--neon-blue-rgb), 0.1);
-  animation: spin-right 6s linear infinite;
-  box-shadow:
-    0 0 15px rgba(var(--neon-blue-rgb), 0.3),
-    inset 0 0 15px rgba(var(--neon-blue-rgb), 0.3);
-}
-.inner-ring {
-  width: 75%;
-  height: 75%;
-  border-left: 2px dashed var(--neon-blue);
-  border-right: 2px dashed var(--neon-blue);
-  animation: spin-left 10s linear infinite;
-}
-.core-center {
-  position: relative;
-  background: rgba(10, 15, 25, 0.9);
-  border: 1px solid rgba(var(--neon-blue-rgb), 0.5);
-  width: 55%;
-  height: 55%;
-  border-radius: 50%;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  box-shadow: 0 0 20px rgba(var(--neon-blue-rgb), 0.6);
-  overflow: hidden;
-}
-.core-center::before {
-  content: "";
-  position: absolute;
-  inset: 0;
-  background: repeating-linear-gradient(
-    0deg,
-    transparent,
-    transparent 2px,
-    rgba(var(--neon-blue-rgb), 0.1) 2px,
-    rgba(var(--neon-blue-rgb), 0.1) 4px
-  );
+  transform: translateY(-10px) scale(0.985);
+  filter: blur(3px);
   pointer-events: none;
 }
-.core-text {
+
+#futuristic-start-menu.game-started * {
+  pointer-events: none;
+}
+.start-menu-title {
+  margin: 0 0 12px 0;
+
+  text-align: center;
+  text-transform: uppercase;
+
   font-family: "Orbitron", sans-serif;
-  color: #fff;
-  font-size: 13px;
-  font-weight: bold;
-  letter-spacing: 2px;
-  text-shadow: 0 0 8px var(--neon-blue);
-  z-index: 2;
-  margin-bottom: 2px;
+  font-size: clamp(34px, 4vw, 52px);
+  font-weight: 700;
+  letter-spacing: 7px;
+  line-height: 1;
+
+  color: #f8fdff;
+
+  text-shadow:
+    0 0 8px rgba(255, 255, 255, 0.45),
+    0 0 26px rgba(90, 220, 255, 0.32),
+    0 5px 16px rgba(0, 0, 0, 0.18);
 }
-.core-subtext {
-  font-family: "Segoe UI", sans-serif;
-  color: var(--neon-blue);
-  font-size: 8px;
-  letter-spacing: 3px;
-  font-weight: bold;
-  z-index: 2;
+
+.start-menu-title::after {
+  content: "";
+
+  display: block;
+
+  width: 220px;
+  max-width: 62%;
+  height: 1px;
+
+  margin: 12px auto 0;
+
+  background: linear-gradient(
+    90deg,
+    transparent,
+    rgba(170, 240, 255, 0.75),
+    transparent
+  );
+
+  box-shadow: 0 0 10px rgba(90, 220, 255, 0.22);
+
   opacity: 0.8;
-}
-@keyframes spin-right {
-  100% {
-    transform: rotate(360deg);
-  }
-}
-@keyframes spin-left {
-  100% {
-    transform: rotate(-360deg);
-  }
-}
-#loader-doors.loaded .left-door {
-  transform: translateX(-100%);
-}
-#loader-doors.loaded .right-door {
-  transform: translateX(100%);
-}
-#loader-doors.loaded .loader-center-hub {
-  opacity: 0;
-  transform: translate(-50%, -50%) scale(1.15);
-  filter: blur(4px);
-}
-#loader-doors.loaded {
-  visibility: hidden;
-  transition-delay: 1.4s;
 }
 
 /* ==========================================================================
-   6. ФУТУРИСТИЧЕСКОЕ СТАРТОВОЕ МЕНЮ
+   ГЛАВНАЯ СТРАНИЦА
+   Стиль — как у референса: отдельные светящиеся строки без общей рамки.
    ========================================================================== */
-.futuristic-start-menu {
-  position: absolute;
-  top: 50%;
-  right: 360px;
-  transform: translateY(-50%);
-  width: 500px;
-  display: flex;
-  flex-direction: column;
-  gap: 20px;
-  z-index: 10;
+
+#futuristic-start-menu #view-main {
+  width: min(390px, 100%);
+  margin: 0 auto;
+
+  gap: 6px;
+  align-items: stretch;
 }
-.futuristic-start-menu.game-started,
-.futuristic-start-menu.game-started * {
+
+#futuristic-start-menu #view-main.menu-view.active {
+  animation: startMenuViewIn 0.3s ease both;
+}
+
+@keyframes startMenuViewIn {
+  from {
+    opacity: 0;
+    transform: translateY(-8px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Старый общий .sk-btn ниже по файлу остаётся нужен pause-menu.
+   Поэтому новый дизайн главных кнопок задаём только внутри start menu. */
+#futuristic-start-menu .sk-btn {
+  position: relative;
+
+  width: 100%;
+  min-height: 46px;
+  height: 46px;
+
+  padding: 0 22px;
+  margin: 0;
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  box-sizing: border-box;
+
+  border: 1px solid rgba(170, 240, 255, 0.58);
+  border-radius: 10px;
+
+  background: linear-gradient(
+    180deg,
+    rgba(115, 205, 225, 0.28) 0%,
+    rgba(25, 95, 120, 0.38) 48%,
+    rgba(3, 28, 40, 0.64) 100%
+  );
+
+  backdrop-filter: blur(6px) saturate(120%);
+
+  -webkit-backdrop-filter: blur(6px) saturate(120%);
+
+  color: #ffffff;
+
+  font-family: "Orbitron", sans-serif;
+  font-size: 17px;
+  font-weight: 700;
+  letter-spacing: 2px;
+
+  text-shadow:
+    0 0 5px rgba(255, 255, 255, 0.72),
+    0 0 14px rgba(70, 220, 255, 0.42);
+
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.24),
+    inset 0 -1px 0 rgba(0, 0, 0, 0.32),
+    inset 0 0 22px rgba(100, 225, 250, 0.06),
+    0 0 10px rgba(60, 220, 255, 0.18),
+    0 7px 20px rgba(0, 8, 14, 0.32);
+
+  cursor: var(--cur-ui-arrow);
+
+  overflow: hidden;
+  outline: none;
+
+  transition:
+    transform 0.2s ease,
+    border-color 0.2s ease,
+    background 0.2s ease,
+    box-shadow 0.2s ease,
+    text-shadow 0.2s ease,
+    color 0.2s ease;
+}
+
+/* Гасим старую косую подложку главных кнопок. */
+#futuristic-start-menu .sk-btn::before {
+  content: "";
+
+  position: absolute;
+
+  left: 10px;
+  right: 10px;
+  top: 5px;
+
+  height: 42%;
+
+  border-radius: 7px 7px 14px 14px;
+
+  background: linear-gradient(
+    to bottom,
+    rgba(255, 255, 255, 0.18),
+    rgba(255, 255, 255, 0.025)
+  );
+
+  opacity: 0.55;
+
   pointer-events: none;
 }
+
+#futuristic-start-menu .sk-btn::after {
+  content: "";
+
+  position: absolute;
+
+  left: 18%;
+  right: 18%;
+  bottom: 2px;
+
+  height: 1px;
+
+  background: linear-gradient(
+    90deg,
+    transparent,
+    rgba(120, 235, 255, 0.65),
+    transparent
+  );
+
+  box-shadow: 0 0 8px rgba(80, 220, 255, 0.38);
+
+  opacity: 0.45;
+
+  pointer-events: none;
+}
+
+#futuristic-start-menu .sk-btn .btn-text {
+  position: relative;
+  z-index: 2;
+
+  margin: 0;
+
+  letter-spacing: inherit;
+
+  transition: none;
+}
+
+/* Старые >> не нужны в новом дизайне. */
+#futuristic-start-menu .sk-btn .btn-dec {
+  display: none;
+}
+
+#futuristic-start-menu .sk-btn:hover,
+#futuristic-start-menu .sk-btn:focus-visible {
+  border-color: rgba(190, 250, 255, 0.95);
+
+  background: linear-gradient(
+    180deg,
+    rgba(145, 230, 245, 0.36) 0%,
+    rgba(35, 125, 150, 0.46) 50%,
+    rgba(4, 38, 52, 0.72) 100%
+  );
+
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.34),
+    inset 0 0 26px rgba(100, 230, 250, 0.1),
+    0 0 12px rgba(80, 235, 255, 0.42),
+    0 0 24px rgba(50, 205, 240, 0.18),
+    0 8px 24px rgba(0, 8, 14, 0.34);
+
+  transform: translateY(-2px) scale(1.015);
+}
+
+#futuristic-start-menu .sk-btn:active {
+  transform: translateY(1px) scale(0.992);
+
+  box-shadow:
+    inset 0 1px 5px rgba(0, 0, 0, 0.25),
+    inset 0 0 18px rgba(90, 220, 245, 0.07),
+    0 2px 8px rgba(0, 10, 18, 0.18);
+}
+
+#futuristic-start-menu .sk-btn:hover .btn-text {
+  transform: none;
+}
+
+#futuristic-start-menu #btn-start-game {
+  color: #ffffff;
+}
+
+/* Старая volumetric-анимация нам больше не нужна в новом start menu. */
+#futuristic-start-menu .pulse-glow-volumetric {
+  animation: none !important;
+}
+#futuristic-start-menu #btn-exit {
+  overflow: visible;
+}
+/* Подсказка EXIT остаётся рабочей, меняем только её позицию. */
+#futuristic-start-menu .exit-joke {
+  right: 50%;
+  bottom: -20px;
+
+  transform: translateX(50%);
+
+  white-space: nowrap;
+  text-align: center;
+
+  font-size: 10px;
+  letter-spacing: 1.2px;
+
+  color: rgba(220, 250, 255, 0.9);
+
+  text-shadow:
+    0 0 6px rgba(255, 255, 255, 0.45),
+    0 0 12px rgba(70, 220, 255, 0.4);
+}
+
+
+
+/* ==========================================================================
+   ПЕРЕХОД В ИГРУ
+   Статичный фон чуть приближается и плавно исчезает,
+   открывая уже подготовленный Room 1.
+   ========================================================================== */
+
+#loader-doors.loaded {
+  opacity: 0;
+  visibility: hidden;
+
+  transform: scale(1.028);
+
+  pointer-events: none;
+
+  transition:
+    opacity 0.7s ease,
+    transform 0.9s cubic-bezier(0.22, 1, 0.36, 1),
+    visibility 0s linear 0.72s;
+}
+
+/* Во время подготовки клики блокируются существующей JS-логикой. */
+#loader-doors.is-preparing {
+  cursor: wait;
+}
+
+/* ==========================================================================
+   АДАПТИВ
+   ========================================================================== */
+
+@media (max-aspect-ratio: 4 / 3) {
+  .start-menu-background {
+    background-position: center center;
+  }
+
+  .start-menu-ui {
+    padding-top: clamp(70px, 9vh, 120px);
+  }
+
+  #futuristic-start-menu {
+    width: min(430px, 72vw);
+  }
+}
+
+@media (max-height: 760px) {
+  @media (max-height: 760px) {
+    .start-menu-ui {
+      padding-top: 38px;
+    }
+
+    .start-menu-title {
+      font-size: 28px;
+      letter-spacing: 5px;
+      margin-bottom: 10px;
+    }
+
+    #futuristic-start-menu .sk-btn {
+      min-height: 36px;
+      height: 36px;
+      font-size: 14px;
+    }
+  }
+}
+
 .menu-view {
   display: none;
   flex-direction: column;
@@ -266,615 +480,9 @@ body.initial-main-view #view-main.menu-view.active {
     transform: translateX(0);
   }
 }
-.settings-list {
-  display: flex;
-  flex-direction: column;
-  gap: 25px;
-}
 
-/* ==========================================================================
-   ВЛОЖЕННЫЕ СТРАНИЦЫ НАСТРОЕК
-   ========================================================================== */
-
-.settings-panel {
-  display: none;
-  flex-direction: column;
-  width: 100%;
-}
-
-.settings-panel.active {
-  display: flex;
-  animation: fadeInMenu 0.35s ease forwards;
-}
-
-#view-settings .settings-navigation-btn {
-  flex-shrink: 0;
-  width: 100%;
-  height: 80px;
-  min-height: 80px;
-  box-sizing: border-box;
-  font-size: 13px;
-}
-
-#view-settings .settings-navigation-btn .btn-text {
-  margin-right: 35px;
-  font-size: 13px;
-  letter-spacing: 2px;
-}
-
-#view-settings .settings-navigation-btn .btn-dec {
-  margin-right: 15px;
-}
-
-/* ==========================================================================
-   РАЗДЕЛ "УПРАВЛЕНИЕ"
-   ========================================================================== */
-
-.controls-header {
-  display: flex;
-  justify-content: flex-end;
-  align-items: center;
-  margin: 0 28px 28px 28px;
-  font-family: "Orbitron", sans-serif;
-  text-align: right;
-}
-
-.controls-title {
-  color: #fff;
-  font-size: 18px;
-  font-weight: 700;
-  letter-spacing: 4px;
-  text-shadow: 0 0 10px var(--neon-blue);
-}
-
-
-.controls-list {
-  display: flex;
-  flex-direction: column;
-  gap: 22px;
-  padding: 8px 28px 0 28px;
-}
-
-.control-row {
-  min-height: 42px;
-  padding: 0;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 28px;
-  font-family: "Orbitron", sans-serif;
-}
-
-.control-action {
-  flex: 1;
-  color: rgba(255, 255, 255, 0.92);
-  font-size: 12px;
-  letter-spacing: 2px;
-  text-align: left;
-  text-shadow: 0 0 5px rgba(var(--neon-blue-rgb), 0.55);
-}
-
-.control-bindings {
-  min-width: 150px;
-  display: flex;
-  justify-content: flex-end;
-  gap: 6px;
-}
-
-.control-bindings kbd,
-.control-device {
-  min-width: 30px;
-  min-height: 28px;
-  padding: 0 8px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  box-sizing: border-box;
-  border: 1px solid rgba(var(--neon-blue-rgb), 0.75);
-  background: rgba(0, 10, 18, 0.72);
-  color: var(--neon-blue);
-  font-family: "Orbitron", sans-serif;
-  font-size: 10px;
-  font-weight: 700;
-  letter-spacing: 1px;
-  text-shadow: 0 0 6px var(--neon-blue);
-  box-shadow:
-    inset 0 0 8px rgba(var(--neon-blue-rgb), 0.15),
-    0 0 6px rgba(var(--neon-blue-rgb), 0.12);
-}
-
-.control-device {
-  min-width: 150px;
-  white-space: nowrap;
-}
-
-/* Движение: WASD + мышь */
-
-.control-row-movement {
-  min-height: 62px;
-}
-
-.movement-controls {
-  min-width: 190px;
-  display: flex;
-  align-items: center;
-  justify-content: flex-end;
-  gap: 10px;
-}
-
-.wasd-grid {
-  display: grid;
-  grid-template-columns: repeat(3, 30px);
-  grid-template-rows: repeat(2, 27px);
-  gap: 4px;
-}
-
-.wasd-grid kbd {
-  min-width: 30px;
-  width: 30px;
-  min-height: 27px;
-  height: 27px;
-  padding: 0;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  box-sizing: border-box;
-  border: 1px solid rgba(var(--neon-blue-rgb), 0.75);
-  background: rgba(0, 10, 18, 0.72);
-  color: var(--neon-blue);
-  font-family: "Orbitron", sans-serif;
-  font-size: 10px;
-  font-weight: 700;
-  text-shadow: 0 0 6px var(--neon-blue);
-  box-shadow:
-    inset 0 0 8px rgba(var(--neon-blue-rgb), 0.15),
-    0 0 6px rgba(var(--neon-blue-rgb), 0.12);
-}
-
-.wasd-grid .key-w {
-  grid-column: 2;
-  grid-row: 1;
-}
-
-.wasd-grid .key-a {
-  grid-column: 1;
-  grid-row: 2;
-}
-
-.wasd-grid .key-s {
-  grid-column: 2;
-  grid-row: 2;
-}
-
-.wasd-grid .key-d {
-  grid-column: 3;
-  grid-row: 2;
-}
-
-.movement-plus {
-  color: rgba(var(--neon-blue-rgb), 0.75);
-  font-family: "Orbitron", sans-serif;
-  font-size: 15px;
-  text-shadow: 0 0 6px var(--neon-blue);
-}
-
-.mouse-control {
-  min-width: 62px;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 4px;
-  color: var(--neon-blue);
-  font-family: "Orbitron", sans-serif;
-  font-size: 8px;
-  font-weight: 700;
-  letter-spacing: 1px;
-  text-shadow: 0 0 6px var(--neon-blue);
-}
-
-.mouse-control-icon {
-  width: 22px;
-  height: 30px;
-  overflow: visible;
-  fill: rgba(0, 10, 18, 0.72);
-  stroke: var(--neon-blue);
-  stroke-width: 1.5;
-  filter: drop-shadow(0 0 4px rgba(var(--neon-blue-rgb), 0.65));
-}
-
-.mouse-control-icon line:last-child {
-  stroke-width: 3;
-  stroke-linecap: round;
-}
-
-.sk-btn {
-  position: relative;
-  width: 100%;
-  height: 55px;
-  background: transparent;
-  border: none;
-  padding: 0;
-  display: flex;
-  align-items: center;
-  justify-content: flex-end;
-  font-family: "Orbitron", sans-serif;
-  font-size: 17px;
-  font-weight: 700;
-  color: #fff;
-  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-  overflow: visible;
-  outline: none;
-}
-.sk-btn::before {
-  content: "";
-  position: absolute;
-  inset: 0;
-  transform: skewX(-20deg);
-  transform-origin: right center;
-  background: linear-gradient(
-    90deg,
-    transparent 0%,
-    rgba(var(--neon-blue-rgb), 0.03) 40%,
-    rgba(var(--neon-blue-rgb), 0.15) 100%
-  );
-  border-right: 3px solid var(--neon-blue);
-  box-shadow: inset -10px 0 20px rgba(0, 243, 255, 0.05);
-  transition: all 0.3s;
-}
-.sk-btn .btn-text {
-  position: relative;
-  z-index: 2;
-  margin-right: 35px;
-  letter-spacing: 3px;
-}
-.sk-btn .btn-dec {
-  position: relative;
-  z-index: 2;
-  margin-right: 15px;
-  color: var(--neon-blue);
-}
-.sk-btn:hover::before {
-  background: linear-gradient(
-    90deg,
-    transparent 0%,
-    rgba(var(--neon-blue-rgb), 0.1) 40%,
-    rgba(var(--neon-blue-rgb), 0.3) 100%
-  );
-  border-right-color: #fff;
-  box-shadow: 0 0 25px rgba(0, 243, 255, 0.4);
-}
-.sk-btn:hover .btn-text {
-  text-shadow: 0 0 10px var(--neon-blue);
-  transform: translateX(-5px);
-}
-
-
-.holo-back-tab {
-  position: relative;
-  width: 100%;
-  height: 50px;
-  background: transparent;
-  border: none;
-  padding: 0;
-  display: flex;
-  align-items: center;
-  justify-content: flex-end;
-  font-family: "Orbitron", sans-serif;
-  font-size: 14px;
-  font-weight: 700;
-  letter-spacing: 3px;
-  color: #fff;
-  cursor: var(--cur-ui-arrow);
-  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-  outline: none;
-  z-index: 1;
-  margin-bottom: 20px;
-}
-
-#view-settings #btn-back-main {
-  margin-bottom: 38px;
-}
-.holo-back-tab::before {
-  content: "";
-  position: absolute;
-  inset: 0;
-  transform: skewX(-20deg);
-  transform-origin: right center;
-  background: linear-gradient(
-    90deg,
-    transparent 0%,
-    rgba(var(--neon-blue-rgb), 0.03) 40%,
-    rgba(var(--neon-blue-rgb), 0.2) 100%
-  );
-  border-right: 1px solid rgba(var(--neon-blue-rgb), 0.5);
-  box-shadow: inset -10px 0 20px rgba(0, 243, 255, 0.05);
-  z-index: var(--z-behind);
-  transition: all 0.3s;
-}
-.holo-back-tab:hover::before {
-  background: linear-gradient(
-    90deg,
-    transparent 0%,
-    rgba(var(--neon-blue-rgb), 0.1) 40%,
-    rgba(var(--neon-blue-rgb), 0.4) 100%
-  );
-  border-right-color: rgba(var(--neon-blue-rgb), 0.8);
-  box-shadow: 0 0 10px var(--neon-blue);
-}
-.holo-back-tab .btn-dec {
-  margin-right: 15px;
-  color: var(--neon-blue);
-}
-.holo-back-tab .btn-text {
-  margin-right: 35px;
-  transition: 0.3s;
-  text-shadow: 0 0 5px var(--neon-blue);
-}
-.holo-back-tab:hover .btn-text {
-  text-shadow: 0 0 10px var(--neon-blue);
-  transform: translateX(-5px);
-}
-
-.slider-group {
-  position: relative;
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-  min-height: 60px;
-  justify-content: center;
-  padding: 10px 35px 10px 15px;
-  background: transparent;
-  border: none;
-  z-index: 1;
-}
-.slider-group::before {
-  content: "";
-  position: absolute;
-  inset: 0;
-  transform: skewX(-20deg);
-  transform-origin: right center;
-  background: linear-gradient(
-    90deg,
-    transparent 0%,
-    rgba(var(--neon-blue-rgb), 0.05) 40%,
-    rgba(var(--neon-blue-rgb), 0.2) 100%
-  );
-  border-right: 3px solid var(--neon-blue);
-  box-shadow: inset -10px 0 20px rgba(0, 243, 255, 0.05);
-  z-index: var(--z-behind);
-  transition: all 0.3s;
-}
-.slider-group:hover::before {
-  background: linear-gradient(
-    90deg,
-    transparent 0%,
-    rgba(var(--neon-blue-rgb), 0.1) 40%,
-    rgba(var(--neon-blue-rgb), 0.3) 100%
-  );
-  border-right-color: #fff;
-  box-shadow: 0 0 25px rgba(0, 243, 255, 0.4);
-}
-.slider-header {
-  display: flex;
-  justify-content: flex-end;
-  gap: 15px;
-  width: 100%;
-  font-family: "Orbitron", sans-serif;
-  font-size: 13px;
-  color: #fff;
-  letter-spacing: 2px;
-  text-shadow: 0 0 5px var(--neon-blue);
-}
-.slider-value {
-  color: var(--neon-blue);
-  font-weight: bold;
-}
-.cyber-slider {
-  width: 100%;
-  margin-top: 10px;
-  cursor: pointer;
-  appearance: none;
-  background: rgba(0, 255, 255, 0.1);
-  height: 4px;
-  outline: none;
-}
-.cyber-slider::-webkit-slider-thumb {
-  -webkit-appearance: none;
-  appearance: none;
-  width: 16px;
-  height: 16px;
-  background: #fff;
-  border: 2px solid var(--neon-blue);
-  border-radius: 50%;
-  cursor: var(--cur-hand);
-  box-shadow: 0 0 10px var(--neon-blue);
-  transition: transform 0.1s;
-}
-.cyber-slider::-webkit-slider-thumb:hover {
-  transform: scale(1.3);
-  background: var(--neon-blue);
-  box-shadow: 0 0 15px var(--neon-blue);
-}
-
-.lang-group {
-  cursor: var(--cur-ui-arrow);
-  transition: all 0.3s;
-}
-.lang-group.open {
-  min-height: 95px;
-}
-.lang-options {
-  display: flex;
-  justify-content: flex-end;
-  gap: 0px;
-  overflow: visible;
-  width: auto;
-  opacity: 0;
-  pointer-events: none;
-  height: 0;
-  transition: all 0.3s;
-}
-.lang-group.open .lang-options {
-  opacity: 1;
-  pointer-events: auto;
-  height: 35px;
-  margin-top: 5px;
-}
-.lang-btn {
-  position: relative;
-  width: 200px;
-  height: 35px;
-  background: transparent;
-  border: none;
-  padding: 0;
-  display: flex;
-  align-items: center;
-  justify-content: flex-end;
-  font-family: "Orbitron", sans-serif;
-  color: rgba(255, 255, 255, 0.6);
-  font-size: 11px;
-  font-weight: 700;
-  letter-spacing: 1px;
-  text-transform: uppercase;
-  cursor: var(--cur-ui-arrow);
-  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-  outline: none;
-}
-.lang-btn .btn-text {
-  position: relative;
-  z-index: 2;
-  margin-right: 45px;
-  transition: all 0.3s;
-}
-.lang-btn:hover .btn-text,
-.lang-btn.active-lang .btn-text {
-  color: #fff;
-  text-shadow: 0 0 10px var(--neon-blue);
-}
-.lang-btn::before {
-  content: "";
-  position: absolute;
-  inset: 0;
-  transform: skewX(-20deg);
-  transform-origin: right center;
-  background: linear-gradient(
-    90deg,
-    transparent 0%,
-    transparent 20%,
-    rgba(var(--neon-blue-rgb), 0.05) 50%,
-    rgba(var(--neon-blue-rgb), 0.2) 100%
-  );
-  border-right: 1px solid rgba(var(--neon-blue-rgb), 0.5);
-  box-shadow: inset -10px 0 20px rgba(0, 243, 255, 0.05);
-  -webkit-mask-image: linear-gradient(to right, transparent 0%, black 40%);
-  mask-image: linear-gradient(to right, transparent 0%, black 40%);
-  z-index: var(--z-behind);
-  transition: all 0.3s;
-}
-.lang-btn:hover::before,
-.lang-btn.active-lang::before {
-  background: linear-gradient(
-    90deg,
-    transparent 0%,
-    transparent 20%,
-    rgba(var(--neon-blue-rgb), 0.1) 50%,
-    rgba(var(--neon-blue-rgb), 0.3) 100%
-  );
-  border-right-color: var(--neon-blue);
-  border-right-width: 1px;
-  box-shadow:
-    inset -15px 0 20px rgba(0, 243, 255, 0.1),
-    10px 0 15px rgba(0, 243, 255, 0.3);
-}
-
-.exit-btn {
-  overflow: visible;
-}
-.exit-joke {
-  position: absolute;
-  right: 35px;
-  bottom: -12px;
-  font-size: 11px;
-  color: var(--neon-blue);
-  opacity: 0;
-  letter-spacing: 1px;
-  transition: 0.3s;
-  pointer-events: none;
-  font-family: "Orbitron", sans-serif;
-}
-.exit-btn.show-joke .exit-joke {
-  opacity: 0.8;
-  transform: translateY(5px);
-}
 
 /* ЗАГОЛОВОК ИГРЫ */
-.title-container {
-  position: absolute;
-  top: 15%;
-  left: 300px;
-  transform: translateY(-50%);
-  display: flex;
-  flex-direction: column;
-  gap: 5px;
-  z-index: 10;
-  pointer-events: none;
-}
-.cyber-title {
-  position: relative;
-  font-family: "Orbitron", sans-serif;
-  font-size: 56px;
-  font-weight: 700;
-  color: #fff;
-  margin: 0;
-  padding: 10px 40px 10px 25px;
-  letter-spacing: 6px;
-  text-shadow: 0 0 15px rgba(var(--neon-blue-rgb), 0.8);
-  transform: skewX(-20deg);
-  transform-origin: left center;
-  background: linear-gradient(
-    -90deg,
-    transparent 0%,
-    rgba(var(--neon-blue-rgb), 0.05) 50%,
-    rgba(var(--neon-blue-rgb), 0.25) 100%
-  );
-  border-left: 4px solid var(--neon-blue);
-  box-shadow: inset 10px 0 20px rgba(0, 243, 255, 0.05);
-}
-.cyber-subtitle {
-  font-family: "Segoe UI", sans-serif;
-  color: rgba(var(--neon-blue-rgb), 0.7);
-  font-size: 13px;
-  letter-spacing: 8px;
-  text-transform: uppercase;
-  margin-left: 20px;
-  text-shadow: 0 0 5px rgba(var(--neon-blue-rgb), 0.3);
-}
-
-.pcb-texture {
-  position: absolute;
-  inset: 0;
-  z-index: 1;
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='100' height='100' viewBox='0 0 100 100'%3E%3Cg fill='none' stroke='%2300f3ff' stroke-width='0.5' stroke-opacity='1'%3E%3Cpath d='M20 20 L20 40 M20 20 L40 20 M60 20 L80 20 M80 20 L80 40 M20 60 L20 80 M20 80 L40 80 M60 80 L80 80 M80 60 L80 80'/%3E%3Ccircle cx='20' cy='20' r='1.5'/%3E%3Ccircle cx='80' cy='20' r='1.5'/%3E%3Ccircle cx='20' cy='80' r='1.5'/%3E%3Ccircle cx='80' cy='80' r='1.5'/%3E%3Cpath d='M40 40 L60 60 M40 60 L60 40' stroke-width='0.3'/%3E%3Ccircle cx='50' cy='50' r='0.8' fill='%2300f3ff'/%3E%3C/g%3E%3C/svg%3E");
-  background-size: 150px 150px;
-  opacity: 0.1;
-  transition: opacity 0.3s ease;
-  animation: pcbPulse 6s ease-in-out infinite;
-}
-.door:hover .pcb-texture {
-  opacity: 0.2;
-}
-@keyframes pcbPulse {
-  0%,
-  100% {
-    opacity: 0.1;
-    filter: brightness(1);
-  }
-  50% {
-    opacity: 0.25;
-    filter: brightness(1.5) drop-shadow(0 0 8px var(--neon-blue));
-  }
-}
-
 /* ==========================================================================
    ПОДГОТОВКА ИГРЫ ПОСЛЕ НАЖАТИЯ "НОВАЯ ИГРА"
    ========================================================================== */
@@ -1090,6 +698,22 @@ body.initial-main-view #view-main.menu-view.active {
   letter-spacing: 2px;
 }
 
+#futuristic-start-menu #view-sectors .sector-number {
+  min-width: 50px;
+
+  color: #eafcff;
+
+  font-size: 20px;
+  font-weight: 700;
+  letter-spacing: 2px;
+
+  text-align: center;
+
+  text-shadow:
+    0 0 6px rgba(220, 252, 255, 0.6),
+    0 0 16px rgba(70, 220, 250, 0.28);
+}
+
 .sector-info {
   position: relative;
   z-index: 2;
@@ -1100,6 +724,36 @@ body.initial-main-view #view-main.menu-view.active {
   flex-direction: column;
   align-items: flex-end;
   gap: 5px;
+}
+
+#futuristic-start-menu #view-sectors .sector-info {
+  min-width: 0;
+
+  flex: 1;
+
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+}
+
+#futuristic-start-menu #view-sectors .sector-title {
+  font-size: 14px;
+  font-weight: 700;
+  letter-spacing: 2px;
+
+  color: #ffffff;
+
+  text-shadow: 0 0 6px rgba(220, 252, 255, 0.45);
+}
+
+#futuristic-start-menu #view-sectors .sector-status {
+  font-size: 9px;
+  letter-spacing: 1.6px;
+
+  color: rgba(180, 240, 250, 0.72);
+
+  text-shadow: 0 0 8px rgba(70, 215, 245, 0.22);
 }
 
 .sector-title {
@@ -1129,6 +783,1389 @@ body.initial-main-view #view-main.menu-view.active {
   text-shadow: 0 0 10px var(--neon-blue);
 }
 
+#futuristic-start-menu #view-sectors .sector-card {
+  position: absolute;
+
+  top: 18px;
+  height: 124px;
+
+  padding: 18px 14px 14px;
+
+  box-sizing: border-box;
+
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+
+  border: 1px solid rgba(205, 245, 255, 0.5);
+  border-radius: 24px / 18px;
+
+  background:
+    linear-gradient(
+      180deg,
+      rgba(160, 235, 245, 0.12) 0%,
+      rgba(48, 135, 155, 0.14) 36%,
+      rgba(6, 40, 55, 0.4) 100%
+    );
+
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.18),
+    inset 0 -10px 18px rgba(0, 0, 0, 0.12),
+    0 8px 18px rgba(0, 10, 18, 0.18);
+
+  backdrop-filter: blur(7px);
+  -webkit-backdrop-filter: blur(7px);
+
+  opacity: 0;
+  pointer-events: none;
+
+  transform-origin: center center;
+
+  transition:
+    left 0.34s ease,
+    width 0.34s ease,
+    transform 0.34s ease,
+    opacity 0.28s ease,
+    box-shadow 0.28s ease,
+    filter 0.28s ease;
+}
+
+#futuristic-start-menu #view-sectors .sector-card::before {
+  content: none;
+}
+
+#futuristic-start-menu #view-sectors .sector-card:hover {
+  border-color: rgba(190, 245, 255, 0.7);
+
+  background: linear-gradient(
+    180deg,
+    rgba(220, 250, 255, 0.16) 0%,
+    rgba(65, 185, 215, 0.1) 50%,
+    rgba(5, 42, 56, 0.22) 100%
+  );
+
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.28),
+    inset 0 0 22px rgba(90, 220, 245, 0.06),
+    0 0 12px rgba(80, 220, 255, 0.18),
+    0 8px 22px rgba(0, 10, 18, 0.2);
+
+  transform: translateY(-2px) scale(1.01);
+}
+
+#futuristic-start-menu #view-sectors .sector-card.current-sector {
+  border-color: rgba(190, 245, 255, 0.46);
+
+  background: linear-gradient(
+    180deg,
+    rgba(220, 250, 255, 0.14) 0%,
+    rgba(75, 190, 220, 0.09) 50%,
+    rgba(5, 40, 54, 0.2) 100%
+  );
+
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.24),
+    inset 0 0 24px rgba(90, 220, 245, 0.05),
+    0 0 13px rgba(75, 220, 250, 0.11),
+    0 7px 18px rgba(0, 10, 18, 0.18);
+}
+
+/* Недоступные сектора должны оставаться скрытыми.
+   Это правило стоит после нового стеклянного дизайна карточек,
+   чтобы display:flex его не перебивал. */
+#futuristic-start-menu #view-sectors .sector-card[hidden] {
+  display: none !important;
+}
+
+/* Подсказка после выхода из fullscreen */
+#futuristic-start-menu #btn-exit {
+  overflow: visible;
+}
+
+#futuristic-start-menu #btn-exit .exit-joke {
+  right: 50%;
+  bottom: -22px;
+
+  transform: translateX(50%);
+
+  white-space: nowrap;
+  text-align: center;
+
+  color: #ffffff;
+
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 1.2px;
+
+  text-shadow:
+    0 0 5px rgba(255, 255, 255, 0.9),
+    0 0 12px rgba(255, 255, 255, 0.45);
+
+  z-index: 10;
+}
+
+/* ==========================================================================
+   КОМПАКТНЫЕ КНОПКИ ВОЗВРАТА В ПОДМЕНЮ
+   ========================================================================== */
+
+#futuristic-start-menu #view-sectors .holo-back-tab,
+#futuristic-start-menu #view-settings .holo-back-tab {
+  width: fit-content;
+  min-width: 210px;
+  max-width: 100%;
+
+  height: 42px;
+
+  padding: 0 22px 0 48px;
+
+  align-self: flex-start;
+
+  justify-content: center;
+
+  border-radius: 9px;
+}
+
+
+/* Указатель "назад" */
+#futuristic-start-menu #view-sectors .holo-back-tab::before,
+#futuristic-start-menu #view-settings .holo-back-tab::before {
+  content: "‹‹";
+
+  position: absolute;
+
+  left: 15px;
+  top: 50%;
+  right: auto;
+  bottom: auto;
+
+  width: auto;
+  height: auto;
+
+  transform: translateY(-52%);
+
+  background: none;
+  border: none;
+  box-shadow: none;
+
+  color: #ffffff;
+
+  font-family: "Orbitron", sans-serif;
+  font-size: 20px;
+  font-weight: 700;
+  line-height: 1;
+  letter-spacing: -2px;
+
+  text-shadow:
+    0 0 5px rgba(255, 255, 255, 0.75),
+    0 0 12px rgba(70, 220, 255, 0.42);
+
+  opacity: 0.9;
+
+  pointer-events: none;
+
+  z-index: 3;
+}
+
+/* ==========================================================================
+   НОВЫЕ ПОДМЕНЮ — HOLOGRAPHIC CAROUSEL UI
+   ========================================================================== */
+
+#futuristic-start-menu .submenu-view {
+  position: fixed;
+  inset: 0;
+
+  width: 100%;
+  max-width: none;
+  height: 100%;
+
+  padding: 0;
+  margin: 0;
+
+  pointer-events: none;
+}
+
+
+/* ----------------------------------------------------------
+   КНОПКА НАЗАД В УГЛУ
+   ---------------------------------------------------------- */
+
+#futuristic-start-menu .submenu-back-btn {
+  position: fixed;
+  top: 28px;
+  right: 32px;
+
+  width: auto;
+  min-width: 164px;
+  height: 36px;
+
+  padding: 0 16px;
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+
+  box-sizing: border-box;
+
+  border: 1px solid rgba(190, 245, 255, 0.48);
+  border-radius: 8px;
+
+  background:
+    linear-gradient(
+      180deg,
+      rgba(115, 205, 225, 0.26),
+      rgba(4, 31, 44, 0.72)
+    );
+
+  color: #ffffff;
+
+  font-family: "Orbitron", sans-serif;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 1px;
+
+  text-shadow:
+    0 0 6px rgba(255,255,255,.6),
+    0 0 12px rgba(80,220,255,.35);
+
+  box-shadow:
+    inset 0 1px 0 rgba(255,255,255,.22),
+    0 0 10px rgba(70,220,255,.13),
+    0 5px 15px rgba(0,0,0,.25);
+
+  backdrop-filter: blur(7px);
+  -webkit-backdrop-filter: blur(7px);
+
+  cursor: var(--cur-ui-arrow);
+
+  pointer-events: auto;
+
+  transition:
+    transform .18s ease,
+    border-color .18s ease,
+    box-shadow .18s ease;
+}
+
+#futuristic-start-menu .submenu-back-btn:hover {
+  transform: translateY(-1px);
+
+  border-color: rgba(210, 250, 255, 0.9);
+
+  box-shadow:
+    inset 0 1px 0 rgba(255,255,255,.3),
+    0 0 14px rgba(70,225,255,.32),
+    0 6px 18px rgba(0,0,0,.28);
+}
+
+#futuristic-start-menu .submenu-back-icon {
+  font-size: 18px;
+  line-height: 1;
+}
+
+
+/* ----------------------------------------------------------
+   ЗАГОЛОВОК ПОДМЕНЮ
+   ---------------------------------------------------------- */
+
+#futuristic-start-menu .submenu-header {
+  position: fixed;
+  top: 4px;
+  left: 50%;
+
+  width: min(520px, 80vw);
+
+  transform: translateX(-50%);
+
+  text-align: center;
+
+  pointer-events: none;
+}
+
+#futuristic-start-menu .submenu-title {
+  margin: 0;
+
+  color: #ffffff;
+
+  font-family: "Orbitron", sans-serif;
+  font-size: clamp(24px, 3vw, 36px);
+  font-weight: 700;
+  letter-spacing: 4px;
+
+  text-shadow:
+    0 0 7px rgba(255,255,255,.65),
+    0 0 20px rgba(70,220,255,.32);
+}
+
+#futuristic-start-menu .submenu-title-line {
+  width: 180px;
+  height: 1px;
+
+  margin: 12px auto 0;
+
+  background:
+    linear-gradient(
+      90deg,
+      transparent,
+      rgba(170,245,255,.8),
+      transparent
+    );
+
+  box-shadow:
+    0 0 9px rgba(70,220,255,.25);
+}
+
+
+
+/* ==========================================================================
+   NEW SUBMENU STRUCTURE — REQUIRED LAYOUT
+   ========================================================================== */
+
+
+/* Когда открыто подменю, старый узкий контейнер главного меню
+   разворачиваем на весь экран. */
+#futuristic-start-menu:has(#view-sectors.active),
+#futuristic-start-menu:has(#view-settings.active) {
+  width: 100vw;
+  max-height: 100vh;
+}
+
+
+/* ----------------------------------------------------------
+   SETTINGS: одновременно видна только одна внутренняя страница
+   ---------------------------------------------------------- */
+
+#futuristic-start-menu .settings-panel {
+  display: none;
+  flex-direction: column;
+
+  width: 100%;
+  height: 100%;
+
+  box-sizing: border-box;
+}
+
+#futuristic-start-menu .settings-panel.active {
+  display: flex;
+}
+
+
+/* ----------------------------------------------------------
+   Главная страница SETTINGS
+   ---------------------------------------------------------- */
+
+#futuristic-start-menu #settings-main-panel {
+  align-items: center;
+}
+
+
+/* ----------------------------------------------------------
+   CONTROLS
+   ---------------------------------------------------------- */
+
+#futuristic-start-menu .controls-panel {
+  align-items: center;
+}
+
+#futuristic-start-menu .controls-console {
+  position: fixed;
+
+  left: 50%;
+  top: 145px;
+
+  width: min(520px, 74vw);
+
+  transform: translateX(-50%);
+
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+
+  pointer-events: auto;
+}
+
+#futuristic-start-menu .controls-card {
+  position: relative;
+
+  width: 100%;
+
+  padding: 18px 22px;
+
+  box-sizing: border-box;
+
+  border: 1px solid rgba(180, 240, 255, 0.42);
+  border-radius: 14px;
+
+  background:
+    linear-gradient(
+      180deg,
+      rgba(115, 205, 225, 0.22),
+      rgba(12, 69, 88, 0.42),
+      rgba(3, 25, 36, 0.7)
+    );
+
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.2),
+    0 8px 24px rgba(0, 0, 0, 0.28);
+
+  backdrop-filter: blur(7px);
+  -webkit-backdrop-filter: blur(7px);
+}
+
+
+/* ----------------------------------------------------------
+   Строки управления
+   ---------------------------------------------------------- */
+
+#futuristic-start-menu .control-row {
+  min-height: 42px;
+
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+
+  gap: 24px;
+
+  font-family: "Orbitron", sans-serif;
+}
+
+#futuristic-start-menu .control-action {
+  color: #ffffff;
+
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 1.5px;
+
+  text-shadow:
+    0 0 6px rgba(255, 255, 255, 0.4);
+}
+
+#futuristic-start-menu .control-bindings {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+
+  gap: 6px;
+}
+
+
+/* ----------------------------------------------------------
+   Клавиши
+   ---------------------------------------------------------- */
+
+#futuristic-start-menu .control-bindings kbd,
+#futuristic-start-menu .wasd-grid kbd {
+  min-width: 30px;
+  height: 28px;
+
+  padding: 0 8px;
+
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+
+  box-sizing: border-box;
+
+  border: 1px solid rgba(165, 240, 255, 0.76);
+  border-radius: 4px;
+
+  background: rgba(2, 25, 36, 0.76);
+
+  color: #ffffff;
+
+  font-family: "Orbitron", sans-serif;
+  font-size: 9px;
+  font-weight: 700;
+
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.14),
+    0 0 8px rgba(70, 220, 255, 0.18);
+}
+
+
+/* ----------------------------------------------------------
+   WASD
+   ---------------------------------------------------------- */
+
+#futuristic-start-menu .movement-controls {
+  display: flex;
+  align-items: center;
+
+  gap: 10px;
+}
+
+#futuristic-start-menu .wasd-grid {
+  display: grid;
+
+  grid-template-columns: repeat(3, 30px);
+  grid-template-rows: repeat(2, 28px);
+
+  gap: 4px;
+}
+
+#futuristic-start-menu .wasd-grid .key-w {
+  grid-column: 2;
+  grid-row: 1;
+}
+
+#futuristic-start-menu .wasd-grid .key-a {
+  grid-column: 1;
+  grid-row: 2;
+}
+
+#futuristic-start-menu .wasd-grid .key-s {
+  grid-column: 2;
+  grid-row: 2;
+}
+
+#futuristic-start-menu .wasd-grid .key-d {
+  grid-column: 3;
+  grid-row: 2;
+}
+
+#futuristic-start-menu .movement-plus {
+  color: rgba(220, 250, 255, 0.8);
+
+  font-family: "Orbitron", sans-serif;
+  font-size: 14px;
+}
+
+
+/* ----------------------------------------------------------
+   Мышь — ВАЖНО: именно это убирает огромный чёрный овал
+   ---------------------------------------------------------- */
+
+#futuristic-start-menu .mouse-control {
+  width: 58px;
+
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+
+  gap: 3px;
+
+  color: #ffffff;
+
+  font-family: "Orbitron", sans-serif;
+  font-size: 7px;
+  font-weight: 700;
+}
+
+#futuristic-start-menu .mouse-control-icon {
+  width: 22px;
+  height: 30px;
+
+  overflow: visible;
+
+  fill: rgba(2, 25, 36, 0.78);
+
+  stroke: rgba(200, 248, 255, 0.95);
+  stroke-width: 1.5;
+
+  filter:
+    drop-shadow(0 0 4px rgba(70, 220, 255, 0.45));
+}
+
+#futuristic-start-menu .mouse-control-icon line:last-child {
+  stroke-width: 3;
+  stroke-linecap: round;
+}
+
+
+/* ----------------------------------------------------------
+   SETTINGS WHEEL — пока только правильная геометрия.
+   Красивую кривизну сделаем следующим этапом.
+   ---------------------------------------------------------- */
+
+#futuristic-start-menu .settings-wheel-shell {
+  position: fixed;
+
+  left: 50%;
+  top: 145px;
+
+  width: min(520px, 74vw);
+
+  transform: translateX(-50%);
+
+  pointer-events: auto;
+}
+
+#futuristic-start-menu .settings-wheel {
+  display: flex;
+  flex-direction: column;
+
+  gap: 6px;
+
+  width: 100%;
+}
+
+#futuristic-start-menu .wheel-row {
+  position: relative;
+
+  width: 100%;
+  min-height: 58px;
+
+  box-sizing: border-box;
+
+  color: #ffffff;
+
+  font-family: "Orbitron", sans-serif;
+
+  border: 1px solid rgba(175, 240, 255, 0.42);
+  border-radius: 11px;
+
+  background:
+    linear-gradient(
+      180deg,
+      rgba(115, 205, 225, 0.22),
+      rgba(14, 75, 95, 0.42),
+      rgba(3, 25, 36, 0.7)
+    );
+
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.18),
+    0 5px 16px rgba(0, 0, 0, 0.22);
+
+  backdrop-filter: blur(7px);
+  -webkit-backdrop-filter: blur(7px);
+
+  overflow: hidden;
+}
+
+#futuristic-start-menu .wheel-row-slider {
+  padding: 11px 18px;
+
+  display: flex;
+  flex-direction: column;
+
+  gap: 8px;
+}
+
+#futuristic-start-menu .slider-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+
+  width: 100%;
+
+  font-size: 11px;
+  letter-spacing: 1.3px;
+}
+
+#futuristic-start-menu .slider-value {
+  color: #ffffff;
+
+  font-weight: 700;
+
+  text-shadow:
+    0 0 9px rgba(70, 225, 255, 0.55);
+}
+
+#futuristic-start-menu .curved-slider-shell {
+  width: 100%;
+}
+
+#futuristic-start-menu .curved-slider {
+  width: 100%;
+  height: 4px;
+
+  margin: 0;
+
+  appearance: none;
+  -webkit-appearance: none;
+
+  background: rgba(50, 205, 230, 0.24);
+
+  outline: none;
+
+  cursor: var(--cur-hand);
+}
+
+#futuristic-start-menu .curved-slider::-webkit-slider-thumb {
+  appearance: none;
+  -webkit-appearance: none;
+
+  width: 15px;
+  height: 15px;
+
+  border: 2px solid rgba(175, 245, 255, 0.95);
+  border-radius: 50%;
+
+  background: #ffffff;
+
+  box-shadow:
+    0 0 10px rgba(70, 225, 255, 0.75);
+}
+
+
+/* ----------------------------------------------------------
+   Кнопка CONTROLS
+   ---------------------------------------------------------- */
+
+#futuristic-start-menu .wheel-row-button {
+  padding: 0 18px;
+
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 1.5px;
+
+  cursor: var(--cur-ui-arrow);
+}
+
+#futuristic-start-menu .wheel-row-arrow {
+  font-size: 24px;
+
+  color: #ffffff;
+
+  text-shadow:
+    0 0 8px rgba(70, 225, 255, 0.5);
+}
+
+
+/* ----------------------------------------------------------
+   LANGUAGE
+   ---------------------------------------------------------- */
+
+#futuristic-start-menu .wheel-row-language {
+  padding: 0 18px;
+
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+
+  cursor: var(--cur-ui-arrow);
+}
+
+#futuristic-start-menu .language-label {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 1.5px;
+}
+
+#futuristic-start-menu .language-control {
+  display: flex;
+  align-items: center;
+
+  gap: 8px;
+}
+
+#futuristic-start-menu .current-language-status {
+  color: #ffffff;
+
+  font-size: 12px;
+  font-weight: 700;
+
+  text-shadow:
+    0 0 8px rgba(70, 225, 255, 0.55);
+}
+
+#futuristic-start-menu .lang-options {
+  display: none;
+
+  gap: 5px;
+}
+
+#futuristic-start-menu .lang-group.open .lang-options {
+  display: flex;
+}
+
+#futuristic-start-menu .lang-group.open .current-language-status {
+  display: none;
+}
+
+#futuristic-start-menu .lang-btn {
+  width: 42px;
+  height: 28px;
+
+  padding: 0;
+
+  border: 1px solid rgba(180, 240, 255, 0.42);
+  border-radius: 5px;
+
+  background: rgba(4, 37, 50, 0.7);
+
+  color: rgba(255, 255, 255, 0.65);
+
+  font-family: "Orbitron", sans-serif;
+  font-size: 9px;
+  font-weight: 700;
+
+  cursor: var(--cur-ui-arrow);
+}
+
+#futuristic-start-menu .lang-btn.active-lang {
+  border-color: rgba(210, 250, 255, 0.9);
+
+  background: rgba(100, 210, 230, 0.28);
+
+  color: #ffffff;
+
+  box-shadow:
+    0 0 10px rgba(70, 225, 255, 0.3);
+}
+
+/* ==========================================================================
+   SECTOR DRUM V2
+   Единая передняя поверхность цилиндра.
+   ========================================================================== */
+
+
+/* ----------------------------------------------------------
+   ОБЩАЯ СЦЕНА
+   ---------------------------------------------------------- */
+
+#futuristic-start-menu #view-sectors .sector-carousel-shell {
+  position: fixed;
+
+  left: 50%;
+  top: 132px;
+
+  width: min(790px, 92vw);
+  height: 250px;
+
+  transform: translateX(-50%);
+
+  perspective: 1450px;
+  pointer-events: auto;
+}
+
+
+/* ----------------------------------------------------------
+   VIEWPORT
+   Всё, что ушло за переднюю сторону барабана,
+   физически обрезается.
+   ---------------------------------------------------------- */
+
+#futuristic-start-menu #view-sectors .sector-carousel-viewport {
+  position: absolute;
+
+  left: 50%;
+  top: 34px;
+
+  width: min(720px, 86vw);
+  height: 165px;
+
+  transform: translateX(-50%) rotateX(-14deg);
+  transform-style: preserve-3d;
+
+  overflow: hidden;
+
+  border-radius: 999px / 78px;
+
+  pointer-events: none;
+}
+
+
+/* ----------------------------------------------------------
+   ОБЩАЯ ПОВЕРХНОСТЬ БАРАБАНА
+   ---------------------------------------------------------- */
+
+#futuristic-start-menu
+  #view-sectors
+  .sector-carousel-viewport::before {
+  content: "";
+
+  position: absolute;
+  inset: 0;
+
+  border-radius: 999px / 78px;
+  border: 1px solid rgba(180, 240, 255, 0.26);
+
+  background:
+    linear-gradient(
+      180deg,
+      rgba(170, 235, 245, 0.18) 0%,
+      rgba(65, 165, 185, 0.15) 22%,
+      rgba(14, 72, 92, 0.22) 58%,
+      rgba(4, 28, 40, 0.42) 100%
+    );
+
+  box-shadow:
+    inset 0 2px 0 rgba(220, 250, 255, 0.18),
+    inset 0 -16px 28px rgba(0, 0, 0, 0.18),
+    0 0 18px rgba(70, 220, 255, 0.14);
+
+  pointer-events: none;
+}
+
+/* Верхняя/нижняя светящиеся дуги */
+#futuristic-start-menu
+  #view-sectors
+  .sector-carousel-viewport::after {
+  content: "";
+
+  position: absolute;
+
+  left: 1.5%;
+  right: 1.5%;
+  top: 6px;
+  bottom: 6px;
+
+  border-radius: 999px / 76px;
+
+  border-top: 2px solid rgba(110, 240, 255, 0.5);
+  border-bottom: 2px solid rgba(110, 240, 255, 0.35);
+
+  box-shadow:
+    0 0 14px rgba(80, 225, 255, 0.16);
+
+  pointer-events: none;
+}
+
+
+/* ----------------------------------------------------------
+   КОНТЕЙНЕР СЕКЦИЙ
+   ---------------------------------------------------------- */
+
+#futuristic-start-menu #view-sectors .sector-carousel {
+  position: absolute;
+  inset: 0;
+
+  width: 100%;
+  height: 100%;
+
+  transform: none;
+  transform-style: preserve-3d;
+
+  pointer-events: none;
+}
+
+/* ==========================================================================
+   БАЗОВАЯ СЕКЦИЯ
+   ========================================================================== */
+
+#futuristic-start-menu
+  #view-sectors
+  .sector-carousel
+  .carousel-card {
+  position: absolute;
+
+  top: 24px;
+
+ width: 30%;
+min-width: 0;
+max-width: none;
+  height: 132px;
+  min-height: 132px;
+
+  margin: 0;
+  padding: 16px 12px;
+
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+
+  gap: 7px;
+
+  box-sizing: border-box;
+
+  border: 1px solid rgba(190, 245, 255, 0.42);
+
+  background:
+    linear-gradient(
+      180deg,
+      rgba(145, 225, 242, 0.15),
+      rgba(27, 105, 125, 0.19) 48%,
+      rgba(3, 29, 40, 0.3)
+    );
+
+  color: #ffffff;
+
+  font-family: "Orbitron", sans-serif;
+
+  box-shadow:
+    inset 0 1px 0 rgba(255,255,255,.14),
+    inset 0 0 22px rgba(80,220,245,.035);
+
+  backdrop-filter: blur(5px);
+  -webkit-backdrop-filter: blur(5px);
+
+  transition:
+    left 0.32s cubic-bezier(.22, 1, .36, 1),
+    transform 0.32s cubic-bezier(.22, 1, .36, 1),
+    opacity 0.22s ease,
+    filter 0.22s ease,
+    box-shadow 0.22s ease,
+    border-color 0.22s ease;
+
+  pointer-events: none;
+}
+
+
+/* ==========================================================================
+   ЦЕНТР — ~40%
+   Квадратная/почти квадратная секция.
+   ========================================================================== */
+
+#futuristic-start-menu
+  #view-sectors
+  .sector-carousel
+  .carousel-card.pos-center {
+  left: 50%;
+  width: 34%;
+
+  min-width: 0;
+  max-width: none;
+
+  opacity: 1;
+  z-index: 4;
+
+  pointer-events: auto;
+
+  transform:
+    translateX(-50%)
+    translateZ(42px)
+    rotateY(0deg)
+    scale(1);
+
+  transform-origin: center center;
+
+  border-radius: 28px / 20px;
+
+  border-color: rgba(220, 255, 255, 0.92);
+
+  background:
+    linear-gradient(
+      180deg,
+      rgba(175, 238, 249, 0.3),
+      rgba(35, 125, 145, 0.36) 50%,
+      rgba(4, 36, 48, 0.52)
+    );
+
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.24),
+    inset 0 0 26px rgba(90, 230, 250, 0.08),
+    0 0 16px rgba(75, 230, 255, 0.24),
+    0 12px 26px rgba(0, 0, 0, 0.24);
+
+  cursor: var(--cur-ui-arrow);
+}
+
+/* ==========================================================================
+   ЛЕВАЯ СЕКЦИЯ
+   Её правый край ПРИКЛЕЕН к левому краю центра.
+   Вся остальная поверхность уходит от нас.
+   ========================================================================== */
+
+#futuristic-start-menu
+  #view-sectors
+  .sector-carousel
+  .carousel-card.pos-left {
+  left: 28%;
+  width: 30%;
+
+  min-width: 0;
+  max-width: none;
+
+  opacity: 0.9;
+  z-index: 3;
+
+  pointer-events: none;
+
+  transform:
+    translateX(-50%)
+    translateZ(4px)
+    rotateY(58deg)
+    scale(0.96);
+
+  transform-origin: right center;
+
+  border-radius: 34px 10px 10px 34px / 24px 10px 10px 24px;
+
+  filter: brightness(0.88);
+}
+
+/* ==========================================================================
+   ПРАВАЯ СЕКЦИЯ
+   Левый край приклеен к правому краю центра.
+   ========================================================================== */
+
+#futuristic-start-menu
+  #view-sectors
+  .sector-carousel
+  .carousel-card.pos-right {
+  left: 72%;
+  width: 30%;
+
+  min-width: 0;
+  max-width: none;
+
+  opacity: 0.72;
+  z-index: 3;
+
+  pointer-events: none;
+
+  transform:
+    translateX(-50%)
+    translateZ(4px)
+    rotateY(-58deg)
+    scale(0.96);
+
+  transform-origin: left center;
+
+  border-radius: 10px 34px 34px 10px / 10px 24px 24px 10px;
+
+  filter: brightness(0.68);
+}
+
+
+/* ==========================================================================
+   УШЕДШИЕ КАРТОЧКИ
+   Они существуют для JS, но визуально полностью отсутствуют.
+   ========================================================================== */
+
+#futuristic-start-menu
+  #view-sectors
+  .sector-carousel
+  .carousel-card.pos-hidden {
+  left: 50%;
+
+  opacity: 0 !important;
+  visibility: hidden;
+
+  transform:
+    translateX(-50%)
+    translateZ(-80px)
+    rotateY(90deg)
+    scale(0.7);
+
+  pointer-events: none !important;
+
+  z-index: -5;
+}
+
+
+
+/* ==========================================================================
+   ТЕКСТ
+   ========================================================================== */
+
+#futuristic-start-menu
+  #view-sectors
+  .sector-carousel
+  .sector-number {
+  position: relative;
+  z-index: 2;
+
+  font-size: 38px;
+  font-weight: 700;
+  line-height: 1;
+
+  color: #ffffff;
+
+  text-align: center;
+
+  text-shadow:
+    0 0 7px rgba(255,255,255,.68),
+    0 0 16px rgba(70,220,255,.34);
+}
+
+
+#futuristic-start-menu
+  #view-sectors
+  .sector-carousel
+  .sector-info {
+  position: relative;
+  z-index: 2;
+
+  width: 100%;
+  min-width: 0;
+
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+
+  gap: 4px;
+
+  text-align: center;
+}
+
+
+#futuristic-start-menu
+  #view-sectors
+  .sector-carousel
+  .sector-title {
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 1.3px;
+}
+
+
+#futuristic-start-menu
+  #view-sectors
+  .sector-carousel
+  .sector-status {
+  font-size: 8px;
+  letter-spacing: 1px;
+
+  color: rgba(205, 245, 250, 0.8);
+}
+
+
+/* ==========================================================================
+   LOCKED
+   ========================================================================== */
+
+#futuristic-start-menu
+  #view-sectors
+  .sector-card.locked-preview {
+  filter:
+    saturate(0.38)
+    brightness(0.62);
+
+  cursor: default;
+}
+
+
+#futuristic-start-menu
+  #view-sectors
+  .sector-card.locked-preview.pos-center {
+  pointer-events: none;
+}
+
+
+#futuristic-start-menu
+  #view-sectors
+  .sector-lock {
+  display: none;
+}
+
+
+#futuristic-start-menu
+  #view-sectors
+  .locked-preview
+  .sector-lock {
+  display: block;
+}
+
+#futuristic-start-menu #view-sectors .sector-lock {
+  position: absolute;
+
+  top: 12px;
+  right: 13px;
+
+  width: 18px;
+  height: 20px;
+
+  z-index: 5;
+}
+
+#futuristic-start-menu #view-sectors .sector-lock::before {
+  content: "";
+
+  position: absolute;
+
+  left: 4px;
+  top: 0;
+
+  width: 10px;
+  height: 10px;
+
+  border: 2px solid rgba(235, 250, 255, 0.72);
+  border-bottom: 0;
+  border-radius: 8px 8px 0 0;
+}
+
+#futuristic-start-menu #view-sectors .sector-lock-body {
+  position: absolute;
+
+  left: 2px;
+  bottom: 0;
+
+  width: 14px;
+  height: 11px;
+
+  border-radius: 3px;
+
+  background: rgba(230, 248, 255, 0.72);
+
+  box-shadow:
+    0 0 7px rgba(120, 225, 255, 0.28);
+}
+
+/* ==========================================================================
+   СТРЕЛКИ
+   ========================================================================== */
+
+#futuristic-start-menu
+  #view-sectors
+  .carousel-nav {
+  position: absolute;
+
+  top: 88px;
+
+  width: 55px;
+  height: 55px;
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  padding: 0;
+
+  border: 0;
+
+  background: transparent;
+
+  color: #70ffa8;
+
+  font-size: 32px;
+  font-weight: 700;
+  line-height: 1;
+
+  text-shadow:
+    0 0 9px rgba(105,255,165,.9),
+    0 0 20px rgba(105,255,165,.45);
+
+  cursor: var(--cur-ui-arrow);
+
+  z-index: 30;
+
+  transition:
+    opacity .18s ease,
+    transform .18s ease;
+}
+
+
+#futuristic-start-menu
+  #view-sectors
+  .carousel-nav-prev {
+  left: -12px;
+  right: auto;
+}
+
+
+#futuristic-start-menu
+  #view-sectors
+  .carousel-nav-next {
+  left: auto;
+  right: -12px;
+}
+
+#futuristic-start-menu
+  #view-sectors
+  .carousel-nav:hover:not(:disabled) {
+  transform: scale(1.1);
+}
+
+
+#futuristic-start-menu
+  #view-sectors
+  .carousel-nav:disabled {
+  opacity: 0.15;
+
+  pointer-events: none;
+
+  cursor: default;
+
+  text-shadow: none;
+}
 [data-lang-text] {
   display: none;
 }
@@ -1136,4 +2173,568 @@ body.initial-main-view #view-main.menu-view.active {
 html[data-ui-lang="EN"] [data-lang-text="EN"],
 html[data-ui-lang="RU"] [data-lang-text="RU"] {
   display: inline;
+}
+
+/* ==========================================================================
+   SECTOR WHEEL V3 — SVG CYLINDER
+   ========================================================================== */
+
+#view-sectors .sector-wheel-v3 {
+  --wheel-y: 55px;
+
+  position: fixed;
+
+  left: 50%;
+  top: var(--wheel-y);
+
+  width: min(680px, 72vw);
+  height: 230px;
+
+  margin: 0;
+
+  transform: translateX(-50%);
+}
+
+#view-sectors .sector-wheel-stage {
+  position: relative;
+  width: 100%;
+  height: 100%;
+}
+
+#view-sectors .sector-wheel-svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+  filter: drop-shadow(0 0 18px rgba(70, 220, 255, 0.10));
+}
+
+/* Корпус */
+#view-sectors .wheel-shell-body {
+  fill: rgba(18, 70, 88, 0.24);
+  stroke: rgba(175, 240, 255, 0.22);
+  stroke-width: 1.3;
+}
+
+#view-sectors .wheel-shell-topline {
+  fill: none;
+  stroke: rgba(125, 240, 255, 0.44);
+  stroke-width: 2;
+}
+
+#view-sectors .wheel-shell-bottomline {
+  fill: none;
+  stroke: rgba(125, 240, 255, 0.38);
+  stroke-width: 2.2;
+}
+
+/* Секции */
+#view-sectors .wheel-pane {
+  fill: rgba(95, 180, 205, 0.10);
+  stroke: rgba(205, 248, 255, 0.28);
+  stroke-width: 1.1;
+}
+
+#view-sectors .wheel-pane-center {
+  fill: rgba(120, 200, 220, 0.16);
+  stroke: rgba(225, 252, 255, 0.52);
+}
+
+#view-sectors .wheel-pane-ghost {
+  fill: rgba(80, 140, 160, 0.05);
+  stroke: rgba(180, 235, 245, 0.12);
+}
+
+/* overlay */
+#view-sectors .sector-wheel-overlay {
+  position: absolute;
+
+  left: 50%;
+  top: 0;
+
+  width: 100%;
+  height: 100%;
+
+  transform: translateX(-50%);
+
+  pointer-events: none;
+}
+
+/* Общие стили слотов */
+#view-sectors .sector-wheel-slot {
+  position: absolute;
+  top: 70px;
+
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+
+  color: #fff;
+  text-align: center;
+  font-family: "Orbitron", sans-serif;
+
+  background: transparent;
+  border: none;
+  padding: 0;
+  margin: 0;
+
+  pointer-events: none;
+}
+
+/* ЛЕВАЯ СЕКЦИЯ */
+#view-sectors .sector-wheel-slot--left {
+  top: 60px;
+  left: 16%;
+  width: 19%;
+  height: 120px;
+
+  transform:
+    perspective(1000px)
+    rotateY(58deg)
+    rotateX(8deg);
+
+  opacity: 0.92;
+}
+
+/* ЦЕНТР */
+#view-sectors .sector-wheel-slot--center {
+  top: 74px;
+  left: 39%;
+  width: 22%;
+  height: 107px;
+
+  transform:
+    perspective(1000px)
+    rotateX(2deg);
+
+  opacity: 1;
+  pointer-events: auto;
+  cursor: var(--cur-ui-arrow);
+}
+
+/* ПРАВАЯ СЕКЦИЯ */
+#view-sectors .sector-wheel-slot--right {
+  top: 60px;
+  left: 65%;
+  width: 19%;
+  height: 120px;
+
+  transform:
+    perspective(1000px)
+    rotateY(-58deg)
+    rotateX(8deg);
+
+  opacity: 0.92;
+}
+
+/* пустая секция */
+#view-sectors .sector-wheel-slot.is-empty {
+  opacity: 0;
+}
+
+#view-sectors .sector-wheel-slot.is-locked {
+  filter: saturate(0.35) brightness(0.76);
+}
+
+#view-sectors .sector-wheel-slot.is-dim {
+  filter: brightness(0.82);
+}
+
+#view-sectors .sector-wheel-slot.is-clickable:hover {
+  filter: brightness(1.08);
+}
+
+/* текст */
+#view-sectors .sector-wheel-number {
+  font-size: 39px;
+  font-weight: 700;
+  line-height: 1;
+  text-shadow:
+    0 0 8px rgba(255, 255, 255, 0.65),
+    0 0 18px rgba(70, 220, 255, 0.34);
+}
+
+#view-sectors .sector-wheel-slot--left .sector-wheel-number,
+#view-sectors .sector-wheel-slot--right .sector-wheel-number {
+  font-size: 30px;
+}
+
+#view-sectors .sector-wheel-title {
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 1.2px;
+}
+
+#view-sectors .sector-wheel-status {
+  font-size: 9px;
+  letter-spacing: 1.1px;
+  color: rgba(210, 245, 250, 0.86);
+}
+
+/* замок */
+#view-sectors .sector-wheel-lock {
+  position: absolute;
+  top: 6px;
+  right: 10px;
+
+  width: 18px;
+  height: 20px;
+  display: none;
+}
+
+#view-sectors .sector-wheel-lock::before {
+  content: "";
+  position: absolute;
+  left: 4px;
+  top: 0;
+  width: 10px;
+  height: 10px;
+  border: 2px solid rgba(235, 250, 255, 0.74);
+  border-bottom: 0;
+  border-radius: 8px 8px 0 0;
+}
+
+#view-sectors .sector-wheel-lock::after {
+  content: "";
+  position: absolute;
+  left: 2px;
+  bottom: 0;
+  width: 14px;
+  height: 11px;
+  border-radius: 3px;
+  background: rgba(230, 248, 255, 0.74);
+  box-shadow: 0 0 7px rgba(120, 225, 255, 0.28);
+}
+
+#view-sectors .sector-wheel-slot.is-locked .sector-wheel-lock {
+  display: block;
+}
+
+/* стрелки */
+#view-sectors .sector-wheel-arrow {
+  position: absolute;
+  top: 122px;
+  width: 54px;
+  height: 54px;
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  padding: 0;
+  border: 0;
+  background: transparent;
+
+  color: #74ffad;
+  font-size: 34px;
+  line-height: 1;
+  font-weight: 700;
+
+  text-shadow:
+    0 0 10px rgba(95, 255, 155, 0.9),
+    0 0 22px rgba(95, 255, 155, 0.45);
+
+  cursor: var(--cur-ui-arrow);
+  pointer-events: auto;
+  z-index: 4;
+}
+
+#view-sectors .sector-wheel-arrow--left {
+  left: 26px;
+}
+
+#view-sectors .sector-wheel-arrow--right {
+  right: 26px;
+}
+
+#view-sectors .sector-wheel-arrow:disabled {
+  opacity: 0.18;
+  pointer-events: none;
+  text-shadow: none;
+}
+/* ==========================================================================
+   SECTOR WHEEL — SMOOTH STEP
+   ========================================================================== */
+
+#view-sectors .sector-wheel-motion-layer {
+  position: absolute;
+  inset: 0;
+
+  z-index: 20;
+
+  pointer-events: none;
+}
+
+#view-sectors .sector-wheel-motion-card {
+  transform-origin: center center;
+will-change: left, top, width, height, opacity, transform;
+  position: absolute !important;
+
+  margin: 0 !important;
+
+  transform: none !important;
+
+  pointer-events: none !important;
+
+  box-sizing: border-box;
+}
+
+#view-sectors .sector-wheel-overlay.is-motion-hidden {
+  visibility: hidden;
+}
+
+/* ==========================================================================
+   THREE.JS LEVEL WHEEL
+   Отдельный слой поверх WebP-фона.
+   Canvas и стрелки живут в одной системе координат.
+   ========================================================================== */
+
+.sector-wheel-3d {
+  --wheel-top: 10%;
+  --wheel-width: 50%;
+  --wheel-height: 38%;
+
+  position: absolute;
+
+  left: 0;
+  top: 0;
+
+  width: 100%;
+  height: 100%;
+
+  pointer-events: none;
+
+  opacity: 0;
+  visibility: hidden;
+
+  z-index: 3;
+}
+
+
+/* Показываем барабан только в меню выбора уровня. */
+.start-menu-ui.is-sectors-open .sector-wheel-3d {
+  opacity: 1;
+  visibility: visible;
+}
+
+
+/* ============================================================
+   ОБЛАСТЬ THREE.JS
+   ВНУТРИ неё теперь находятся и canvas, и обе стрелки.
+   ============================================================ */
+
+.sector-wheel-canvas-host {
+  position: absolute;
+
+  left: 50%;
+  top: var(--wheel-top);
+
+  width: var(--wheel-width);
+  height: var(--wheel-height);
+
+  transform: translateX(-50%);
+
+  pointer-events: auto;
+}
+
+
+/* Сам WebGL canvas */
+.sector-wheel-three-canvas {
+  position: absolute;
+
+  inset: 0;
+
+  display: block;
+
+  width: 100%;
+  height: 100%;
+
+  background: transparent;
+
+  pointer-events: none;
+
+  z-index: 1;
+}
+
+/* ============================================================
+   УПРАВЛЕНИЕ БАРАБАНОМ
+   ============================================================ */
+
+.sector-wheel-controls {
+  position: absolute;
+
+  left: 50%;
+  top: 39%;
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  gap: 8px;
+
+  transform: translateX(-50%);
+
+  pointer-events: auto;
+
+  z-index: 20;
+}
+
+
+/* ============================================================
+   СТРЕЛКИ
+   ============================================================ */
+
+.sector-wheel-controls .sector-wheel-arrow {
+  position: relative !important;
+
+  top: auto !important;
+  left: auto !important;
+  right: auto !important;
+
+  width: 54px;
+  height: 54px;
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  padding: 0;
+
+  border: none;
+  outline: none;
+
+  appearance: none;
+  -webkit-appearance: none;
+
+  background: transparent !important;
+
+  color: #75ff9e;
+
+  font-family: "Orbitron", sans-serif;
+  font-size: 34px;
+  font-weight: 700;
+  line-height: 1;
+
+  text-shadow:
+    0 0 7px rgba(105, 255, 165, 1),
+    0 0 18px rgba(105, 255, 165, 0.65),
+    0 0 30px rgba(105, 255, 165, 0.28);
+
+  cursor: var(--cur-ui-arrow);
+
+  transform: none !important;
+
+  pointer-events: auto;
+
+  z-index: 1;
+
+  transition:
+    opacity 0.18s ease,
+    transform 0.18s ease,
+    text-shadow 0.18s ease;
+}
+
+
+.sector-wheel-controls .sector-wheel-arrow:hover:not(:disabled) {
+  transform: scale(1.12) !important;
+
+  color: #a0ffbd;
+
+  text-shadow:
+    0 0 8px rgba(135, 255, 180, 1),
+    0 0 22px rgba(105, 255, 165, 0.8),
+    0 0 38px rgba(105, 255, 165, 0.35);
+}
+
+
+.sector-wheel-controls .sector-wheel-arrow:active:not(:disabled) {
+  transform: scale(0.94) !important;
+}
+
+
+.sector-wheel-controls .sector-wheel-arrow:disabled {
+  opacity: 0.18;
+
+  cursor: default;
+
+  pointer-events: none;
+
+  text-shadow: none;
+}
+
+
+/* ============================================================
+   ИКОНКА МЫШИ
+   ============================================================ */
+
+.sector-wheel-mouse-hint {
+  width: 34px;
+  height: 48px;
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  flex: 0 0 34px;
+
+  pointer-events: none;
+}
+
+
+.sector-wheel-mouse {
+  position: relative;
+
+  width: 22px;
+  height: 34px;
+
+  box-sizing: border-box;
+
+  border: 2px solid rgba(235, 250, 255, 0.98);
+  border-radius: 12px;
+
+  background: rgba(12, 42, 56, 0.42);
+
+  box-shadow:
+    inset 0 0 10px rgba(120, 235, 255, 0.16),
+    0 0 8px rgba(90, 225, 255, 0.8),
+    0 0 18px rgba(90, 225, 255, 0.34);
+}
+
+
+.sector-wheel-mouse-wheel {
+  position: absolute;
+
+  left: 50%;
+  top: 5px;
+
+  width: 4px;
+  height: 9px;
+
+  border-radius: 4px;
+
+  background: #f4feff;
+
+  box-shadow:
+    0 0 6px rgba(255, 255, 255, 0.95),
+    0 0 12px rgba(105, 255, 165, 0.7),
+    0 0 18px rgba(90, 225, 255, 0.45);
+
+  animation: sectorWheelMouseScroll 1.35s ease-in-out infinite;
+  transform: translateX(-50%);
+}
+
+
+@keyframes sectorWheelMouseScroll {
+  0%,
+  100% {
+    transform: translate(-50%, 0);
+    opacity: 0.55;
+  }
+
+  50% {
+    transform: translate(-50%, 5px);
+    opacity: 1;
+  }
 }

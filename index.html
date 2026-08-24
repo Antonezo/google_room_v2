@@ -5,34 +5,34 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Google Room - Final Clean</title>
     <meta name="theme-color" content="#0b0f17" />
- <script>
-  (() => {
-    const savedLanguage = localStorage.getItem("google-room-language");
-    const language = savedLanguage === "RU" ? "RU" : "EN";
+    <script>
+      (() => {
+        const savedLanguage = localStorage.getItem("google-room-language");
+        const language = savedLanguage === "RU" ? "RU" : "EN";
 
-    document.documentElement.dataset.uiLang = language;
-    document.documentElement.lang = language.toLowerCase();
+        document.documentElement.dataset.uiLang = language;
+        document.documentElement.lang = language.toLowerCase();
 
-    // Определяем видимость кнопки «Загрузить» ещё до запуска игры,
-    // чтобы после обновления страницы она не появлялась с задержкой.
-    try {
-      const rawSave = localStorage.getItem("google-room-save-v1");
-      const savedProgress = rawSave ? JSON.parse(rawSave) : null;
+        // Определяем видимость кнопки «Загрузить» ещё до запуска игры,
+        // чтобы после обновления страницы она не появлялась с задержкой.
+        try {
+          const rawSave = localStorage.getItem("google-room-save-v1");
+          const savedProgress = rawSave ? JSON.parse(rawSave) : null;
 
-      const highestUnlockedSector = Number(
-        savedProgress?.highestUnlockedSector,
-      );
+          const highestUnlockedSector = Number(
+            savedProgress?.highestUnlockedSector,
+          );
 
-      document.documentElement.dataset.canLoad =
-        Number.isInteger(highestUnlockedSector) &&
-        highestUnlockedSector >= 2
-          ? "true"
-          : "false";
-    } catch (error) {
-      document.documentElement.dataset.canLoad = "false";
-    }
-  })();
-</script>
+          document.documentElement.dataset.canLoad =
+            Number.isInteger(highestUnlockedSector) &&
+            highestUnlockedSector >= 2
+              ? "true"
+              : "false";
+        } catch (error) {
+          document.documentElement.dataset.canLoad = "false";
+        }
+      })();
+    </script>
     <link
       rel="icon"
       href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Cdefs%3E%3CradialGradient id='blueGrad' cx='30%25' cy='30%25' r='70%25'%3E%3Cstop offset='0%25' stop-color='%23fff'/%3E%3Cstop offset='100%25' stop-color='%234285F4'/%3E%3C/radialGradient%3E%3CradialGradient id='redGrad' cx='30%25' cy='30%25' r='70%25'%3E%3Cstop offset='0%25' stop-color='%23fff'/%3E%3Cstop offset='100%25' stop-color='%23EA4335'/%3E%3C/radialGradient%3E%3CradialGradient id='yellowGrad' cx='30%25' cy='30%25' r='70%25'%3E%3Cstop offset='0%25' stop-color='%23fff'/%3E%3Cstop offset='100%25' stop-color='%23FBBC05'/%3E%3C/radialGradient%3E%3C/defs%3E%3Ccircle cx='50' cy='45' r='40' fill='url(%23blueGrad)'/%3E%3Ccircle cx='72' cy='68' r='26' fill='url(%23redGrad)'/%3E%3Ccircle cx='38' cy='72' r='20' fill='url(%23yellowGrad)'/%3E%3C/svg%3E"
@@ -49,27 +49,25 @@
       rel="stylesheet"
     />
   </head>
-<body class="loading initial-main-view">
+  <body class="loading initial-main-view">
     <div id="game-monitor">
       <div id="canvas-container"></div>
     </div>
-    <div id="loader-doors">
-      <div class="loader-background-arcs">
-        <div class="arc arc-1"></div>
-        <div class="arc arc-2"></div>
-        <div class="arc arc-3"></div>
-      </div>
+    <!-- =====================================================
+         НОВОЕ СТАРТОВОЕ МЕНЮ
+         Фон — готовый WebP, UI — живые HTML-кнопки поверх него.
+         ===================================================== -->
+    <div id="loader-doors" class="start-menu-screen">
+      <div class="start-menu-background" aria-hidden="true"></div>
+      <div class="start-menu-vignette" aria-hidden="true"></div>
 
-      <div class="door left-door">
-        <div class="hex-pattern"></div>
-        <div class="pcb-texture"></div>
-        <div class="door-joint"></div>
-
-        <div id="futuristic-start-menu" class="futuristic-start-menu">
-          <div id="view-main" class="menu-view active">
+      <main class="start-menu-ui" aria-label="Google Room menu">
+        <div class="futuristic-start-menu" id="futuristic-start-menu">
+          <div class="menu-view active" id="view-main">
+            <h1 class="start-menu-title">GOOGLE ROOM</h1>
             <button
-              id="btn-restart-sector"
               class="sk-btn"
+              id="btn-restart-sector"
               style="display: none"
             >
               <span class="btn-text">
@@ -77,8 +75,7 @@
                 <span data-lang-text="RU">ПЕРЕЗАПУСТИТЬ СЕКТОР</span>
               </span>
             </button>
-
-            <button id="btn-start-game" class="sk-btn pulse-glow-volumetric">
+            <button class="sk-btn pulse-glow-volumetric" id="btn-start-game">
               <span class="btn-text">
                 <span data-lang-text="EN">NEW GAME</span>
                 <span data-lang-text="RU">НОВАЯ ИГРА</span>
@@ -86,56 +83,49 @@
               <span class="btn-dec">&gt;&gt;</span>
             </button>
             <!-- ЗДЕСЬ ЗАКРЫВАЕМ КНОПКУ СТАРТА -->
-
             <!-- Блок подготовки теперь идет следом, А НЕ ВНУТРИ кнопки -->
             <div
-              id="game-preparation-status"
-              class="game-preparation-status"
               aria-live="polite"
+              class="game-preparation-status"
+              id="game-preparation-status"
             >
               <div class="preparation-header">
-                <span id="preparation-title" class="preparation-title">
+                <span class="preparation-title" id="preparation-title">
                   SYSTEM PREPARATION
                 </span>
-                <span id="preparation-percent" class="preparation-percent"
+                <span class="preparation-percent" id="preparation-percent"
                   >0%</span
                 >
               </div>
-
               <div class="preparation-progress-track">
                 <div
-                  id="preparation-progress-fill"
                   class="preparation-progress-fill"
+                  id="preparation-progress-fill"
                 ></div>
               </div>
-
-              <div id="preparation-stage" class="preparation-stage">
+              <div class="preparation-stage" id="preparation-stage">
                 Waiting to start...
               </div>
             </div>
-
-            <button id="btn-open-sectors" class="sk-btn">
+            <button class="sk-btn" id="btn-open-sectors">
               <span class="btn-text">
                 <span data-lang-text="EN">LOAD</span>
                 <span data-lang-text="RU">ЗАГРУЗИТЬ</span>
               </span>
             </button>
-
-            <button id="btn-return-title" class="sk-btn" style="display: none">
+            <button class="sk-btn" id="btn-return-title" style="display: none">
               <span class="btn-text">
                 <span data-lang-text="EN">MAIN MENU</span>
                 <span data-lang-text="RU">ГЛАВНОЕ МЕНЮ</span>
               </span>
             </button>
-
-            <button id="btn-open-settings" class="sk-btn">
+            <button class="sk-btn" id="btn-open-settings">
               <span class="btn-text">
                 <span data-lang-text="EN">SETTINGS</span>
                 <span data-lang-text="RU">НАСТРОЙКИ</span>
               </span>
             </button>
-
-            <button id="btn-exit" class="sk-btn exit-btn">
+            <button class="sk-btn exit-btn" id="btn-exit">
               <span class="btn-text btn-text-default">
                 <span data-lang-text="EN">EXIT</span>
                 <span data-lang-text="RU">ВЫХОД</span>
@@ -146,11 +136,17 @@
               </span>
             </button>
           </div>
-          <!-- ЗДЕСЬ ЗАКРЫВАЕТСЯ #view-main -->
 
-          <div id="view-sectors" class="menu-view">
-            <button id="btn-back-sectors" class="holo-back-tab">
-              <span class="btn-dec">&lt;&lt;</span>
+          <!-- =====================================================
+     ВЫБОР УРОВНЯ — КАРУСЕЛЬ
+     ===================================================== -->
+          <div class="menu-view submenu-view sectors-view" id="view-sectors">
+            <button
+              class="submenu-back-btn"
+              id="btn-back-sectors"
+              type="button"
+            >
+              <span class="submenu-back-icon" aria-hidden="true">«</span>
 
               <span class="btn-text">
                 <span data-lang-text="EN">MAIN MENU</span>
@@ -158,233 +154,299 @@
               </span>
             </button>
 
-            <div class="sectors-list">
-              <button class="sector-card" data-sector-id="1" type="button">
-                <span class="sector-number">01</span>
+            <header class="submenu-header">
+              <h2 class="submenu-title">
+                <span data-lang-text="EN">SELECT LEVEL</span>
+                <span data-lang-text="RU">ВЫБОР УРОВНЯ</span>
+              </h2>
 
-                <span class="sector-info">
-                  <span class="sector-title">SECTOR 1</span>
-                  <span class="sector-status">CURRENT SECTOR</span>
-                </span>
-              </button>
-
-              <button
-                class="sector-card"
-                data-sector-id="2"
-                type="button"
-                hidden
-              >
-                <span class="sector-number">02</span>
-
-                <span class="sector-info">
-                  <span class="sector-title">SECTOR 2</span>
-                  <span class="sector-status">AVAILABLE</span>
-                </span>
-              </button>
-
-              <button
-                class="sector-card"
-                data-sector-id="3"
-                type="button"
-                hidden
-              >
-                <span class="sector-number">03</span>
-
-                <span class="sector-info">
-                  <span class="sector-title">SECTOR 3</span>
-                  <span class="sector-status">AVAILABLE</span>
-                </span>
-              </button>
-            </div>
+              <div class="submenu-title-line" aria-hidden="true"></div>
+            </header>
           </div>
 
-          <div id="view-settings" class="menu-view">
+          <!-- =====================================================
+     НАСТРОЙКИ — ИЗОГНУТАЯ КОНСОЛЬ
+     ===================================================== -->
+          <div class="menu-view submenu-view settings-view" id="view-settings">
             <!-- Главная страница настроек -->
-            <div id="settings-main-panel" class="settings-panel active">
-              <button id="btn-back-main" class="holo-back-tab">
-                <span class="btn-dec">&lt;&lt;</span>
+            <div class="settings-panel active" id="settings-main-panel">
+              <button class="submenu-back-btn" id="btn-back-main" type="button">
+                <span class="submenu-back-icon" aria-hidden="true">«</span>
                 <span class="btn-text">MAIN MENU</span>
               </button>
 
-              <div class="settings-list">
-                <div class="slider-group">
-                  <div class="slider-header">
-                    <span class="btn-text">SFX VOLUME</span>
-                    <span class="slider-value" id="val-sfx">70%</span>
+              <header class="submenu-header">
+                <h2 class="submenu-title">
+                  <span data-lang-text="EN">SETTINGS</span>
+                  <span data-lang-text="RU">НАСТРОЙКИ</span>
+                </h2>
+
+                <div class="submenu-title-line" aria-hidden="true"></div>
+              </header>
+
+              <!-- Основное "колесо" настроек -->
+              <div class="settings-wheel-shell">
+                <div class="settings-wheel">
+                  <!-- ГРОМКОСТЬ ЭФФЕКТОВ -->
+                  <div class="wheel-row wheel-row-slider slider-group">
+                    <div class="wheel-row-surface" aria-hidden="true"></div>
+
+                    <div class="slider-header">
+                      <span class="btn-text">
+                        <span data-lang-text="EN">SFX VOLUME</span>
+                        <span data-lang-text="RU">ГРОМКОСТЬ ЭФФЕКТОВ</span>
+                      </span>
+
+                      <span class="slider-value" id="val-sfx">70%</span>
+                    </div>
+
+                    <div class="curved-slider-shell">
+                      <input
+                        class="cyber-slider curved-slider"
+                        id="slider-sfx"
+                        max="100"
+                        min="0"
+                        type="range"
+                        value="70"
+                      />
+                    </div>
                   </div>
 
-                  <input
-                    type="range"
-                    id="slider-sfx"
-                    class="cyber-slider"
-                    min="0"
-                    max="100"
-                    value="70"
-                  />
-                </div>
+                  <!-- ГРОМКОСТЬ МУЗЫКИ -->
+                  <div class="wheel-row wheel-row-slider slider-group">
+                    <div class="wheel-row-surface" aria-hidden="true"></div>
 
-                <div class="slider-group">
-                  <div class="slider-header">
-                    <span class="btn-text">MUSIC VOLUME</span>
-                    <span class="slider-value" id="val-music">40%</span>
+                    <div class="slider-header">
+                      <span class="btn-text">
+                        <span data-lang-text="EN">MUSIC VOLUME</span>
+                        <span data-lang-text="RU">ГРОМКОСТЬ МУЗЫКИ</span>
+                      </span>
+
+                      <span class="slider-value" id="val-music">40%</span>
+                    </div>
+
+                    <div class="curved-slider-shell">
+                      <input
+                        class="cyber-slider curved-slider"
+                        id="slider-music"
+                        max="100"
+                        min="0"
+                        type="range"
+                        value="40"
+                      />
+                    </div>
                   </div>
 
-                  <input
-                    type="range"
-                    id="slider-music"
-                    class="cyber-slider"
-                    min="0"
-                    max="100"
-                    value="40"
-                  />
-                </div>
+                  <!-- УПРАВЛЕНИЕ -->
+                  <button
+                    class="wheel-row wheel-row-button settings-navigation-btn"
+                    id="btn-open-controls"
+                    type="button"
+                  >
+                    <span class="wheel-row-surface" aria-hidden="true"></span>
 
-                <button
-                  id="btn-open-controls"
-                  class="sk-btn settings-navigation-btn"
-                >
-                  <span class="btn-text">CONTROLS</span>
-                  <span class="btn-dec">&gt;&gt;</span>
-                </button>
-
-                <div id="btn-toggle-lang" class="lang-group slider-group">
-                  <div class="slider-header lang-header-style">
-                    <span class="btn-text">LANGUAGE</span>
-
-                    <span
-                      id="current-language-status"
-                      class="status slider-value"
-                    >
-                      EN
+                    <span class="btn-text">
+                      <span data-lang-text="EN">CONTROLS</span>
+                      <span data-lang-text="RU">УПРАВЛЕНИЕ</span>
                     </span>
-                  </div>
 
-                  <div class="lang-options">
-                    <button
-                      class="lang-btn active-lang"
-                      data-lang="EN"
-                      aria-pressed="true"
-                    >
-                      <span class="btn-text">ENGLISH</span>
-                    </button>
+                    <span class="wheel-row-arrow" aria-hidden="true">›</span>
+                  </button>
 
-                    <button
-                      class="lang-btn"
-                      data-lang="RU"
-                      aria-pressed="false"
-                    >
-                      <span class="btn-text">РУССКИЙ</span>
-                    </button>
+                  <!-- ЯЗЫК -->
+                  <div
+                    class="wheel-row wheel-row-language lang-group"
+                    id="btn-toggle-lang"
+                  >
+                    <span class="wheel-row-surface" aria-hidden="true"></span>
+
+                    <div class="language-label">
+                      <span data-lang-text="EN">LANGUAGE</span>
+                      <span data-lang-text="RU">ЯЗЫК</span>
+                    </div>
+
+                    <div class="language-control">
+                      <span
+                        class="current-language-status"
+                        id="current-language-status"
+                      >
+                        EN
+                      </span>
+
+                      <div class="lang-options">
+                        <button
+                          aria-pressed="true"
+                          class="lang-btn active-lang"
+                          data-lang="EN"
+                          type="button"
+                        >
+                          <span class="btn-text">EN</span>
+                        </button>
+
+                        <button
+                          aria-pressed="false"
+                          class="lang-btn"
+                          data-lang="RU"
+                          type="button"
+                        >
+                          <span class="btn-text">RU</span>
+                        </button>
+                      </div>
+                    </div>
                   </div>
                 </div>
+
+                <div class="settings-wheel-glow" aria-hidden="true"></div>
               </div>
             </div>
 
-            <!-- Вложенная страница управления -->
-            <div id="settings-controls-panel" class="settings-panel">
-              <button id="btn-back-controls" class="holo-back-tab">
-                <span class="btn-dec">&lt;&lt;</span>
+            <!-- ===================================================
+       НАЗНАЧЕНИЕ КЛАВИШ
+       =================================================== -->
+            <div
+              class="settings-panel controls-panel"
+              id="settings-controls-panel"
+            >
+              <button
+                class="submenu-back-btn controls-back-btn"
+                id="btn-back-controls"
+                type="button"
+              >
+                <span class="submenu-back-icon" aria-hidden="true">«</span>
                 <span class="btn-text">BACK TO SETTINGS</span>
               </button>
 
-              <div class="controls-header">
-                <div id="controls-title" class="controls-title">CONTROLS</div>
-              </div>
+              <header class="submenu-header controls-submenu-header">
+                <h2 class="submenu-title" id="controls-title">
+                  <span data-lang-text="EN">KEY ASSIGNMENTS</span>
+                  <span data-lang-text="RU">НАЗНАЧЕНИЕ КЛАВИШ</span>
+                </h2>
 
-              <div class="controls-list">
-                <div class="control-row control-row-movement">
-                  <span id="control-action-movement" class="control-action">
-                    MOVEMENT
-                  </span>
+                <div class="submenu-title-line" aria-hidden="true"></div>
+              </header>
 
-                  <span class="movement-controls">
-                    <span class="wasd-grid" aria-label="W A S D">
-                      <kbd class="key-w">W</kbd>
-                      <kbd class="key-a">A</kbd>
-                      <kbd class="key-s">S</kbd>
-                      <kbd class="key-d">D</kbd>
+              <div class="controls-console">
+                <div class="controls-console-glow" aria-hidden="true"></div>
+
+                <!-- Верхняя карточка: движение -->
+                <section class="controls-card controls-card-movement">
+                  <div class="control-row control-row-movement">
+                    <span class="control-action" id="control-action-movement">
+                      MOVEMENT
                     </span>
 
-                    <span class="movement-plus" aria-hidden="true">+</span>
+                    <span class="movement-controls">
+                      <span aria-label="W A S D" class="wasd-grid">
+                        <kbd class="key-w">W</kbd>
+                        <kbd class="key-a">A</kbd>
+                        <kbd class="key-s">S</kbd>
+                        <kbd class="key-d">D</kbd>
+                      </span>
 
-                    <span
-                      id="control-binding-mouse"
-                      class="mouse-control"
-                      aria-label="Mouse"
-                    >
-                      <svg
-                        class="mouse-control-icon"
-                        viewBox="0 0 32 44"
-                        aria-hidden="true"
+                      <span aria-hidden="true" class="movement-plus"> + </span>
+
+                      <span
+                        aria-label="Mouse"
+                        class="mouse-control"
+                        id="control-binding-mouse"
                       >
-                        <rect x="5" y="2" width="22" height="40" rx="11"></rect>
-                        <line x1="16" y1="3" x2="16" y2="15"></line>
-                        <line x1="16" y1="8" x2="16" y2="13"></line>
-                      </svg>
+                        <svg
+                          aria-hidden="true"
+                          class="mouse-control-icon"
+                          viewBox="0 0 32 44"
+                        >
+                          <rect
+                            height="40"
+                            rx="11"
+                            width="22"
+                            x="5"
+                            y="2"
+                          ></rect>
 
-                      <span id="control-binding-mouse-text">MOUSE</span>
+                          <line x1="16" x2="16" y1="3" y2="15"></line>
+
+                          <line x1="16" x2="16" y1="8" y2="13"></line>
+                        </svg>
+
+                        <span id="control-binding-mouse-text"> MOUSE </span>
+                      </span>
                     </span>
-                  </span>
-                </div>
+                  </div>
+                </section>
 
-                <div class="control-row">
-                  <span id="control-action-jump" class="control-action">
-                    JUMP
-                  </span>
+                <!-- Нижняя карточка: остальные действия -->
+                <section class="controls-card controls-card-actions">
+                  <div class="control-row">
+                    <span class="control-action" id="control-action-jump">
+                      JUMP
+                    </span>
 
-                  <span class="control-bindings">
-                    <kbd>SPACE</kbd>
-                  </span>
-                </div>
+                    <span class="control-bindings">
+                      <kbd>SPACE</kbd>
+                    </span>
+                  </div>
 
-                <div class="control-row">
-                  <span id="control-action-pause" class="control-action">
-                    PAUSE
-                  </span>
+                  <div class="control-row">
+                    <span class="control-action" id="control-action-pause">
+                      PAUSE
+                    </span>
 
-                  <span class="control-bindings">
-                    <kbd>ESC</kbd>
-                  </span>
-                </div>
+                    <span class="control-bindings">
+                      <kbd>ESC</kbd>
+                    </span>
+                  </div>
 
-                <div class="control-row">
-                  <span id="control-action-restart" class="control-action">
-                    RESTART SECTOR
-                  </span>
+                  <div class="control-row">
+                    <span class="control-action" id="control-action-restart">
+                      RESTART SECTOR
+                    </span>
 
-                  <span class="control-bindings">
-                    <kbd>R</kbd>
-                  </span>
-                </div>
+                    <span class="control-bindings">
+                      <kbd>R</kbd>
+                    </span>
+                  </div>
+                </section>
               </div>
             </div>
           </div>
         </div>
+<div class="sector-wheel-3d">
+
+  <div
+    class="sector-wheel-canvas-host"
+    id="sector-wheel-canvas-host"
+  ></div>
+
+  <div class="sector-wheel-controls">
+    <button
+      class="sector-wheel-arrow sector-wheel-arrow--left"
+      id="btn-sector-prev"
+      type="button"
+      aria-label="Previous sector"
+    >
+      <span aria-hidden="true">❮❮</span>
+    </button>
+
+    <div class="sector-wheel-mouse-hint" aria-hidden="true">
+      <div class="sector-wheel-mouse">
+        <span class="sector-wheel-mouse-wheel"></span>
       </div>
+    </div>
 
-      <div class="door right-door">
-        <div class="hex-pattern"></div>
-        <div class="pcb-texture"></div>
-        <div class="door-joint"></div>
+    <button
+      class="sector-wheel-arrow sector-wheel-arrow--right"
+      id="btn-sector-next"
+      type="button"
+      aria-label="Next sector"
+    >
+      <span aria-hidden="true">❯❯</span>
+    </button>
+  </div>
 
-        <div class="title-container">
-          <h1 class="cyber-title">GOOGLE ROOM</h1>
-          <div class="cyber-subtitle">EXPERIMENTAL PHYSICS SANDBOX</div>
-        </div>
-      </div>
+</div>
 
-      <div class="loader-center-hub">
-        <div class="vertical-joint-line"></div>
-
-        <div class="cyber-core">
-          <div class="core-ring outer-ring"></div>
-          <div class="core-ring inner-ring"></div>
-          <div class="core-center">
-            <div class="core-text">A.I.C.E.</div>
-            <div class="core-subtext">SYSTEMS</div>
-          </div>
-        </div>
-      </div>
+</div>
+      </main>
     </div>
 
     <!-- =====================================================
@@ -419,17 +481,17 @@
             <span class="btn-dec">&gt;&gt;</span>
           </button>
 
-       <button id="btn-pause-restart" class="sk-btn" type="button">
-  <span class="btn-text">RESTART SECTOR</span>
-</button>
+          <button id="btn-pause-restart" class="sk-btn" type="button">
+            <span class="btn-text">RESTART SECTOR</span>
+          </button>
 
-<button id="btn-pause-controls" class="sk-btn" type="button">
-  <span class="btn-text">CONTROLS</span>
-</button>
+          <button id="btn-pause-controls" class="sk-btn" type="button">
+            <span class="btn-text">CONTROLS</span>
+          </button>
 
-<button id="btn-pause-settings" class="sk-btn" type="button">
-  <span class="btn-text">SETTINGS</span>
-</button>
+          <button id="btn-pause-settings" class="sk-btn" type="button">
+            <span class="btn-text">SETTINGS</span>
+          </button>
 
           <button id="btn-pause-main-menu" class="sk-btn" type="button">
             <span class="btn-text">MAIN MENU</span>

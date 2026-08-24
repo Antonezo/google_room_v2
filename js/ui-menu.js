@@ -1,5 +1,6 @@
 import { audioManager } from "./audio.js";
 import { translations } from "./i18n.js";
+import { SectorWheel3D } from "./ui-sector-wheel.js";
 
 export class MenuManager {
   constructor(uiDispatcher) {
@@ -22,6 +23,12 @@ export class MenuManager {
       this.settingsView?.nextElementSibling ?? null;
 
     this.pauseSettingsHost = document.getElementById("pause-settings-host");
+    this.sectorWheelHost =
+  document.getElementById("sector-wheel-canvas-host");
+  this.startMenuUI =
+  document.querySelector(".start-menu-ui");
+
+this.sectorWheel3D = null;
 
     // Кнопки (исправлены ID под твой HTML!)
     this.btnSectors = document.getElementById("btn-open-sectors");
@@ -41,41 +48,99 @@ export class MenuManager {
     this.valMusic = document.getElementById("val-music");
 
     this.initBindings();
+    if (this.sectorWheelHost) {
+ this.sectorWheel3D =
+  new SectorWheel3D(
+    this.sectorWheelHost,
+    {
+      onSelect: (sectorId) => {
+        this.handleSectorSelect(
+          sectorId,
+        );
+      },
+    },
+  );
+}
   }
 
   updateSectorsView() {
-    const highestUnlocked = this.ui.cb?.getHighestUnlockedSector?.() ?? 1;
+    const highestUnlocked =
+      this.ui.cb?.getHighestUnlockedSector?.() ?? 1;
 
-    const currentSector = this.ui.cb?.getCurrentSector?.() ?? 1;
+    const currentSector =
+      this.ui.cb?.getCurrentSector?.() ?? 1;
 
-    const t = translations[this.ui.currentLang];
+    const maxRealSector = 3;
+    const teaserSector = highestUnlocked >= 3 ? 4 : 3;
 
-    const sectorCards = document.querySelectorAll(".sector-card");
+    const items = [];
 
-    sectorCards.forEach((card) => {
-      const sectorId = Number(card.dataset.sectorId);
+    // Добавляем все реально открытые уровни.
+    for (
+      let sectorId = 1;
+      sectorId <= Math.min(highestUnlocked, maxRealSector);
+      sectorId += 1
+    ) {
+      items.push({
+        sectorId,
+        locked: false,
+        current: sectorId === currentSector,
+      });
+    }
 
-      const isUnlocked = sectorId <= highestUnlocked;
+    // После последнего открытого уровня всегда показываем
+    // один закрытый teaser.
+    if (teaserSector > highestUnlocked) {
+      items.push({
+        sectorId: teaserSector,
+        locked: true,
+        current: false,
+      });
+    }
 
-      const isCurrent = sectorId === currentSector;
+ this.sectorWheelItems = items;
 
-      card.hidden = !isUnlocked;
-
-      card.classList.toggle("current-sector", isCurrent);
-
-      const title = card.querySelector(".sector-title");
-
-      const status = card.querySelector(".sector-status");
-
-      if (title && t) {
-        title.textContent = `${t.sectorLabel} ${sectorId}`;
-      }
-
-      if (status && t) {
-        status.textContent = isCurrent ? t.sectorCurrent : t.sectorAvailable;
-      }
-    });
+this.sectorWheel3D?.setItems(items);
   }
+
+handleSectorSelect(sectorId) {
+  const item =
+    this.sectorWheelItems?.find(
+      (entry) =>
+        entry.sectorId === sectorId,
+    );
+
+  if (!item || item.locked) {
+    return;
+  }
+
+  if (this.ui.isMenuLocked) {
+    return;
+  }
+
+  if (
+    typeof this.ui.loadSectorFromMenu !==
+    "function"
+  ) {
+    console.warn(
+      "[MenuManager] loadSectorFromMenu не найден.",
+    );
+
+    return;
+  }
+
+  if (audioManager?.playUI) {
+    audioManager.playUI("start");
+  }
+
+  // Мгновенно забираем курсор,
+  // пока выполняется исходный клик по карточке.
+  this.ui.cb?.onResumeGameplayControls?.();
+
+  this.ui.loadSectorFromMenu(
+    sectorId,
+  );
+}
 
   showPauseSettings() {
     if (!this.settingsView || !this.pauseSettingsHost) {
@@ -248,49 +313,7 @@ return true;
     });
     // ===================================================
 
-    document.querySelectorAll(".sector-card").forEach((card) => {
-      card.addEventListener("mouseenter", () => {
-        if (
-          audioManager?.ctx?.state === "running" &&
-          !this.ui.isMenuLocked &&
-          !this.ui.blockHoverSound
-        ) {
-          audioManager.playUI("mouse_menu");
-        }
-      });
 
-      card.addEventListener("click", () => {
-        if (this.ui.isMenuLocked) {
-          return;
-        }
-
-        const sectorId = Number(card.dataset.sectorId);
-
-        const highestUnlockedSector =
-          this.ui.cb?.getHighestUnlockedSector?.() ?? 1;
-
-        const isUnlocked =
-          Number.isInteger(sectorId) &&
-          sectorId >= 1 &&
-          sectorId <= highestUnlockedSector;
-
-        if (!isUnlocked) {
-          console.warn(`[LOAD] Сектор ${sectorId} ещё не открыт.`);
-
-          return;
-        }
-
-        if (audioManager?.playUI) {
-          audioManager.playUI("start");
-        }
-
-        // Захватываем мышь первым действием клика.
-        // После этого executePreparedGame включит fullscreen.
-        this.ui.cb?.onResumeGameplayControls?.();
-
-        this.ui.loadSectorFromMenu?.(sectorId);
-      });
-    });
 
     // === ЗВУКИ НАВЕДЕНИЯ ДЛЯ ПОЛЗУНКОВ (без кнопок внутри языков) ===
     const settingsElements = document.querySelectorAll(
@@ -317,18 +340,37 @@ return true;
       showView.classList.add("active");
     };
 
-    if (this.btnSectors) {
-      this.btnSectors.addEventListener("click", () => {
-        this.updateSectorsView();
-        toggleView(this.mainView, this.sectorsView);
-      });
-    }
+ if (this.btnSectors) {
+  this.btnSectors.addEventListener("click", () => {
+    this.updateSectorsView();
 
-    if (this.btnBackSectors) {
-      this.btnBackSectors.addEventListener("click", () => {
-        toggleView(this.sectorsView, this.mainView);
-      });
-    }
+    toggleView(
+      this.mainView,
+      this.sectorsView,
+    );
+
+    this.startMenuUI?.classList.add(
+      "is-sectors-open",
+    );
+
+    requestAnimationFrame(() => {
+      this.sectorWheel3D?.resize();
+    });
+  });
+}
+   
+if (this.btnBackSectors) {
+  this.btnBackSectors.addEventListener("click", () => {
+    this.startMenuUI?.classList.remove(
+      "is-sectors-open",
+    );
+
+    toggleView(
+      this.sectorsView,
+      this.mainView,
+    );
+  });
+}
 
     if (this.btnSettings) {
       this.btnSettings.addEventListener("click", () =>
@@ -453,16 +495,35 @@ return true;
   }
 
   // Вызывается, когда мы возвращаемся из игры в меню
-  showMenu() {
-    if (this.startMenu) {
-      this.startMenu.classList.remove("game-started");
+showMenu() {
+  if (this.startMenu) {
+    this.startMenu.classList.remove(
+      "game-started",
+    );
 
-      // Сбрасываем вид на "Главный экран", если игрок вышел, находясь в настройках
-      if (this.mainView) {
-        this.settingsView?.classList.remove("active");
-        this.sectorsView?.classList.remove("active");
-        this.mainView.classList.add("active");
-      }
+    // При любом возврате из игры всегда
+    // возвращаем главное меню.
+    this.startMenuUI?.classList.remove(
+      "is-sectors-open",
+    );
+
+    // На всякий случай сбрасываем hover
+    // оставшейся карточки барабана.
+    this.sectorWheel3D?.clearHoveredCard?.();
+
+    if (this.mainView) {
+      this.settingsView?.classList.remove(
+        "active",
+      );
+
+      this.sectorsView?.classList.remove(
+        "active",
+      );
+
+      this.mainView.classList.add(
+        "active",
+      );
     }
   }
+}
 }

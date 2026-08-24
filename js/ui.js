@@ -25,8 +25,7 @@ export class UIManager {
 
     // Оставшиеся глобальные элементы
     this.elements = {
-      doors: document.getElementById("loader-doors"),
-      centerHub: document.querySelector(".loader-center-hub"),
+      startScreen: document.getElementById("loader-doors"),
       pauseOverlay: document.getElementById("pause-overlay"),
     };
 
@@ -334,12 +333,6 @@ export class UIManager {
       if (preparationElements.fill) {
         preparationElements.fill.style.width = `${safePercent}%`;
       }
-
-      const coreSubtext = document.querySelector(".core-subtext");
-
-      if (coreSubtext) {
-        coreSubtext.textContent = `${safePercent}%`;
-      }
     };
 
     const animatePreparationPercent = (targetPercent) => {
@@ -400,8 +393,8 @@ export class UIManager {
     };
 
     const setPreparationMode = (enabled) => {
-      if (el.doors) {
-        el.doors.classList.toggle("is-preparing", enabled);
+      if (el.startScreen) {
+        el.startScreen.classList.toggle("is-preparing", enabled);
       }
 
       if (preparationElements.status) {
@@ -430,59 +423,64 @@ export class UIManager {
           preparationElements.stage.textContent =
             translations[this.currentLang].preparationIdle;
         }
-
-        const coreSubtext = document.querySelector(".core-subtext");
-
-        if (coreSubtext) {
-          coreSubtext.textContent = "SYSTEMS";
-        }
       }
     };
 
-    // Ждём реального окончания открытия больших ворот.
-    // Управление игрой включается только после этого.
-    const openDoorsAndWait = () => {
+    // Плавно убираем новый стартовый экран и ждём окончания fade.
+    // За ним уже находится полностью подготовленный игровой canvas.
+    const hideStartScreenAndWait = () => {
       return new Promise((resolve) => {
-        if (!el.doors) {
+        const startScreen = el.startScreen;
+
+        if (!startScreen) {
           resolve();
           return;
         }
 
-        const leftDoor = el.doors.querySelector(".left-door");
+        let resolved = false;
 
-        if (!leftDoor) {
-          el.doors.classList.add("loaded");
-          resolve();
-          return;
-        }
+        const finish = () => {
+          if (resolved) return;
+          resolved = true;
 
-        const handleTransitionEnd = (event) => {
-          // Нас интересует только движение самой створки.
-          if (event.target !== leftDoor || event.propertyName !== "transform") {
-            return;
-          }
-
-          leftDoor.removeEventListener("transitionend", handleTransitionEnd);
-
+          startScreen.removeEventListener("transitionend", handleTransitionEnd);
           resolve();
         };
 
-        // Сначала подписываемся, потом запускаем анимацию.
-        leftDoor.addEventListener("transitionend", handleTransitionEnd);
+        const handleTransitionEnd = (event) => {
+          if (
+            event.target !== startScreen ||
+            event.propertyName !== "opacity"
+          ) {
+            return;
+          }
 
-        el.doors.classList.add("loaded");
+          finish();
+        };
+
+        startScreen.addEventListener("transitionend", handleTransitionEnd);
+
+        // Запускаем новый CSS-переход.
+        requestAnimationFrame(() => {
+          startScreen.classList.add("loaded");
+        });
+
+        // Страховка на случай, если transitionend не придёт.
+        setTimeout(finish, 950);
       });
     };
 
     ["pointerdown", "mousedown", "wheel", "touchstart", "contextmenu"].forEach(
       (evt) => {
-        el.doors.addEventListener(evt, (e) => {
-          if (!el.doors.classList.contains("loaded")) e.stopPropagation();
+        el.startScreen?.addEventListener(evt, (e) => {
+          if (!el.startScreen.classList.contains("loaded")) {
+            e.stopPropagation();
+          }
         });
       },
     );
 
-    // Функция входа в игру (Используется для кнопки ПРОДОЛЖИТЬ)
+    // Функция входа в игру (используется существующей логикой UI).
     const enterGame = async () => {
       this.isMenuLocked = true;
       this.clearAnimTimers();
@@ -492,28 +490,19 @@ export class UIManager {
       }
 
       this.enterImmersiveFullscreen();
-
       this.menuManager.hideMenu();
 
-      if (el.centerHub && el.doors) {
-        el.centerHub.classList.remove("fade-in-volumetric", "hub-hidden");
-
-        this.animTimers.enter1 = setTimeout(() => {
-          el.centerHub.classList.add("fade-out-fast");
-
-          this.animTimers.enter2 = setTimeout(() => {
-            if (audioManager?.fadeIn) audioManager.fadeIn(1.0);
-
-            openDoorsAndWait().then(() => {
-              if (this.cb?.onStartGameplay) {
-                this.cb.onStartGameplay();
-              }
-
-              document.body.classList.remove("loading");
-            });
-          }, 600);
-        }, 500);
+      if (audioManager?.fadeIn) {
+        audioManager.fadeIn(1.0);
       }
+
+      await hideStartScreenAndWait();
+
+      if (this.cb?.onStartGameplay) {
+        this.cb.onStartGameplay();
+      }
+
+      document.body.classList.remove("loading");
     };
 
     const executePreparedGame = async ({
@@ -581,43 +570,30 @@ export class UIManager {
       // Теперь меню можно скрыть.
       this.menuManager.hideMenu();
 
-      if (el.centerHub) {
-        el.centerHub.classList.remove(
-          "fade-in-volumetric",
-          "fade-out-fast",
-          "hub-hidden",
-        );
+      // Даём новому меню закончить короткое исчезновение.
+      await new Promise((resolve) => setTimeout(resolve, 430));
 
-        void el.centerHub.offsetWidth;
-
-        requestAnimationFrame(() => {
-          el.centerHub.classList.add("fade-out-fast");
-
-          this.animTimers.enter1 = setTimeout(() => {
-            el.centerHub.classList.add("hub-hidden");
-          }, 650);
-        });
-      }
-
-      // Даём центральному кругу плавно исчезнуть.
-      await new Promise((resolve) => setTimeout(resolve, 700));
-
-      // Мир уже успел стабилизироваться за закрытыми воротами.
-      // Теперь фиксируем камеру на всё время их открытия.
+      // Мир уже успел стабилизироваться за стартовым экраном.
+      // Фиксируем камеру на время визуального перехода.
       if (this.cb?.onFreezeGameplayCamera) {
         this.cb.onFreezeGameplayCamera();
       }
 
-      // Начинаем открытие больших ворот и ждём,
-      // пока их CSS-анимация действительно закончится.
-      await openDoorsAndWait();
+      // Плавно убираем фоновый стартовый экран.
+      await hideStartScreenAndWait();
 
-      // Только теперь начинается сама игра.
-      if (this.cb?.onStartGameplay) {
-        this.cb.onStartGameplay();
-      }
+     // Только теперь начинается сама игра.
+if (this.cb?.onStartGameplay) {
+  this.cb.onStartGameplay();
+}
 
-      document.body.classList.remove("loading");
+// Возвращаем игровое управление мышью.
+// Особенно важно при запуске сектора через 3D-барабан.
+if (this.cb?.onResumeGameplayControls) {
+  this.cb.onResumeGameplayControls();
+}
+
+document.body.classList.remove("loading");
 
       if (audioManager?.fadeIn) {
         audioManager.fadeIn(1.0);
@@ -808,36 +784,22 @@ export class UIManager {
 
       document.body.classList.add("loading");
 
-      if (audioManager?.fadeOut) audioManager.fadeOut(1.4);
-      if (el.doors) el.doors.classList.remove("loaded");
+      if (audioManager?.fadeOut) audioManager.fadeOut(0.8);
 
-      if (el.centerHub) {
-        el.centerHub.classList.remove("fade-out-fast", "fade-in-volumetric");
-
-        el.centerHub.classList.add("hub-hidden");
-
-        this.animTimers.exit = setTimeout(() => {
-          if (this.cb?.onFinishExitToMenu) {
-            this.cb.onFinishExitToMenu();
-          }
-
-          el.centerHub.classList.remove("hub-hidden", "fade-in-volumetric");
-
-          // Фиксируем скрытое начальное состояние.
-          void el.centerHub.offsetWidth;
-
-          el.centerHub.classList.add("fade-in-volumetric");
-
-          const removeFadeInClass = () => {
-            el.centerHub.classList.remove("fade-in-volumetric");
-            el.centerHub.removeEventListener("animationend", removeFadeInClass);
-          };
-
-          el.centerHub.addEventListener("animationend", removeFadeInClass);
-        }, 1400);
+      // Возвращаем новый статичный стартовый экран.
+      // Снятие loaded сразу возвращает visibility,
+      // а opacity плавно поднимается по CSS.
+      if (el.startScreen) {
+        el.startScreen.classList.remove("loaded");
       }
 
       this.menuManager.showMenu();
+
+      this.animTimers.exit = setTimeout(() => {
+        if (this.cb?.onFinishExitToMenu) {
+          this.cb.onFinishExitToMenu();
+        }
+      }, 700);
       updateSessionButtons();
       if (btnStart) btnStart.classList.remove("pulse-glow-volumetric");
     };
@@ -974,7 +936,7 @@ export class UIManager {
       if (
         !document.fullscreenElement &&
         hasActiveSession &&
-        el.doors?.classList.contains("loaded")
+        el.startScreen?.classList.contains("loaded")
       ) {
         // Если игрок удержал Esc и реально вышел из fullscreen,
         // оставляем игру на паузе.
@@ -1061,7 +1023,7 @@ export class UIManager {
     const preparationStage = document.getElementById("preparation-stage");
 
     const isPreparing =
-      this.elements.doors?.classList.contains("is-preparing") === true;
+      this.elements.startScreen?.classList.contains("is-preparing") === true;
 
     if (preparationStage && !isPreparing) {
       preparationStage.textContent = t.preparationIdle;

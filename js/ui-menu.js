@@ -1,6 +1,7 @@
 import { audioManager } from "./audio.js";
 import { translations } from "./i18n.js";
 import { SectorWheel3D } from "./ui-sector-wheel.js";
+import { SettingsWheel3D } from "./ui-settings-wheel.js";
 
 export class MenuManager {
   constructor(uiDispatcher) {
@@ -8,6 +9,8 @@ export class MenuManager {
 
     // Экраны
     this.startMenu = document.getElementById("futuristic-start-menu");
+    this.startScreen =
+  document.getElementById("loader-doors");
     this.mainView = document.getElementById("view-main");
     this.sectorsView = document.getElementById("view-sectors");
     this.settingsView = document.getElementById("view-settings");
@@ -29,6 +32,13 @@ export class MenuManager {
   document.querySelector(".start-menu-ui");
 
 this.sectorWheel3D = null;
+
+this.settingsWheelHost =
+  document.getElementById(
+    "settings-wheel-three-host",
+  );
+
+this.settingsWheel3D = null;
 
     // Кнопки (исправлены ID под твой HTML!)
     this.btnSectors = document.getElementById("btn-open-sectors");
@@ -60,6 +70,12 @@ this.sectorWheel3D = null;
       },
     },
   );
+}
+if (this.settingsWheelHost) {
+  this.settingsWheel3D =
+    new SettingsWheel3D(
+      this.settingsWheelHost,
+    );
 }
   }
 
@@ -142,166 +158,278 @@ handleSectorSelect(sectorId) {
   );
 }
 
-  showPauseSettings() {
-    if (!this.settingsView || !this.pauseSettingsHost) {
-      return false;
-    }
+ showPauseSettings() {
+  if (
+    !this.settingsView ||
+    !this.startMenu ||
+    !this.startScreen
+  ) {
+    return false;
+  }
 
-    const pauseMenu = document.querySelector("#pause-overlay .pause-menu");
+  const pauseOverlay =
+    document.getElementById(
+      "pause-overlay",
+    );
 
-    const pauseFooter = document.querySelector("#pause-overlay .pause-footer");
+  // -------------------------------------------------
+  // Настройки остаются в своём родном DOM-контейнере.
+  // Ничего больше никуда не appendChild().
+  // -------------------------------------------------
 
-    pauseMenu?.setAttribute("hidden", "");
-    pauseFooter?.setAttribute("hidden", "");
+  this.mainView?.classList.remove(
+    "active",
+  );
 
-    this.pauseSettingsHost.hidden = false;
+  this.sectorsView?.classList.remove(
+    "active",
+  );
 
-    this.settingsView.classList.remove("active");
-    this.pauseSettingsHost.appendChild(this.settingsView);
+  this.settingsControlsPanel?.classList.remove(
+    "active",
+  );
 
-    // После переноса показываем экран без анимации дверного меню.
-    this.settingsView.classList.add("active", "inside-pause");
+  this.settingsMainPanel?.classList.add(
+    "active",
+  );
 
-    // Кнопка назад теперь возвращает в паузу.
-    this.settingsView.dataset.context = "pause";
-    const backText = this.btnBackMain?.querySelector(".btn-text");
+  this.settingsView.classList.add(
+    "active",
+  );
 
-    const t = translations[this.ui.currentLang];
+  this.settingsView.dataset.context =
+    "pause";
 
-    if (backText && t) {
-      backText.textContent = t.backToPause;
-    }
+  // Показываем настоящий start-menu UI,
+  // но без стартового фонового изображения.
+  this.startMenu.classList.remove(
+    "game-started",
+  );
 
-    // В паузе управление вынесено отдельной кнопкой,
-    // поэтому внутри настроек его повторно не показываем.
-   if (this.btnOpenControls) {
-  this.btnOpenControls.style.display = "none";
+  this.startScreen.classList.add(
+    "pause-submenu-open",
+  );
+
+  // Саму карточку паузы прячем,
+  // overlay остаётся и продолжает размывать игру.
+  pauseOverlay?.classList.add(
+    "submenu-open",
+  );
+
+  const backText =
+    this.btnBackMain?.querySelector(
+      ".btn-text",
+    );
+
+  const t =
+    translations[this.ui.currentLang];
+
+  if (backText && t) {
+    backText.textContent =
+      t.backToPause;
+  }
+
+  // В паузе для управления есть отдельная
+  // кнопка, поэтому строку "Управление"
+  // внутри барабана не дублируем.
+  if (this.btnOpenControls) {
+    this.btnOpenControls.style.display =
+      "none";
+  }
+
+  requestAnimationFrame(() => {
+    requestAnimationFrame(() => {
+      this.settingsWheel3D?.resize();
+    });
+  });
+
+  return true;
 }
 
-    return true;
+ showPauseControls() {
+  if (!this.showPauseSettings()) {
+    return false;
   }
 
-  showPauseControls() {
-    if (!this.showPauseSettings()) {
-      return false;
-    }
+  this.settingsView.dataset.context =
+    "pause-controls";
 
-    // Отмечаем, что памятка была открыта непосредственно из паузы.
-    this.settingsView.dataset.context = "pause-controls";
+  this.settingsMainPanel?.classList.remove(
+    "active",
+  );
 
-    // Сразу показываем экран управления, минуя главную страницу настроек.
-    this.settingsMainPanel?.classList.remove("active");
-    this.settingsControlsPanel?.classList.add("active");
+  this.settingsControlsPanel?.classList.add(
+    "active",
+  );
 
-    const backText = this.btnBackControls?.querySelector(".btn-text");
-    const t = translations[this.ui.currentLang];
+  const backText =
+    this.btnBackControls?.querySelector(
+      ".btn-text",
+    );
 
-    if (backText && t) {
-      backText.textContent = t.backToPause;
-    }
+  const t =
+    translations[this.ui.currentLang];
 
-    return true;
+  if (backText && t) {
+    backText.textContent =
+      t.backToPause;
   }
+
+  return true;
+}
 
   hidePauseSettings() {
-    if (!this.settingsView) {
-      return false;
-    }
+  if (!this.settingsView) {
+    return false;
+  }
 
-    // Во время перестройки меню временно запрещаем hover-звуки.
-    // Иначе элементы, появившиеся прямо под курсором,
-    // вызывают дополнительные mouseenter.
-    this.ui.blockHoverSound = true;
+  const context =
+    this.settingsView.dataset.context;
 
-    clearTimeout(this.pauseHoverUnlockTimer);
+  const isPauseContext =
+    context === "pause" ||
+    context === "pause-controls";
 
-    this.pauseHoverUnlockTimer = setTimeout(() => {
+  if (!isPauseContext) {
+    return false;
+  }
+
+  // На короткое время глушим случайные
+  // hover-звуки при перестройке интерфейса.
+  this.ui.blockHoverSound = true;
+
+  clearTimeout(
+    this.pauseHoverUnlockTimer,
+  );
+
+  this.pauseHoverUnlockTimer =
+    setTimeout(() => {
       this.ui.blockHoverSound = false;
     }, 400);
 
-    const pauseMenu = document.querySelector("#pause-overlay .pause-menu");
+  const pauseOverlay =
+    document.getElementById(
+      "pause-overlay",
+    );
 
-    const pauseFooter = document.querySelector("#pause-overlay .pause-footer");
+  // Убираем полноценный экран настроек.
+  this.settingsView.classList.remove(
+    "active",
+  );
 
-    this.settingsView.classList.remove("active", "inside-pause");
+  delete this.settingsView.dataset.context;
 
-    delete this.settingsView.dataset.context;
-    const backText = this.btnBackMain?.querySelector(".btn-text");
+  // Возвращаем UI игры в скрытое состояние.
+  // Сначала принудительно делаем слой стартового меню
+// полностью невидимым и отключаем его transition.
+this.startScreen?.classList.add(
+  "pause-submenu-closing",
+);
 
-    const t = translations[this.ui.currentLang];
 
-    if (backText && t) {
-      backText.textContent = t.back;
-    }
+// Сам UI тоже возвращаем в игровое скрытое состояние.
+this.startMenu?.classList.add(
+  "game-started",
+);
 
-    if (this.settingsHomeParent) {
-      if (
-        this.settingsHomeNextSibling &&
-        this.settingsHomeNextSibling.parentElement === this.settingsHomeParent
-      ) {
-        this.settingsHomeParent.insertBefore(
-          this.settingsView,
-          this.settingsHomeNextSibling,
-        );
-      } else {
-        this.settingsHomeParent.appendChild(this.settingsView);
-      }
-    }
 
-    if (this.pauseSettingsHost) {
-      this.pauseSettingsHost.hidden = true;
-    }
+// Теперь можно безопасно снять режим pause-submenu:
+// стартовая картинка уже физически не может мигнуть.
+this.startScreen?.classList.remove(
+  "pause-submenu-open",
+);
 
-    pauseMenu?.removeAttribute("hidden");
-    pauseFooter?.removeAttribute("hidden");
 
-   this.btnLang?.classList.remove("open");
+// Возвращаем карточку паузы.
+pauseOverlay?.classList.remove(
+  "submenu-open",
+);
 
-this.settingsControlsPanel?.classList.remove("active");
-this.settingsMainPanel?.classList.add("active");
 
-// В обычных настройках главного меню кнопка снова должна быть видна.
-if (this.btnOpenControls) {
-  this.btnOpenControls.style.display = "";
-}
+// После двух кадров браузер уже применил обычное
+// состояние .loaded. Временный класс больше не нужен.
+requestAnimationFrame(() => {
+  requestAnimationFrame(() => {
+    this.startScreen?.classList.remove(
+      "pause-submenu-closing",
+    );
+  });
+});
 
-const controlsBackText = this.btnBackControls?.querySelector(".btn-text");
+  this.btnLang?.classList.remove(
+    "open",
+  );
 
-if (controlsBackText && t) {
-  controlsBackText.textContent = t.controlsBack;
-}
+  this.settingsControlsPanel?.classList.remove(
+    "active",
+  );
 
-return true;
+  this.settingsMainPanel?.classList.add(
+    "active",
+  );
+
+  if (this.btnOpenControls) {
+    this.btnOpenControls.style.display =
+      "";
   }
+
+  const t =
+    translations[this.ui.currentLang];
+
+  const backText =
+    this.btnBackMain?.querySelector(
+      ".btn-text",
+    );
+
+  if (backText && t) {
+    backText.textContent =
+      t.back;
+  }
+
+  const controlsBackText =
+    this.btnBackControls?.querySelector(
+      ".btn-text",
+    );
+
+  if (controlsBackText && t) {
+    controlsBackText.textContent =
+      t.controlsBack;
+  }
+
+  return true;
+}
 
   initBindings() {
     // === ЗВУКИ НАВЕДЕНИЯ И КЛИКОВ ДЛЯ ВСЕХ КНОПОК ===
-    const menuButtons = [
-      { id: "btn-start-game", clickSound: null },
-      { id: "btn-restart-sector", clickSound: "start" },
-      { id: "btn-open-sectors", clickSound: "click" },
-      { id: "btn-open-settings", clickSound: "click" },
-      { id: "btn-return-title", clickSound: "click" },
-      { id: "btn-exit", clickSound: "click" },
-      { id: "btn-back-sectors", clickSound: "click" },
-      { id: "btn-back-main", clickSound: "click" },
-      { id: "btn-open-controls", clickSound: "click" },
-      { id: "btn-back-controls", clickSound: "click" },
-    ];
+const menuButtons = [
+  { id: "btn-start-game", clickSound: null },
+  { id: "btn-restart-sector", clickSound: "start" },
+  { id: "btn-open-sectors", clickSound: "click" },
+  { id: "btn-open-settings", clickSound: "click" },
+  { id: "btn-return-title", clickSound: "click" },
+  { id: "btn-exit", clickSound: "click" },
+  { id: "btn-back-sectors", clickSound: "click" },
 
+  { id: "btn-back-main", clickSound: "click", hoverSound: false },
+
+  { id: "btn-open-controls", clickSound: "click" },
+
+  { id: "btn-back-controls", clickSound: "click", hoverSound: false },
+];
     menuButtons.forEach((item) => {
       const btn = document.getElementById(item.id);
       if (btn) {
         // Звук при наведении (играет ТОЛЬКО если браузер уже разблокировал звук после клика)
-        btn.addEventListener("mouseenter", () => {
-          if (
-            audioManager?.ctx?.state === "running" &&
-            !this.ui.isMenuLocked &&
-            !this.ui.blockHoverSound
-          ) {
-            audioManager.playUI("mouse_menu");
-          }
-        });
+     btn.addEventListener("mouseenter", () => {
+  if (
+    item.hoverSound !== false &&
+    audioManager?.ctx?.state === "running" &&
+    !this.ui.isMenuLocked &&
+    !this.ui.blockHoverSound
+  ) {
+    audioManager.playUI("mouse_menu");
+  }
+});
 
         // Звук при клике (любой клик автоматически разблокирует звук для браузера)
         btn.addEventListener("click", () => {
@@ -431,24 +559,32 @@ if (this.btnBackSectors) {
       });
     }
 
-    // --- Переключение языков ---
-    if (this.btnLang) {
-      this.btnLang.addEventListener("click", (e) => {
-        const clickedLangBtn = e.target.closest(".lang-btn");
+// --- Переключение языков ---
+if (this.btnLang) {
+  this.btnLang.addEventListener("click", (e) => {
+    const clickedLangBtn =
+      e.target.closest(".lang-btn");
 
-        if (clickedLangBtn && this.btnLang.classList.contains("open")) {
-          const lang = clickedLangBtn.dataset.lang;
-          this.ui.updateLanguage(lang); // Дергаем метод из главного UIManager
-
-          this.btnLang.classList.remove("open");
-          e.stopPropagation();
-
-          if (audioManager?.playUI) audioManager.playUI("click");
-        } else {
-          this.btnLang.classList.toggle("open");
-        }
-      });
+    if (!clickedLangBtn) {
+      return;
     }
+
+    const lang =
+      clickedLangBtn.dataset.lang;
+
+    if (!lang) {
+      return;
+    }
+
+    this.ui.updateLanguage(lang);
+
+    e.stopPropagation();
+
+    if (audioManager?.playUI) {
+      audioManager.playUI("click");
+    }
+  });
+}
 
     // --- Ползунки громкости ---
     const setupSlider = (
@@ -456,7 +592,7 @@ if (this.btnBackSectors) {
       valDisplay,
       funcName,
       multiplier,
-      playClick = false,
+      previewScale = 1,
     ) => {
       if (!slider) return;
 
@@ -474,25 +610,68 @@ if (this.btnBackSectors) {
       });
 
       // 2. При отпускании ползунка (change) проигрываем тестовый щелчок (если нужно)
-      slider.addEventListener("change", () => {
-        if (playClick && audioManager?.playUI) {
-          audioManager.playUI("click");
-        }
-      });
+     slider.addEventListener(
+  "change",
+  (e) => {
+    const value =
+      Number(e.target.value);
+
+    const volumeFloat =
+      Math.pow(
+        value / 100,
+        2,
+      ) * multiplier;
+
+    if (
+      audioManager?.playVolumePreview
+    ) {
+      audioManager.playVolumePreview(
+        "click",
+        volumeFloat * previewScale,
+      );
+    }
+  },
+);
     };
 
     // Вызываем настройки (true для звуков, false для музыки)
-    setupSlider(this.sliderSfx, this.valSfx, "setSfxVolume", 2.0, true);
-    setupSlider(this.sliderMusic, this.valMusic, "setMusicVolume", 1.5, false);
+  setupSlider(
+  this.sliderSfx,
+  this.valSfx,
+  "setSfxVolume",
+  2.0,
+  0.5,
+);
+
+setupSlider(
+  this.sliderMusic,
+  this.valMusic,
+  "setMusicVolume",
+  1.5,
+  1.0,
+);
   }
 
   // Вызывается, когда мы нажимаем "Новая игра"
-  hideMenu() {
-    if (this.startMenu) {
-      // Больше не делаем opacity: 0! CSS класс "game-started" сделает всё сам.
-      this.startMenu.classList.add("game-started");
-    }
+hideMenu() {
+  if (this.startMenu) {
+    this.startMenu.classList.add(
+      "game-started",
+    );
   }
+
+  // Выбор сектора больше не считается открытым,
+  // когда мы уже вошли в игру.
+  this.startMenuUI?.classList.remove(
+    "is-sectors-open",
+  );
+
+  this.sectorsView?.classList.remove(
+    "active",
+  );
+
+  this.sectorWheel3D?.clearHoveredCard?.();
+}
 
   // Вызывается, когда мы возвращаемся из игры в меню
 showMenu() {

@@ -130,10 +130,10 @@
                 <span data-lang-text="EN">EXIT</span>
                 <span data-lang-text="RU">ВЫХОД</span>
               </span>
-              <span class="exit-joke">
-                <span data-lang-text="EN">LEAVE FULLSCREEN</span>
-                <span data-lang-text="RU">ВЫЙТИ ИЗ ПОЛНОЭКРАННОГО РЕЖИМА</span>
-              </span>
+            <span class="exit-joke">
+  <span data-lang-text="EN">YOU CAN NOW CLOSE THE TAB</span>
+  <span data-lang-text="RU">ТЕПЕРЬ МОЖНО ЗАКРЫТЬ ВКЛАДКУ</span>
+</span>
             </button>
           </div>
 
@@ -186,7 +186,14 @@
 
               <!-- Основное "колесо" настроек -->
               <div class="settings-wheel-shell">
-                <div class="settings-wheel">
+
+  <div
+    class="settings-wheel-three-host"
+    id="settings-wheel-three-host"
+    aria-hidden="true"
+  ></div>
+
+  <div class="settings-wheel">
                   <!-- ГРОМКОСТЬ ЭФФЕКТОВ -->
                   <div class="wheel-row wheel-row-slider slider-group">
                     <div class="wheel-row-surface" aria-hidden="true"></div>
@@ -531,11 +538,11 @@
         </div>
 
         <div class="modal-actions">
-          <button
-            id="btn-confirm-yes"
-            class="holo-btn active-state"
-            type="button"
-          >
+         <button
+  id="btn-confirm-yes"
+  class="holo-btn"
+  type="button"
+>
             <span class="btn-text">YES</span>
           </button>
 

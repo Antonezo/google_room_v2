@@ -51,6 +51,14 @@ export class UIManager {
 
   async enterImmersiveFullscreen() {
     const htmlElem = document.documentElement;
+    const exitButton =
+  document.getElementById(
+    "btn-exit",
+  );
+
+exitButton?.classList.remove(
+  "show-joke",
+);
 
     try {
       if (!document.fullscreenElement && htmlElem.requestFullscreen) {
@@ -78,82 +86,78 @@ export class UIManager {
   }
 
   async exitImmersiveFullscreen() {
-    const exitButton = document.getElementById("btn-exit");
-    const exitHint = exitButton?.querySelector(".exit-joke");
+  const exitButton =
+    document.getElementById(
+      "btn-exit",
+    );
 
-    clearTimeout(this.exitHintTimer);
-    clearTimeout(this.exitHintResetTimer);
+  const exitHint =
+    exitButton?.querySelector(
+      ".exit-joke",
+    );
+
+  try {
+    // Пока fullscreen активен,
+    // никаких подсказок не показываем.
+    exitButton?.classList.remove(
+      "show-joke",
+    );
+
+    // Освобождаем Escape перед выходом.
+    if (
+      typeof navigator.keyboard?.unlock ===
+      "function"
+    ) {
+      navigator.keyboard.unlock();
+    }
+
+    if (
+      document.fullscreenElement &&
+      document.exitFullscreen
+    ) {
+      await document.exitFullscreen();
+    }
+
+    // Показываем подсказку только ПОСЛЕ
+    // успешного выхода из fullscreen.
+    if (exitHint) {
+      exitHint.textContent =
+        this.currentLang === "EN"
+          ? "YOU CAN NOW CLOSE THE TAB"
+          : "ТЕПЕРЬ МОЖНО ЗАКРЫТЬ ВКЛАДКУ";
+    }
+
+    exitButton?.classList.add(
+      "show-joke",
+    );
+
+clearTimeout(
+  this.exitHintTimer,
+);
+
+this.exitHintTimer =
+  setTimeout(() => {
+    exitButton?.classList.remove(
+      "show-joke",
+    );
 
     this.exitHintTimer = null;
-    this.exitHintResetTimer = null;
+  }, 5000);
 
-    try {
-      // Сначала освобождаем Escape, иначе Keyboard Lock
-      // продолжит удерживать клавиатуру.
-      if (typeof navigator.keyboard?.unlock === "function") {
-        navigator.keyboard.unlock();
-      }
+    return true;
+  } catch (error) {
+    console.warn(
+      "[FULLSCREEN] Не удалось выйти из полноэкранного режима:",
+      error,
+    );
 
-      if (exitHint) {
-        exitHint.textContent =
-          this.currentLang === "EN"
-            ? "EXITING FULLSCREEN..."
-            : "ВЫХОД ИЗ ПОЛНОЭКРАННОГО РЕЖИМА...";
-      }
+    exitButton?.classList.remove(
+      "show-joke",
+    );
 
-      exitButton?.classList.add("show-joke");
-
-      if (document.fullscreenElement && document.exitFullscreen) {
-        await document.exitFullscreen();
-      }
-
-      if (exitHint) {
-        exitHint.textContent =
-          this.currentLang === "EN"
-            ? "YOU CAN NOW CLOSE THE TAB"
-            : "ТЕПЕРЬ МОЖНО ЗАКРЫТЬ ВКЛАДКУ";
-      }
-
-      // Оставляем финальную подсказку немного дольше обычного.
-      clearTimeout(this.exitHintTimer);
-      clearTimeout(this.exitHintResetTimer);
-
-      this.exitHintTimer = setTimeout(() => {
-        // Сначала запускаем плавное исчезновение текущей фразы.
-        exitButton?.classList.remove("show-joke");
-
-        // Текст возвращаем только после завершения CSS-перехода.
-        // Иначе стандартная фраза успевает мелькнуть во время затухания.
-        this.exitHintResetTimer = setTimeout(() => {
-          if (exitHint) {
-            const t = translations[this.currentLang];
-            exitHint.textContent = t.exitJoke;
-          }
-
-          this.exitHintResetTimer = null;
-        }, 350);
-
-        this.exitHintTimer = null;
-      }, 5000);
-
-      return true;
-    } catch (error) {
-      console.warn(
-        "[FULLSCREEN] Не удалось выйти из полноэкранного режима:",
-        error,
-      );
-
-      if (exitHint) {
-        exitHint.textContent =
-          this.currentLang === "EN"
-            ? "HOLD ESC TO EXIT FULLSCREEN"
-            : "УДЕРЖИВАЙТЕ ESC ДЛЯ ВЫХОДА";
-      }
-
-      return false;
-    }
+    return false;
   }
-
+}
   isPauseMenuOpen() {
     return this.elements.pauseOverlay?.classList.contains("is-open") === true;
   }
@@ -765,6 +769,14 @@ document.body.classList.remove("loading");
     }
     let pendingMenuFrame = null;
     const returnToMainMenu = () => {
+      const exitButton =
+  document.getElementById(
+    "btn-exit",
+  );
+
+exitButton?.classList.remove(
+  "show-joke",
+);
       if (pendingMenuFrame) {
         cancelAnimationFrame(pendingMenuFrame);
         pendingMenuFrame = null;
@@ -837,24 +849,31 @@ document.body.classList.remove("loading");
       });
     }
 
-    if (btnPauseRestart) {
-      btnPauseRestart.addEventListener("click", () => {
-        const canRestart =
-          !this.cb?.canRestartCurrentRoom ||
-          this.cb.canRestartCurrentRoom() === true;
+if (btnPauseRestart) {
+  btnPauseRestart.addEventListener(
+    "click",
+    () => {
+      if (!this.cb?.onRestartCurrentRoom) {
+        console.warn(
+          "[PAUSE] onRestartCurrentRoom callback not found.",
+        );
+        return;
+      }
 
-        if (!canRestart || !this.cb?.onRestartCurrentRoom) {
-          return;
-        }
+      const restarted =
+        this.cb.onRestartCurrentRoom();
 
-        const restarted = this.cb.onRestartCurrentRoom();
+      if (restarted === false) {
+        console.warn(
+          "[PAUSE] Restart was rejected by game state.",
+        );
+        return;
+      }
 
-        // Закрываем паузу только после успешного рестарта.
-        if (restarted !== false) {
-          this.closePauseMenu();
-        }
-      });
-    }
+      this.closePauseMenu();
+    },
+  );
+}
 
     if (btnPauseControls) {
       btnPauseControls.addEventListener("click", () => {
@@ -868,27 +887,29 @@ document.body.classList.remove("loading");
       });
     }
 
-    if (btnPauseMainMenu) {
-      btnPauseMainMenu.addEventListener("click", async () => {
-        // Страховка для браузеров без Keyboard Lock:
-        // если Esc уже вывел страницу из fullscreen,
-        // возвращаем fullscreen по клику игрока.
-        await this.enterImmersiveFullscreen();
+ if (btnPauseMainMenu) {
+  btnPauseMainMenu.addEventListener(
+    "click",
+    async () => {
+      await this.enterImmersiveFullscreen();
 
-        // Убираем overlay, но не возвращаем управление игроку.
+      if (this.cb?.onReturnToTitle) {
+        this.cb.onReturnToTitle();
+      }
+
+      // Начинаем показывать главное меню.
+      requestReturnToMainMenu();
+
+      // Pause-overlay остаётся поверх игры,
+      // пока стартовый экран полностью не проявится.
+      setTimeout(() => {
         this.closePauseMenu({
           resumeGameplay: false,
         });
-
-        if (this.cb?.onReturnToTitle) {
-          this.cb.onReturnToTitle();
-        }
-
-        // Большие двери закрываются уже внутри fullscreen.
-        requestReturnToMainMenu();
-      });
-    }
-
+      }, 700);
+    },
+  );
+}
     const pauseButtons = [
       { button: btnPauseResume, sound: "start" },
       { button: btnPauseRestart, sound: "start" },
@@ -1047,8 +1068,17 @@ document.body.classList.remove("loading");
       confirmNoText.textContent = t.confirmNo;
     }
 
-    const exitJokeEl = document.querySelector("#btn-exit .exit-joke");
-    if (exitJokeEl) exitJokeEl.textContent = t.exitJoke;
+   const exitJokeEl =
+  document.querySelector(
+    "#btn-exit .exit-joke",
+  );
+
+if (exitJokeEl) {
+  exitJokeEl.textContent =
+    this.currentLang === "EN"
+      ? "YOU CAN NOW CLOSE THE TAB"
+      : "ТЕПЕРЬ МОЖНО ЗАКРЫТЬ ВКЛАДКУ";
+}
 
     const sfxTitle = document.getElementById("val-sfx")?.previousElementSibling;
     if (sfxTitle) sfxTitle.textContent = t.sfx;

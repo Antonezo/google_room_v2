@@ -100,44 +100,44 @@
 
   width: min(500px, calc(100vw - 48px));
   padding: 34px 38px 28px;
+
   box-sizing: border-box;
 
-  background:
-    linear-gradient(rgba(var(--neon-blue-rgb), 0.035) 1px, transparent 1px),
-    linear-gradient(
-      90deg,
-      rgba(var(--neon-blue-rgb), 0.035) 1px,
-      transparent 1px
-    ),
-    linear-gradient(145deg, rgba(7, 18, 31, 0.88), rgba(3, 10, 19, 0.76));
+border: 1px solid rgba(198, 232, 255, 0.30);
 
-  background-size:
-    28px 28px,
-    28px 28px,
-    auto;
-
-  border: 1px solid rgba(var(--neon-blue-rgb), 0.42);
-
-  clip-path: polygon(
-    18px 0,
-    100% 0,
-    100% calc(100% - 18px),
-    calc(100% - 18px) 100%,
-    0 100%,
-    0 18px
+background:
+  linear-gradient(
+    180deg,
+    rgba(160, 220, 255, 0.28) 0%,
+    rgba(96, 170, 245, 0.22) 38%,
+    rgba(38, 92, 170, 0.28) 100%
   );
 
-  box-shadow:
-    0 22px 70px rgba(0, 0, 0, 0.58),
-    0 0 30px rgba(var(--neon-blue-rgb), 0.12),
-    inset 0 0 35px rgba(var(--neon-blue-rgb), 0.035);
+box-shadow:
+  inset 0 1px 0 rgba(255, 255, 255, 0.14),
+  inset 0 18px 30px rgba(255, 255, 255, 0.04),
+  inset 0 -22px 34px rgba(0, 34, 62, 0.08),
+  0 0 26px rgba(90, 205, 255, 0.12),
+  0 12px 36px rgba(0, 16, 30, 0.14);
+  backdrop-filter: blur(8px) saturate(115%);
+  -webkit-backdrop-filter: blur(8px) saturate(115%);
+
+  overflow: visible;
 
   opacity: 0;
-  transform: translateY(14px) scale(0.975);
+
+  transform:
+    translateY(14px)
+    scale(0.975);
 
   transition:
     opacity 0.24s ease,
-    transform 0.24s cubic-bezier(0.2, 0.8, 0.2, 1);
+    transform 0.24s cubic-bezier(
+      0.2,
+      0.8,
+      0.2,
+      1
+    );
 }
 
 .pause-overlay.is-open .pause-panel {
@@ -145,38 +145,7 @@
   transform: translateY(0) scale(1);
 }
 
-.pause-panel::before,
-.pause-panel::after {
-  content: "";
-  position: absolute;
-  pointer-events: none;
-}
 
-.pause-panel::before {
-  top: 0;
-  right: 26px;
-
-  width: 90px;
-  height: 2px;
-
-  background: var(--neon-blue);
-
-  box-shadow:
-    0 0 10px var(--neon-blue),
-    0 0 22px rgba(var(--neon-blue-rgb), 0.65);
-}
-
-.pause-panel::after {
-  right: 0;
-  bottom: 28px;
-
-  width: 2px;
-  height: 70px;
-
-  background: rgba(var(--neon-blue-rgb), 0.8);
-
-  box-shadow: 0 0 12px rgba(var(--neon-blue-rgb), 0.7);
-}
 
 .pause-header {
   position: relative;

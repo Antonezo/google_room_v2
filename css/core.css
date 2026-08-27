@@ -131,38 +131,118 @@ body[class*="tool-"] #hud-controls * {
    ========================================================================== */
 .modal-overlay {
   position: fixed;
-  top: 0;
-  left: 0;
-  width: 100vw;
-  height: 100vh;
-  background: rgba(11, 15, 23, 0.85);
-  backdrop-filter: blur(5px);
+  inset: 0;
+
   display: flex;
   align-items: center;
   justify-content: center;
-  z-index: var(--z-modal);
+
+ z-index: var(--z-modal);
+
+ background:
+  radial-gradient(
+    circle at center,
+    rgba(20, 45, 70, 0.16) 0%,
+    rgba(7, 20, 35, 0.28) 48%,
+    rgba(2, 8, 16, 0.42) 100%
+  );;
+
+  backdrop-filter: blur(4px) saturate(0.82);
+  -webkit-backdrop-filter: blur(4px) saturate(0.82);
+
   opacity: 1;
-  transition: opacity 0.3s ease;
+  visibility: visible;
+
+  transition: opacity 0.2s ease;
 }
+
 .modal-overlay.hidden {
   opacity: 0;
   pointer-events: none;
   visibility: hidden;
 }
+
 .cyber-modal {
-  background: rgba(10, 20, 30, 0.85);
-  border: 1px solid var(--neon-blue);
-  padding: 35px;
-  box-shadow:
-    0 0 40px rgba(0, 243, 255, 0.15),
-    inset 0 0 20px rgba(0, 243, 255, 0.05);
+  position: relative;
+
+  width: min(500px, calc(100vw - 48px));
+
+  padding: 34px 38px 30px;
+
+  box-sizing: border-box;
+
+  border: 1px solid rgba(198, 232, 255, 0.30);
+  border-radius: 18px;
+
+ background:
+  linear-gradient(
+    180deg,
+    rgba(42, 76, 112, 0.90) 0%,
+    rgba(24, 52, 82, 0.92) 45%,
+    rgba(12, 30, 52, 0.94) 100%
+  );
+
+box-shadow:
+  inset 0 1px 0 rgba(255, 255, 255, 0.10),
+  inset 0 16px 28px rgba(255, 255, 255, 0.025),
+  inset 0 -20px 32px rgba(0, 18, 36, 0.16),
+  0 0 24px rgba(80, 190, 255, 0.10),
+  0 12px 34px rgba(0, 10, 22, 0.24);
+
+  backdrop-filter: blur(8px) saturate(110%);
+  -webkit-backdrop-filter: blur(8px) saturate(110%);
+
   text-align: center;
+
+  overflow: visible;
+
   transform: scale(1);
-  transition: transform 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+
+  transition:
+    opacity 0.24s ease,
+    transform 0.24s cubic-bezier(
+      0.2,
+      0.8,
+      0.2,
+      1
+    );
 }
+
+.cyber-modal
+  > .confirm-modal-glass-three-canvas {
+  position: absolute;
+
+  left: -24px;
+  top: -12px;
+
+  width: calc(100% + 48px);
+  height: calc(100% + 24px);
+
+  display: block;
+
+  background: transparent;
+
+  pointer-events: none;
+
+  z-index: 0;
+}
+
+.cyber-modal
+  > *:not(
+    .confirm-modal-glass-three-canvas
+  ) {
+  position: relative;
+  z-index: 2;
+}
+
 .modal-overlay.hidden .cyber-modal {
-  transform: scale(0.9);
+  opacity: 0;
+
+  transform:
+    translateY(12px)
+    scale(0.975);
 }
+
 .modal-title {
   color: #ff4444;
   font-family: "Orbitron", sans-serif;
@@ -173,34 +253,102 @@ body[class*="tool-"] #hud-controls * {
   text-shadow: 0 0 10px rgba(255, 68, 68, 0.5);
 }
 .modal-text {
-  color: #fff;
+  position: relative;
+  z-index: 2;
+
+  margin: 0 0 30px;
+
+  color: #ffffff;
+
+  font-family: "Orbitron", sans-serif;
   font-size: 14px;
-  margin-bottom: 30px;
-  line-height: 1.5;
-  opacity: 0.8;
+  font-weight: 700;
+  line-height: 1.65;
+  letter-spacing: 1.5px;
+
+  text-align: center;
+
+  opacity: 1;
+
+  text-shadow:
+    0 0 6px rgba(255, 255, 255, 0.45),
+    0 0 14px rgba(70, 220, 255, 0.28);
 }
+
 .modal-actions {
   display: flex;
   gap: 20px;
   justify-content: center;
 }
 .modal-actions .holo-btn {
-  width: 140px;
-  padding: 12px 0;
+  position: relative;
+  z-index: 2;
+
+  width: 160px;
+  height: 48px;
+
+  padding: 0 18px;
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  border: 0;
+  border-radius: 10px;
+
+  background: transparent;
+
+  box-shadow: none;
+
+  color: #ffffff;
+
+  font-family: "Orbitron", sans-serif;
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 1.7px;
+
+text-shadow:
+  0 0 4px rgba(255, 255, 255, 0.52),
+  0 0 10px rgba(70, 220, 255, 0.18);
+
   cursor: var(--cur-ui-arrow);
+
+  overflow: hidden;
+
+  transform: none;
+  transition: none;
 }
+
+.modal-actions
+  .holo-btn
+  .btn-text {
+  position: relative;
+  z-index: 2;
+
+  transform: none;
+  transition: none;
+}
+
+
+/* Красный текст у подтверждения */
 #btn-confirm-yes {
-  border-color: #ff4444;
-  color: #ff4444;
+  color: #ffd7db;
+
+  text-shadow:
+    0 0 4px rgba(255, 235, 238, 0.58),
+    0 0 10px rgba(255, 92, 108, 0.22);
 }
-#btn-confirm-yes.active-state {
-  background: rgba(255, 68, 68, 0.15);
-  box-shadow: 0 0 15px rgba(255, 68, 68, 0.3);
-}
-#btn-confirm-yes:hover {
-  background: rgba(255, 68, 68, 0.3);
-  color: #fff;
-  text-shadow: 0 0 5px #fff;
+
+
+/* Никакого старого CSS-hover:
+   увеличивается только WebGL-плашка */
+.modal-actions .holo-btn:hover,
+.modal-actions .holo-btn:focus-visible,
+.modal-actions .holo-btn:active {
+  background: transparent;
+  border: 0;
+  box-shadow: none;
+  transform: none;
 }
 
 /* --- КАТ-СЦЕНА --- */

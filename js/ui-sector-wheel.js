@@ -1,5 +1,9 @@
 import * as THREE from "three";
 
+import {
+  drawUiGlass,
+} from "./ui-glass.js";
+
 export class SectorWheel3D {
   constructor(hostElement, options = {}) {
     this.host = hostElement;
@@ -324,95 +328,191 @@ export class SectorWheel3D {
     });
   }
 
-  updatePointerRaycast(event) {
-    if (this.isAnimating || !this.cardMeshes.length) {
-      this.clearHoveredCard();
-      return;
-    }
+updatePointerRaycast(event) {
+  if (
+    this.isAnimating ||
+    !this.cardMeshes.length
+  ) {
+    this.clearHoveredCard();
+    return;
+  }
 
-    const rect = this.renderer.domElement.getBoundingClientRect();
+  const rect =
+    this.renderer.domElement
+      .getBoundingClientRect();
 
-    if (rect.width <= 0 || rect.height <= 0) {
-      this.clearHoveredCard();
-      return;
-    }
+  if (
+    rect.width <= 0 ||
+    rect.height <= 0
+  ) {
+    this.clearHoveredCard();
+    return;
+  }
 
-    this.pointer.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
+  this.pointer.x =
+    ((event.clientX - rect.left) /
+      rect.width) *
+      2 -
+    1;
 
-    this.pointer.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
+  this.pointer.y =
+    -(
+      (event.clientY - rect.top) /
+      rect.height
+    ) *
+      2 +
+    1;
 
-    this.raycaster.setFromCamera(this.pointer, this.camera);
+  this.raycaster.setFromCamera(
+    this.pointer,
+    this.camera,
+  );
 
-    const intersections = this.raycaster.intersectObjects(
+  const intersections =
+    this.raycaster.intersectObjects(
       this.cardMeshes,
       false,
     );
 
-    if (!intersections.length) {
-      this.clearHoveredCard();
-      return;
-    }
-
-    const card = intersections[0].object;
-
-    // Нас интересует ТОЛЬКО карточка,
-    // которая сейчас находится в центре.
-    const isCenter = card.userData.itemIndex === this.currentCenterIndex;
-
-    const isLocked = card.userData.locked === true;
-
-    if (!isCenter || isLocked) {
-      this.clearHoveredCard();
-      return;
-    }
-
-    this.setHoveredCard(card);
+  if (!intersections.length) {
+    this.clearHoveredCard();
+    return;
   }
 
-  handleCardClick(event) {
-    if (this.isAnimating || !this.cardMeshes.length) {
-      return;
-    }
+  const card =
+    intersections[0].object;
 
-    const rect = this.renderer.domElement.getBoundingClientRect();
+  const isCenter =
+    card.userData.itemIndex ===
+    this.currentCenterIndex;
 
-    if (rect.width <= 0 || rect.height <= 0) {
-      return;
-    }
+  const isLocked =
+    card.userData.locked === true;
 
-    this.pointer.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
+  // Hover разрешён ТОЛЬКО
+  // центральной открытой карточке.
+  if (!isCenter || isLocked) {
+    this.clearHoveredCard();
+    return;
+  }
 
-    this.pointer.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
+  this.setHoveredCard(card);
+}
 
-    this.raycaster.setFromCamera(this.pointer, this.camera);
+handleCardClick(event) {
+  if (
+    this.isAnimating ||
+    !this.cardMeshes.length
+  ) {
+    return;
+  }
 
-    const intersections = this.raycaster.intersectObjects(
+  const rect =
+    this.renderer.domElement
+      .getBoundingClientRect();
+
+  if (
+    rect.width <= 0 ||
+    rect.height <= 0
+  ) {
+    return;
+  }
+
+  this.pointer.x =
+    ((event.clientX - rect.left) /
+      rect.width) *
+      2 -
+    1;
+
+  this.pointer.y =
+    -(
+      (event.clientY - rect.top) /
+      rect.height
+    ) *
+      2 +
+    1;
+
+  this.raycaster.setFromCamera(
+    this.pointer,
+    this.camera,
+  );
+
+  const intersections =
+    this.raycaster.intersectObjects(
       this.cardMeshes,
       false,
     );
 
-    if (!intersections.length) {
-      return;
-    }
-
-    const card = intersections[0].object;
-
-    const isCenter = card.userData.itemIndex === this.currentCenterIndex;
-
-    const isLocked = card.userData.locked === true;
-
-    if (!isCenter || isLocked) {
-      return;
-    }
-
-    const sectorId = card.userData.sectorId;
-
-    if (sectorId == null || !this.onSelect) {
-      return;
-    }
-
-    this.onSelect(sectorId);
+  if (!intersections.length) {
+    return;
   }
+
+  const card =
+    intersections[0].object;
+
+  const cardIndex =
+    card.userData.itemIndex;
+
+  const sectorId =
+    card.userData.sectorId;
+
+  const isLocked =
+    card.userData.locked === true;
+
+  const isCenter =
+    cardIndex ===
+    this.currentCenterIndex;
+
+  // =================================================
+  // КЛИКАБЕЛЬНАЯ ЗОНА БАРАБАНА:
+  //
+  //       -2  -1  [0]  +1  +2
+  //
+  // Всё, что дальше двух позиций от центра,
+  // может быть немного видно по краям,
+  // но кликабельным НЕ является.
+  // =================================================
+
+  const distanceFromCenter =
+    Math.abs(
+      cardIndex -
+      this.currentCenterIndex,
+    );
+
+  if (distanceFromCenter > 2) {
+    return;
+  }
+
+  // Боковая карточка из пяти рабочих:
+  // только переводим её в центр.
+  if (!isCenter) {
+    this.clearHoveredCard();
+
+    this.targetCenterIndex =
+      cardIndex;
+
+    this.animateWheelToTarget();
+
+    return;
+  }
+
+  // Центральная закрытая карточка:
+  // уровень не запускаем.
+  if (isLocked) {
+    return;
+  }
+
+  // Центральная открытая:
+  // второй клик подтверждает выбор.
+  if (
+    sectorId == null ||
+    !this.onSelect
+  ) {
+    return;
+  }
+
+  this.onSelect(sectorId);
+}
 
   setCardRadialOffset(card, offset = 0) {
     const angle = card.rotation.y;
@@ -723,191 +823,30 @@ updateCardFocusVisuals() {
     const cardH = 872;
     const radius = 52;
 
-    const bgGradient = ctx.createLinearGradient(
-      cardX,
-      cardY,
-      cardX,
-      cardY + cardH,
-    );
+    let glassVariant = "normal";
 
-    if (locked) {
-      bgGradient.addColorStop(0, "rgba(118, 170, 186, 0.24)");
-      bgGradient.addColorStop(0.36, "rgba(42, 76, 98, 0.54)");
-      bgGradient.addColorStop(1, "rgba(8, 20, 34, 0.94)");
-    } else if (isGameCurrent) {
-      bgGradient.addColorStop(0, "rgba(160, 226, 242, 0.34)");
-      bgGradient.addColorStop(0.36, "rgba(62, 126, 160, 0.62)");
-      bgGradient.addColorStop(1, "rgba(10, 30, 48, 0.96)");
-    } else {
-      bgGradient.addColorStop(0, "rgba(112, 190, 214, 0.24)");
-      bgGradient.addColorStop(0.36, "rgba(38, 88, 118, 0.54)");
-      bgGradient.addColorStop(1, "rgba(8, 22, 38, 0.95)");
-    }
-    ctx.save();
-    ctx.beginPath();
-    ctx.roundRect(cardX, cardY, cardW, cardH, radius);
-    ctx.closePath();
+if (locked) {
+  glassVariant = "locked";
+} else if (isGameCurrent) {
+  glassVariant = "highlight";
+}
 
-   ctx.shadowColor = isGameCurrent
-  ? "rgba(145, 240, 255, 0.24)"
-  : "rgba(110, 220, 245, 0.10)";
+drawUiGlass(ctx, {
+  x: cardX,
+  y: cardY,
+  width: cardW,
+  height: cardH,
+  radius,
+  variant: glassVariant,
 
-ctx.shadowBlur =
-  isGameCurrent ? 18 : 10;
+  // У карточек секторов рамка раньше была 6 px.
+  borderWidth: 6,
 
-    ctx.fillStyle = bgGradient;
-    ctx.fill();
-    ctx.restore();
-
-    // Верхний стеклянный блик
-    const shineGradient = ctx.createLinearGradient(
-      0,
-      cardY,
-      0,
-      cardY + cardH * 0.44,
-    );
-
-    shineGradient.addColorStop(0, "rgba(255,255,255,0.26)");
-    shineGradient.addColorStop(0.45, "rgba(255,255,255,0.10)");
-    shineGradient.addColorStop(1, "rgba(255,255,255,0)");
-
-    ctx.save();
-    ctx.beginPath();
-    ctx.roundRect(cardX, cardY, cardW, cardH, radius);
-    ctx.closePath();
-    ctx.fillStyle = shineGradient;
-    ctx.fill();
-    ctx.restore();
-
-    // Вертикальный блик слева
-    ctx.save();
-
-    const sideGlow = ctx.createLinearGradient(cardX + 80, 0, cardX + 240, 0);
-
-    sideGlow.addColorStop(0, "rgba(255,255,255,0.12)");
-    sideGlow.addColorStop(1, "rgba(255,255,255,0)");
-
-    ctx.beginPath();
-    ctx.roundRect(cardX, cardY, cardW, cardH, radius);
-    ctx.closePath();
-    ctx.fillStyle = sideGlow;
-    ctx.fill();
-
-    ctx.restore();
-
-    // =========================================================
-    // ДОПОЛНИТЕЛЬНЫЕ ПСЕВДООТРАЖЕНИЯ КОМНАТЫ
-    // =========================================================
-
-    // 1) Мягкий нижний рефлекс — как будто снизу отражается светлая зона комнаты.
-    ctx.save();
-
-    const bottomReflection = ctx.createLinearGradient(
-      0,
-      cardY + cardH * 0.58,
-      0,
-      cardY + cardH,
-    );
-
-    bottomReflection.addColorStop(0, "rgba(170, 235, 255, 0.00)");
-    bottomReflection.addColorStop(0.55, "rgba(120, 220, 255, 0.06)");
-    bottomReflection.addColorStop(1, "rgba(210, 245, 255, 0.14)");
-
-    ctx.beginPath();
-    ctx.roundRect(cardX, cardY, cardW, cardH, radius);
-    ctx.closePath();
-    ctx.fillStyle = bottomReflection;
-    ctx.fill();
-
-    ctx.restore();
-
-    // 2) Широкая вертикальная световая полоса — псевдоотражение центральной стены/света.
-    ctx.save();
-
-    const verticalReflection1 = ctx.createLinearGradient(
-      cardX + cardW * 0.18,
-      0,
-      cardX + cardW * 0.34,
-      0,
-    );
-
-    verticalReflection1.addColorStop(0, "rgba(255,255,255,0.00)");
-    verticalReflection1.addColorStop(0.45, "rgba(255,255,255,0.10)");
-    verticalReflection1.addColorStop(1, "rgba(255,255,255,0.00)");
-
-    ctx.beginPath();
-    ctx.roundRect(cardX, cardY, cardW, cardH, radius);
-    ctx.closePath();
-    ctx.fillStyle = verticalReflection1;
-    ctx.fill();
-
-    ctx.restore();
-
-    // 3) Вторая более слабая вертикальная полоса.
-    ctx.save();
-
-    const verticalReflection2 = ctx.createLinearGradient(
-      cardX + cardW * 0.62,
-      0,
-      cardX + cardW * 0.75,
-      0,
-    );
-
-    verticalReflection2.addColorStop(0, "rgba(255,255,255,0.00)");
-    verticalReflection2.addColorStop(0.5, "rgba(190,245,255,0.055)");
-    verticalReflection2.addColorStop(1, "rgba(255,255,255,0.00)");
-
-    ctx.beginPath();
-    ctx.roundRect(cardX, cardY, cardW, cardH, radius);
-    ctx.closePath();
-    ctx.fillStyle = verticalReflection2;
-    ctx.fill();
-
-    ctx.restore();
-
-    // 4) Диагональный глянец — делает стекло менее "плоским".
-    ctx.save();
-
-    ctx.translate(cardX + cardW * 0.52, cardY + cardH * 0.3);
-    ctx.rotate(-0.32);
-
-    const diagonalShine = ctx.createLinearGradient(-220, 0, 220, 0);
-
-    diagonalShine.addColorStop(0, "rgba(255,255,255,0.00)");
-    diagonalShine.addColorStop(0.45, "rgba(255,255,255,0.045)");
-    diagonalShine.addColorStop(0.55, "rgba(255,255,255,0.095)");
-    diagonalShine.addColorStop(1, "rgba(255,255,255,0.00)");
-
-    ctx.fillStyle = diagonalShine;
-    ctx.fillRect(-260, -34, 520, 68);
-
-    ctx.restore();
-
-    // 5) Очень мягкая внутренняя подсветка по нижнему периметру.
-    ctx.save();
-
-    ctx.beginPath();
-    ctx.roundRect(cardX + 12, cardY + 12, cardW - 24, cardH - 24, radius - 8);
-    ctx.closePath();
-
-    const innerGlow = ctx.createLinearGradient(
-      0,
-      cardY + cardH * 0.68,
-      0,
-      cardY + cardH,
-    );
-
-    innerGlow.addColorStop(0, "rgba(255,255,255,0.00)");
-    innerGlow.addColorStop(1, "rgba(150,235,255,0.07)");
-
-    ctx.strokeStyle = "rgba(180,245,255,0.05)";
-    ctx.lineWidth = 2;
-    ctx.stroke();
-
-    ctx.fillStyle = innerGlow;
-    ctx.fill();
-
-    ctx.restore();
+  // Текущий сектор получает светлый фон,
+  // но отдельная focus-рамка у него уже есть.
+  // Поэтому здесь не усиливаем основную рамку.
+  highlightBorder: false,
+});
 
     // =========================================================
     // БОЛЬШОЙ НОМЕР
@@ -977,42 +916,7 @@ ctx.shadowBlur =
       ctx.restore();
     }
 
-    // =========================================================
-    // СВЕТЛЫЕ ОБОДКИ КАРТОЧЕК
-    // Рисуем в самом конце, чтобы их ничего не перекрывало
-    // =========================================================
-
-    // 1) Внешний мягкий ореол — делаем заметнее для всех карточек
-    ctx.save();
-    ctx.beginPath();
-    ctx.roundRect(cardX + 1, cardY + 1, cardW - 2, cardH - 2, radius);
-    ctx.closePath();
-
-ctx.strokeStyle =
-  "rgba(165,230,245,0.18)";
-
-ctx.lineWidth = 14;
-
-ctx.shadowColor =
-  "rgba(150,225,245,0.18)";
-
-ctx.shadowBlur = 12;
-  
-    ctx.stroke();
-    ctx.restore();
-
-    // 2) Основная светлая рамка — теперь толще
-    ctx.save();
-    ctx.beginPath();
-    ctx.roundRect(cardX + 4, cardY + 4, cardW - 8, cardH - 8, radius - 3);
-    ctx.closePath();
-
-    ctx.strokeStyle = locked
-      ? "rgba(224,240,245,0.52)"
-      : "rgba(238,250,255,0.68)";
-    ctx.lineWidth = 6;
-    ctx.stroke();
-    ctx.restore();
+   
 
   
     const texture = new THREE.CanvasTexture(canvas);

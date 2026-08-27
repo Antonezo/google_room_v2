@@ -154,11 +154,41 @@
    ========================================================================== */
 
 #futuristic-start-menu #view-main {
+  position: relative;
   width: min(390px, 100%);
   margin: 0 auto;
 
   gap: 6px;
   align-items: stretch;
+}
+
+/* ============================================================
+   THREE.JS — СТЕКЛО ГЛАВНОГО МЕНЮ
+   ============================================================ */
+
+#futuristic-start-menu
+  #view-main
+  > .main-menu-glass-three-canvas {
+  position: absolute;
+
+  left: -24px;
+  top: -12px;
+
+  width: calc(100% + 48px);
+  height: calc(100% + 24px);
+
+  display: block;
+
+  background: transparent;
+
+  pointer-events: none;
+
+  z-index: 0;
+}
+
+#futuristic-start-menu #view-main .start-menu-title {
+  position: relative;
+  z-index: 1;
 }
 
 #futuristic-start-menu #view-main.menu-view.active {
@@ -181,6 +211,7 @@
    Поэтому новый дизайн главных кнопок задаём только внутри start menu. */
 #futuristic-start-menu .sk-btn {
   position: relative;
+  z-index: 1;
 
   width: 100%;
   min-height: 46px;
@@ -195,19 +226,13 @@
 
   box-sizing: border-box;
 
-  border: 1px solid rgba(170, 240, 255, 0.58);
-  border-radius: 10px;
+ border: 0;
+border-radius: 10px;
 
-  background: linear-gradient(
-    180deg,
-    rgba(115, 205, 225, 0.28) 0%,
-    rgba(25, 95, 120, 0.38) 48%,
-    rgba(3, 28, 40, 0.64) 100%
-  );
+background: transparent;
 
-  backdrop-filter: blur(6px) saturate(120%);
-
-  -webkit-backdrop-filter: blur(6px) saturate(120%);
+backdrop-filter: none;
+-webkit-backdrop-filter: none;
 
   color: #ffffff;
 
@@ -220,12 +245,7 @@
     0 0 5px rgba(255, 255, 255, 0.72),
     0 0 14px rgba(70, 220, 255, 0.42);
 
-  box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.24),
-    inset 0 -1px 0 rgba(0, 0, 0, 0.32),
-    inset 0 0 22px rgba(100, 225, 250, 0.06),
-    0 0 10px rgba(60, 220, 255, 0.18),
-    0 7px 20px rgba(0, 8, 14, 0.32);
+box-shadow: none;
 
   cursor: var(--cur-ui-arrow);
 
@@ -241,64 +261,12 @@
     color 0.2s ease;
 }
 
-/* Гасим старую косую подложку главных кнопок. */
-#futuristic-start-menu .sk-btn::before {
-  content: "";
-
-  position: absolute;
-
-  left: 10px;
-  right: 10px;
-  top: 5px;
-
-  height: 42%;
-
-  border-radius: 7px 7px 14px 14px;
-
-  background: linear-gradient(
-    to bottom,
-    rgba(255, 255, 255, 0.18),
-    rgba(255, 255, 255, 0.025)
-  );
-
-  opacity: 0.55;
-
-  pointer-events: none;
-}
-
-#futuristic-start-menu .sk-btn::after {
-  content: "";
-
-  position: absolute;
-
-  left: 18%;
-  right: 18%;
-  bottom: 2px;
-
-  height: 1px;
-
-  background: linear-gradient(
-    90deg,
-    transparent,
-    rgba(120, 235, 255, 0.65),
-    transparent
-  );
-
-  box-shadow: 0 0 8px rgba(80, 220, 255, 0.38);
-
-  opacity: 0.45;
-
-  pointer-events: none;
-}
+/* ============================================================
+   ГЛАВНЫЕ КНОПКИ — ТЕКСТ И ИНТЕРАКТИВНЫЕ СОСТОЯНИЯ
+   ============================================================ */
 
 #futuristic-start-menu .sk-btn .btn-text {
-  position: relative;
-  z-index: 2;
-
-  margin: 0;
-
-  letter-spacing: inherit;
-
+  transform: none;
   transition: none;
 }
 
@@ -309,37 +277,19 @@
 
 #futuristic-start-menu .sk-btn:hover,
 #futuristic-start-menu .sk-btn:focus-visible {
-  border-color: rgba(190, 250, 255, 0.95);
-
-  background: linear-gradient(
-    180deg,
-    rgba(145, 230, 245, 0.36) 0%,
-    rgba(35, 125, 150, 0.46) 50%,
-    rgba(4, 38, 52, 0.72) 100%
-  );
-
-  box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.34),
-    inset 0 0 26px rgba(100, 230, 250, 0.1),
-    0 0 12px rgba(80, 235, 255, 0.42),
-    0 0 24px rgba(50, 205, 240, 0.18),
-    0 8px 24px rgba(0, 8, 14, 0.34);
-
-  transform: translateY(-2px) scale(1.015);
+  filter: none;
 }
 
 #futuristic-start-menu .sk-btn:active {
-  transform: translateY(1px) scale(0.992);
-
-  box-shadow:
-    inset 0 1px 5px rgba(0, 0, 0, 0.25),
-    inset 0 0 18px rgba(90, 220, 245, 0.07),
-    0 2px 8px rgba(0, 10, 18, 0.18);
-}
-
-#futuristic-start-menu .sk-btn:hover .btn-text {
   transform: none;
+  box-shadow: none;
 }
+
+#futuristic-start-menu .sk-btn .btn-text {
+  transform: scale(1);
+  transition: transform 0.2s ease;
+}
+
 
 #futuristic-start-menu #btn-start-game {
   color: #ffffff;
@@ -354,10 +304,12 @@
 }
 /* Подсказка EXIT остаётся рабочей, меняем только её позицию. */
 #futuristic-start-menu .exit-joke {
+  position: absolute;
+
   right: 50%;
   bottom: -20px;
 
-  transform: translateX(50%);
+  transform: translateX(50%) translateY(-3px);
 
   white-space: nowrap;
   text-align: center;
@@ -370,9 +322,33 @@
   text-shadow:
     0 0 6px rgba(255, 255, 255, 0.45),
     0 0 12px rgba(70, 220, 255, 0.4);
+
+  opacity: 0;
+  visibility: hidden;
+
+  pointer-events: none;
+
+  transition:
+    opacity 0.28s ease,
+    transform 0.28s ease,
+    visibility 0s linear 0.28s;
 }
 
+#futuristic-start-menu
+  #btn-exit.show-joke
+  .exit-joke {
+  opacity: 1;
+  visibility: visible;
 
+  transform:
+    translateX(50%)
+    translateY(0);
+
+  transition:
+    opacity 0.28s ease,
+    transform 0.28s ease,
+    visibility 0s;
+}
 
 /* ==========================================================================
    ПЕРЕХОД В ИГРУ
@@ -1146,10 +1122,45 @@ body.initial-main-view #view-main.menu-view.active {
   box-sizing: border-box;
 }
 
+
+
+#futuristic-start-menu
+  #settings-controls-panel
+  > .controls-glass-three-canvas {
+  position: absolute;
+
+  inset: 0;
+
+  width: 100%;
+  height: 100%;
+
+  display: block;
+
+  background: transparent;
+
+  pointer-events: none;
+
+  z-index: 0;
+}
+
 #futuristic-start-menu .settings-panel.active {
   display: flex;
 }
 
+#futuristic-start-menu
+  #settings-controls-panel.active {
+  animation: controlsPanelIn 0.4s ease both;
+}
+
+@keyframes controlsPanelIn {
+  from {
+    opacity: 0;
+  }
+
+  to {
+    opacity: 1;
+  }
+}
 
 /* ----------------------------------------------------------
    Главная страница SETTINGS
@@ -1164,25 +1175,72 @@ body.initial-main-view #view-main.menu-view.active {
    CONTROLS
    ---------------------------------------------------------- */
 
-#futuristic-start-menu .controls-panel {
-  align-items: center;
-}
-
 #futuristic-start-menu .controls-console {
   position: fixed;
 
   left: 50%;
-  top: 145px;
+  top: 70px;
 
-  width: min(520px, 74vw);
+  width: min(500px, 72vw);
+  height: 300px;
 
-  transform: translateX(-50%);
+  transform: translateX(-50%) scale(0.9);
+  transform-origin: top center;
 
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  justify-content: space-between;
+
+  padding: 12px 18px 14px;
+
+  box-sizing: border-box;
+
+border: 1px solid rgba(205, 240, 250, 0.22);
+border-radius: 18px;
+
+background: rgba(20, 105, 130, 0.08);
+
+box-shadow:
+  inset 0 1px 0 rgba(255, 255, 255, 0.08),
+  0 0 14px rgba(80, 220, 255, 0.05);
+
+backdrop-filter: none;
+-webkit-backdrop-filter: none;
+
+  overflow: hidden;
+  isolation: isolate;
 
   pointer-events: auto;
+}
+
+#futuristic-start-menu
+  .controls-console
+  > .controls-glass-three-canvas {
+  position: absolute;
+
+  inset: 0;
+
+  width: 100%;
+  height: 100%;
+
+  display: block;
+
+  background: transparent;
+
+  pointer-events: none;
+
+  z-index: 0;
+}
+
+#futuristic-start-menu .controls-console-glow {
+  display: none;
+}
+
+#futuristic-start-menu
+  .controls-console
+  > *:not(.controls-console-glow):not(.controls-glass-three-canvas) {
+  position: relative;
+  z-index: 2;
 }
 
 #futuristic-start-menu .controls-card {
@@ -1190,27 +1248,28 @@ body.initial-main-view #view-main.menu-view.active {
 
   width: 100%;
 
-  padding: 18px 22px;
+  padding: 0;
 
   box-sizing: border-box;
 
-  border: 1px solid rgba(180, 240, 255, 0.42);
-  border-radius: 14px;
+  border: 0;
+  border-radius: 0;
 
-  background:
-    linear-gradient(
-      180deg,
-      rgba(115, 205, 225, 0.22),
-      rgba(12, 69, 88, 0.42),
-      rgba(3, 25, 36, 0.7)
-    );
+  background: transparent;
+  box-shadow: none;
 
-  box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.2),
-    0 8px 24px rgba(0, 0, 0, 0.28);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+}
 
-  backdrop-filter: blur(7px);
-  -webkit-backdrop-filter: blur(7px);
+#futuristic-start-menu .controls-card-movement {
+  padding-bottom: 0;
+}
+
+#futuristic-start-menu .controls-card-actions {
+  margin-top: 10px;
+  padding-top: 0;
+  border-top: none;
 }
 
 
@@ -1219,7 +1278,8 @@ body.initial-main-view #view-main.menu-view.active {
    ---------------------------------------------------------- */
 
 #futuristic-start-menu .control-row {
-  min-height: 42px;
+  min-height: 58px;
+  width: 100%;
 
   display: flex;
   align-items: center;
@@ -1227,18 +1287,48 @@ body.initial-main-view #view-main.menu-view.active {
 
   gap: 24px;
 
-  font-family: "Orbitron", sans-serif;
+  padding: 0 18px;
+
+  box-sizing: border-box;
+
+  position: relative;
+  z-index: 1;
+  overflow: hidden;
+
+  border-radius: 12px;
+
+  background: transparent;
+  border: 0;
+  box-shadow: none;
+}
+
+/* ============================================================
+   ОБЩЕЕ CANVAS-СТЕКЛО
+   Источник визуала: ui-glass.js
+   ============================================================ */
+
+
+
+
+#futuristic-start-menu .control-row-movement {
+  min-height: 92px;
+  padding-top: 10px;
+  padding-bottom: 10px;
+}
+
+#futuristic-start-menu .control-row + .control-row {
+  margin-top: 0;
 }
 
 #futuristic-start-menu .control-action {
   color: #ffffff;
 
-  font-size: 11px;
+  font-size: 13px;
   font-weight: 700;
-  letter-spacing: 1.5px;
+  letter-spacing: 1.6px;
 
   text-shadow:
-    0 0 6px rgba(255, 255, 255, 0.4);
+    0 0 8px rgba(255, 255, 255, 0.46);
 }
 
 #futuristic-start-menu .control-bindings {
@@ -1246,7 +1336,7 @@ body.initial-main-view #view-main.menu-view.active {
   align-items: center;
   justify-content: flex-end;
 
-  gap: 6px;
+  gap: 8px;
 }
 
 
@@ -1256,33 +1346,75 @@ body.initial-main-view #view-main.menu-view.active {
 
 #futuristic-start-menu .control-bindings kbd,
 #futuristic-start-menu .wasd-grid kbd {
-  min-width: 30px;
-  height: 28px;
+  min-width: 38px;
+  height: 32px;
 
-  padding: 0 8px;
+  padding: 0 10px;
 
   display: inline-flex;
   align-items: center;
   justify-content: center;
 
+  position: relative;
+  overflow: hidden;
+
   box-sizing: border-box;
 
-  border: 1px solid rgba(165, 240, 255, 0.76);
-  border-radius: 4px;
+  border: 1px solid rgba(215, 245, 255, 0.58);
+  border-radius: 6px;
 
-  background: rgba(2, 25, 36, 0.76);
+  background:
+    linear-gradient(
+      180deg,
+      rgba(165, 228, 242, 0.16) 0%,
+      rgba(82, 165, 194, 0.16) 38%,
+      rgba(18, 78, 106, 0.32) 100%
+    );
 
-  color: #ffffff;
+  color: rgba(255, 255, 255, 0.96);
 
   font-family: "Orbitron", sans-serif;
-  font-size: 9px;
+  font-size: 10px;
   font-weight: 700;
+  letter-spacing: 0.6px;
+
+  text-shadow:
+    0 0 6px rgba(255, 255, 255, 0.24);
 
   box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.14),
-    0 0 8px rgba(70, 220, 255, 0.18);
+    inset 0 1px 0 rgba(255, 255, 255, 0.20),
+    inset 0 10px 16px rgba(255, 255, 255, 0.03),
+    inset 0 -10px 16px rgba(0, 0, 0, 0.16),
+    0 0 10px rgba(90, 220, 255, 0.10);
 }
 
+#futuristic-start-menu .control-bindings kbd::before,
+#futuristic-start-menu .wasd-grid kbd::before {
+  content: "";
+
+  position: absolute;
+  left: 2px;
+  right: 2px;
+  top: 2px;
+
+  height: 42%;
+
+  border-radius: 4px;
+
+  background:
+    linear-gradient(
+      180deg,
+      rgba(255, 255, 255, 0.16),
+      rgba(255, 255, 255, 0.04),
+      rgba(255, 255, 255, 0)
+    );
+
+  pointer-events: none;
+}
+
+#futuristic-start-menu .control-bindings kbd {
+  min-width: 44px;
+}
 
 /* ----------------------------------------------------------
    WASD
@@ -1292,16 +1424,16 @@ body.initial-main-view #view-main.menu-view.active {
   display: flex;
   align-items: center;
 
-  gap: 10px;
+  gap: 14px;
 }
 
 #futuristic-start-menu .wasd-grid {
   display: grid;
 
-  grid-template-columns: repeat(3, 30px);
-  grid-template-rows: repeat(2, 28px);
+  grid-template-columns: repeat(3, 38px);
+  grid-template-rows: repeat(2, 32px);
 
-  gap: 4px;
+  gap: 5px;
 }
 
 #futuristic-start-menu .wasd-grid .key-w {
@@ -1325,7 +1457,8 @@ body.initial-main-view #view-main.menu-view.active {
 }
 
 #futuristic-start-menu .movement-plus {
-  color: rgba(220, 250, 255, 0.8);
+  color: rgba(230, 248, 255, 0.72);
+text-shadow: 0 0 6px rgba(120, 225, 255, 0.18);
 
   font-family: "Orbitron", sans-serif;
   font-size: 14px;
@@ -1337,34 +1470,38 @@ body.initial-main-view #view-main.menu-view.active {
    ---------------------------------------------------------- */
 
 #futuristic-start-menu .mouse-control {
-  width: 58px;
+  width: 68px;
 
   display: flex;
   flex-direction: column;
   align-items: center;
 
-  gap: 3px;
+  gap: 4px;
 
-  color: #ffffff;
+  color: rgba(255, 255, 255, 0.94);
 
   font-family: "Orbitron", sans-serif;
-  font-size: 7px;
+  font-size: 8px;
   font-weight: 700;
+  letter-spacing: 0.6px;
+
+  text-shadow:
+    0 0 6px rgba(255, 255, 255, 0.22);
 }
 
 #futuristic-start-menu .mouse-control-icon {
-  width: 22px;
-  height: 30px;
+  width: 24px;
+  height: 34px;
 
   overflow: visible;
 
-  fill: rgba(2, 25, 36, 0.78);
+  fill: rgba(150, 220, 240, 0.10);
 
-  stroke: rgba(200, 248, 255, 0.95);
-  stroke-width: 1.5;
+  stroke: rgba(235, 250, 255, 0.92);
+  stroke-width: 1.6;
 
   filter:
-    drop-shadow(0 0 4px rgba(70, 220, 255, 0.45));
+    drop-shadow(0 0 5px rgba(90, 220, 255, 0.20));
 }
 
 #futuristic-start-menu .mouse-control-icon line:last-child {
@@ -1385,61 +1522,218 @@ body.initial-main-view #view-main.menu-view.active {
   top: 145px;
 
   width: min(520px, 74vw);
+  height: 300px;
 
   transform: translateX(-50%);
 
   pointer-events: auto;
 }
 
-#futuristic-start-menu .settings-wheel {
-  display: flex;
-  flex-direction: column;
+/* ============================================================
+   THREE.JS — КОРПУС БАРАБАНА НАСТРОЕК
+   ============================================================ */
 
-  gap: 6px;
+#futuristic-start-menu
+  .settings-wheel-three-host {
+  position: fixed;
+
+  left: 50%;
+  top: -70px;
+
+  width: 50vw;
+  height: 330px;
+
+  transform: translateX(-50%);
+
+ pointer-events: auto;
+ cursor: inherit;
+  z-index: 0;
+}
+
+
+#futuristic-start-menu
+  .settings-wheel-three-canvas {
+  display: block;
 
   width: 100%;
+  height: 100%;
+
+  background: transparent;
+
+  pointer-events: auto;
+
+  cursor: inherit;
+}
+
+
+/* HTML-настройки пока остаются поверх 3D-корпуса. */
+#futuristic-start-menu
+  .settings-wheel {
+  position: relative;
+
+  z-index: 2;
+}
+
+#futuristic-start-menu .settings-wheel {
+  position: absolute;
+
+  left: 50%;
+  top: 18px;
+
+  width: 520px;
+  height: 270px;
+
+  transform: translateX(-50%);
+
+  z-index: 5;
+
+  pointer-events: none;
+}
+
+#futuristic-start-menu .settings-wheel,
+#futuristic-start-menu .settings-wheel * {
+  pointer-events: none;
 }
 
 #futuristic-start-menu .wheel-row {
-  position: relative;
+  position: absolute;
 
-  width: 100%;
-  min-height: 58px;
+  left: 50%;
 
   box-sizing: border-box;
 
-  color: #ffffff;
+  transform: translateX(-50%);
 
-  font-family: "Orbitron", sans-serif;
+  background: transparent;
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
 
-  border: 1px solid rgba(175, 240, 255, 0.42);
-  border-radius: 11px;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
 
-  background:
-    linear-gradient(
-      180deg,
-      rgba(115, 205, 225, 0.22),
-      rgba(14, 75, 95, 0.42),
-      rgba(3, 25, 36, 0.7)
-    );
+  overflow: visible;
 
-  box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.18),
-    0 5px 16px rgba(0, 0, 0, 0.22);
+  opacity: 0;
 
-  backdrop-filter: blur(7px);
-  -webkit-backdrop-filter: blur(7px);
-
-  overflow: hidden;
+  pointer-events: none;
 }
 
+/* ============================================================
+   НЕВИДИМЫЕ HIT-AREA ДЛЯ HTML-КОНТРОЛОВ
+   Визуал теперь рисует Three.js.
+   ============================================================ */
+
+#futuristic-start-menu
+  .settings-wheel
+  .wheel-row:nth-child(1) {
+  top: 12px;
+
+  width: 80%;
+  height: 58px;
+}
+
+
+#futuristic-start-menu
+  .settings-wheel
+  .wheel-row:nth-child(2) {
+  top: 72px;
+
+  width: 92%;
+  height: 60px;
+}
+
+
+#futuristic-start-menu
+  .settings-wheel
+  .wheel-row:nth-child(3) {
+  top: 135px;
+
+  width: 98%;
+  height: 56px;
+}
+
+
+#futuristic-start-menu
+  .settings-wheel
+  .wheel-row:nth-child(4) {
+  top: 193px;
+
+  width: 88%;
+  height: 52px;
+}
+
+#futuristic-start-menu
+  .settings-wheel
+  .wheel-row::after {
+  content: "";
+
+  position: absolute;
+
+  left: 5%;
+  right: 5%;
+  bottom: 0;
+
+  height: 1px;
+
+  background: linear-gradient(
+    90deg,
+    transparent,
+    rgba(185, 245, 255, 0.32) 16%,
+    rgba(210, 250, 255, 0.48) 50%,
+    rgba(185, 245, 255, 0.32) 84%,
+    transparent
+  );
+
+  box-shadow:
+    0 0 6px rgba(90, 225, 255, 0.18);
+
+  pointer-events: none;
+}
+
+#futuristic-start-menu .wheel-row-surface {
+  display: none;
+}
+
+#futuristic-start-menu .wheel-row-slider,
+#futuristic-start-menu .wheel-row-button,
+#futuristic-start-menu .wheel-row-language {
+  position: relative;
+  z-index: 2;
+
+  width: 100%;
+  height: 100%;
+
+  box-sizing: border-box;
+}
+
+
 #futuristic-start-menu .wheel-row-slider {
-  padding: 11px 18px;
+  padding: 10px 18px;
 
   display: flex;
   flex-direction: column;
+  justify-content: center;
 
-  gap: 8px;
+  gap: 7px;
+}
+
+
+#futuristic-start-menu .wheel-row-button {
+  padding: 0 20px;
+
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+
+#futuristic-start-menu .wheel-row-language {
+  padding: 0 18px;
+
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
 }
 
 #futuristic-start-menu .slider-header {
@@ -1479,7 +1773,7 @@ body.initial-main-view #view-main.menu-view.active {
 
   outline: none;
 
-  cursor: var(--cur-hand);
+  cursor: inherit;
 }
 
 #futuristic-start-menu .curved-slider::-webkit-slider-thumb {
@@ -2737,4 +3031,237 @@ will-change: left, top, width, height, opacity, transform;
     transform: translate(-50%, 5px);
     opacity: 1;
   }
+}
+
+/* ==========================================================================
+   PAUSE MENU — ОБЩЕЕ THREE.JS СТЕКЛО
+   ========================================================================== */
+
+#pause-overlay .pause-panel {
+  position: relative;
+}
+
+
+/* Three.js canvas со стеклянными плашками */
+#pause-overlay
+  .pause-panel
+  > .pause-menu-glass-three-canvas {
+  position: absolute;
+
+  left: -24px;
+  top: -12px;
+
+  width: calc(100% + 48px);
+  height: calc(100% + 24px);
+
+  display: block;
+
+  background: transparent;
+
+  pointer-events: none;
+
+  z-index: 0;
+}
+
+
+/* Настоящий HTML-контент остаётся поверх WebGL */
+#pause-overlay
+  .pause-panel
+  > *:not(.pause-menu-glass-three-canvas) {
+  position: relative;
+  z-index: 2;
+}
+
+
+/* ============================================================
+   КНОПКИ ПАУЗЫ
+   ============================================================ */
+
+#pause-overlay .pause-menu .sk-btn {
+  position: relative;
+  z-index: 1;
+
+  width: 100%;
+
+  min-height: 52px;
+  height: 52px;
+
+  padding: 0 22px;
+  margin: 0;
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  box-sizing: border-box;
+
+  border: 0;
+  border-radius: 10px;
+
+  background: transparent;
+
+  box-shadow: none;
+
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+
+  color: #ffffff;
+
+  font-family: "Orbitron", sans-serif;
+  font-size: 17px;
+  font-weight: 700;
+  letter-spacing: 2px;
+
+  text-shadow:
+    0 0 5px rgba(255, 255, 255, 0.72),
+    0 0 14px rgba(70, 220, 255, 0.42);
+
+  cursor: var(--cur-ui-arrow);
+
+  overflow: hidden;
+  outline: none;
+
+  transform: none;
+  filter: none;
+}
+
+
+/* Текст не масштабируем — чтобы не становился мыльным */
+#pause-overlay .pause-menu .sk-btn .btn-text {
+  position: relative;
+  z-index: 2;
+
+  transform: none;
+  transition: none;
+}
+
+
+/* Старые >> у Resume больше не нужны */
+#pause-overlay .pause-menu .sk-btn .btn-dec {
+  display: none;
+}
+
+
+/* Старый белый hover выключаем */
+#pause-overlay .pause-menu .sk-btn:hover,
+#pause-overlay .pause-menu .sk-btn:focus-visible,
+#pause-overlay .pause-menu .sk-btn:active {
+  background: transparent;
+  border: 0;
+  box-shadow: none;
+
+  transform: none;
+  filter: none;
+
+  color: #ffffff;
+}
+
+.pause-panel {
+  position: relative;
+
+  width: min(500px, calc(100vw - 48px));
+
+  padding: 34px 38px 28px;
+
+  box-sizing: border-box;
+
+  border: 1px solid rgba(205, 240, 250, 0.22);
+  border-radius: 18px;
+
+  background:
+    linear-gradient(
+      180deg,
+      rgba(120, 210, 230, 0.16) 0%,
+      rgba(70, 165, 190, 0.10) 38%,
+      rgba(18, 78, 105, 0.18) 100%
+    );
+
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.10),
+    inset 0 -24px 36px rgba(0, 40, 58, 0.10),
+    0 12px 40px rgba(0, 20, 30, 0.18),
+    0 0 24px rgba(80, 220, 255, 0.08);
+
+  backdrop-filter: blur(8px) saturate(110%);
+  -webkit-backdrop-filter: blur(8px) saturate(110%);
+
+  overflow: visible;
+
+  opacity: 0;
+
+  transform:
+    translateY(14px)
+    scale(0.975);
+
+  transition:
+    opacity 0.24s ease,
+    transform 0.24s cubic-bezier(
+      0.2,
+      0.8,
+      0.2,
+      1
+    );
+}
+
+/* ==========================================================================
+   НАСТРОЙКИ / УПРАВЛЕНИЕ, ОТКРЫТЫЕ ИЗ ПАУЗЫ
+   ========================================================================== */
+
+#loader-doors.pause-submenu-open {
+  opacity: 1;
+  visibility: visible;
+
+  transform: none;
+
+  pointer-events: auto;
+
+  background: transparent;
+
+  transition:
+    opacity 0.25s ease,
+    visibility 0s linear 0s;
+
+  z-index: calc(var(--z-hud) + 60);
+}
+
+
+/* Стартовую картинку комнаты меню во время паузы не показываем */
+#loader-doors.pause-submenu-open
+  .start-menu-background,
+#loader-doors.pause-submenu-open
+  .start-menu-vignette {
+  display: none;
+}
+
+
+/* Карточка самой паузы временно исчезает */
+#pause-overlay.submenu-open
+  .pause-panel {
+  opacity: 0;
+  visibility: hidden;
+
+  pointer-events: none;
+}
+
+/* При возврате из настроек/управления в паузу
+   стартовый экран должен исчезнуть мгновенно,
+   без своей обычной анимации. */
+#loader-doors.pause-submenu-closing {
+  opacity: 0;
+  visibility: hidden;
+
+  pointer-events: none;
+
+  transition: none;
+}
+
+
+/* Пока закрываем pause-submenu,
+   не даём фоновой картинке стартового меню
+   успеть появиться даже на один кадр. */
+#loader-doors.pause-submenu-closing
+  .start-menu-background,
+#loader-doors.pause-submenu-closing
+  .start-menu-vignette {
+  display: none;
 }

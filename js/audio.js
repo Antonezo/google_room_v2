@@ -357,6 +357,59 @@ const [
     source.start();
   }
 
+async playVolumePreview(type, volume) {
+  await this.resumeContext();
+
+  if (
+    !this.ctx ||
+    this.ctx.state === "suspended"
+  ) {
+    return;
+  }
+
+  if (this.initPromise) {
+    await this.initPromise;
+  }
+
+  const buffer =
+    this.uiBuffers[type];
+
+  if (!buffer) {
+    return;
+  }
+
+  const safeVolume =
+    Math.max(
+      0,
+      Number(volume) || 0,
+    );
+
+  const source =
+    this.ctx.createBufferSource();
+
+  const gain =
+    this.ctx.createGain();
+
+  source.buffer = buffer;
+
+  gain.gain.value =
+    safeVolume;
+
+  source.connect(gain);
+  gain.connect(this.ctx.destination);
+
+  source.start();
+
+  source.onended = () => {
+    try {
+      source.disconnect();
+      gain.disconnect();
+    } catch (e) {
+      // Уже отключено.
+    }
+  };
+}
+
   // 4. Плавное появление и затухание
   fadeIn(duration = 1.0) {
     if (!this.ctx || !this.sfxGainNode) return;

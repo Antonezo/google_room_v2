@@ -48,8 +48,67 @@
       href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700&display=swap"
       rel="stylesheet"
     />
+    <style>
+  .startup-cover {
+    position: fixed;
+    inset: 0;
+    z-index: 999999;
+
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 14px;
+
+    background: #02070b;
+
+    opacity: 1;
+    visibility: visible;
+
+    transition:
+      opacity 0.35s ease,
+      visibility 0s linear 0.35s;
+  }
+
+html.menu-glass-ready.ui-ready .startup-cover {
+  opacity: 0;
+  visibility: hidden;
+}
+
+  .startup-spinner {
+    width: 34px;
+    height: 34px;
+
+    border: 2px solid rgba(120, 220, 255, 0.18);
+    border-top-color: rgba(190, 245, 255, 0.95);
+    border-radius: 50%;
+
+    animation: startupSpin 0.8s linear infinite;
+
+    box-shadow: 0 0 14px rgba(70, 220, 255, 0.22);
+  }
+
+  .startup-label {
+    color: rgba(220, 250, 255, 0.72);
+
+    font-family: "Orbitron", sans-serif;
+    font-size: 9px;
+    font-weight: 700;
+    letter-spacing: 2.5px;
+  }
+
+  @keyframes startupSpin {
+    to {
+      transform: rotate(360deg);
+    }
+  }
+</style>
   </head>
   <body class="loading initial-main-view">
+    <div id="startup-cover" class="startup-cover">
+      <div class="startup-spinner"></div>
+      <div class="startup-label">INITIALIZING</div>
+    </div>
     <div id="game-monitor">
       <div id="canvas-container"></div>
     </div>
@@ -130,10 +189,10 @@
                 <span data-lang-text="EN">EXIT</span>
                 <span data-lang-text="RU">ВЫХОД</span>
               </span>
-            <span class="exit-joke">
-  <span data-lang-text="EN">YOU CAN NOW CLOSE THE TAB</span>
-  <span data-lang-text="RU">ТЕПЕРЬ МОЖНО ЗАКРЫТЬ ВКЛАДКУ</span>
-</span>
+              <span class="exit-joke">
+                <span data-lang-text="EN">YOU CAN NOW CLOSE THE TAB</span>
+                <span data-lang-text="RU">ТЕПЕРЬ МОЖНО ЗАКРЫТЬ ВКЛАДКУ</span>
+              </span>
             </button>
           </div>
 
@@ -186,14 +245,13 @@
 
               <!-- Основное "колесо" настроек -->
               <div class="settings-wheel-shell">
+                <div
+                  class="settings-wheel-three-host"
+                  id="settings-wheel-three-host"
+                  aria-hidden="true"
+                ></div>
 
-  <div
-    class="settings-wheel-three-host"
-    id="settings-wheel-three-host"
-    aria-hidden="true"
-  ></div>
-
-  <div class="settings-wheel">
+                <div class="settings-wheel">
                   <!-- ГРОМКОСТЬ ЭФФЕКТОВ -->
                   <div class="wheel-row wheel-row-slider slider-group">
                     <div class="wheel-row-surface" aria-hidden="true"></div>
@@ -417,42 +475,38 @@
             </div>
           </div>
         </div>
-<div class="sector-wheel-3d">
+        <div class="sector-wheel-3d">
+          <div
+            class="sector-wheel-canvas-host"
+            id="sector-wheel-canvas-host"
+          ></div>
 
-  <div
-    class="sector-wheel-canvas-host"
-    id="sector-wheel-canvas-host"
-  ></div>
+          <div class="sector-wheel-controls">
+            <button
+              class="sector-wheel-arrow sector-wheel-arrow--left"
+              id="btn-sector-prev"
+              type="button"
+              aria-label="Previous sector"
+            >
+              <span aria-hidden="true">❮❮</span>
+            </button>
 
-  <div class="sector-wheel-controls">
-    <button
-      class="sector-wheel-arrow sector-wheel-arrow--left"
-      id="btn-sector-prev"
-      type="button"
-      aria-label="Previous sector"
-    >
-      <span aria-hidden="true">❮❮</span>
-    </button>
+            <div class="sector-wheel-mouse-hint" aria-hidden="true">
+              <div class="sector-wheel-mouse">
+                <span class="sector-wheel-mouse-wheel"></span>
+              </div>
+            </div>
 
-    <div class="sector-wheel-mouse-hint" aria-hidden="true">
-      <div class="sector-wheel-mouse">
-        <span class="sector-wheel-mouse-wheel"></span>
-      </div>
-    </div>
-
-    <button
-      class="sector-wheel-arrow sector-wheel-arrow--right"
-      id="btn-sector-next"
-      type="button"
-      aria-label="Next sector"
-    >
-      <span aria-hidden="true">❯❯</span>
-    </button>
-  </div>
-
-</div>
-
-</div>
+            <button
+              class="sector-wheel-arrow sector-wheel-arrow--right"
+              id="btn-sector-next"
+              type="button"
+              aria-label="Next sector"
+            >
+              <span aria-hidden="true">❯❯</span>
+            </button>
+          </div>
+        </div>
       </main>
     </div>
 
@@ -538,11 +592,7 @@
         </div>
 
         <div class="modal-actions">
-         <button
-  id="btn-confirm-yes"
-  class="holo-btn"
-  type="button"
->
+          <button id="btn-confirm-yes" class="holo-btn" type="button">
             <span class="btn-text">YES</span>
           </button>
 

@@ -36,6 +36,7 @@ export class UIManager {
     this.initGlobalBindings();
     this.initStartMenu();
     this.updateLanguage(this.currentLang);
+    document.documentElement.classList.add("ui-ready");
     const releaseInitialMainView = () => {
       document.body.classList.remove("initial-main-view");
     };
@@ -566,25 +567,24 @@ this.exitHintTimer =
         this.cb.onDeleteSavedProgress();
       }
 
-      // Строим выбранный сектор.
-      if (this.cb?.onReset) {
-        this.cb.onReset({ levelId });
-      }
+// Строим выбранный сектор.
+if (this.cb?.onReset) {
+  this.cb.onReset({ levelId });
+}
 
-      // Теперь меню можно скрыть.
-      this.menuManager.hideMenu();
+// Мир уже успел стабилизироваться за стартовым экраном.
+// Фиксируем камеру на время визуального перехода.
+if (this.cb?.onFreezeGameplayCamera) {
+  this.cb.onFreezeGameplayCamera();
+}
 
-      // Даём новому меню закончить короткое исчезновение.
-      await new Promise((resolve) => setTimeout(resolve, 430));
+// Меню, полоса подготовки и фон остаются видимыми до самого конца.
+// Теперь весь стартовый экран плавно растворяется прямо в игре.
+await hideStartScreenAndWait();
 
-      // Мир уже успел стабилизироваться за стартовым экраном.
-      // Фиксируем камеру на время визуального перехода.
-      if (this.cb?.onFreezeGameplayCamera) {
-        this.cb.onFreezeGameplayCamera();
-      }
-
-      // Плавно убираем фоновый стартовый экран.
-      await hideStartScreenAndWait();
+// Само меню скрываем уже за невидимым стартовым экраном,
+// чтобы при следующем входе его состояние было корректным.
+this.menuManager.hideMenu();
 
      // Только теперь начинается сама игра.
 if (this.cb?.onStartGameplay) {

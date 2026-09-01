@@ -133,10 +133,9 @@ export class SceneManager {
     );
     this.camera.position.set(camCfg.pos.x, camCfg.pos.y, camCfg.pos.z);
 
-    this.renderer = new THREE.WebGLRenderer({
-      antialias: true,
-      powerPreference: "high-performance",
-    });
+   this.renderer = new THREE.WebGLRenderer({
+  antialias: true,
+});
     this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
     this.renderer.setSize(window.innerWidth, window.innerHeight);
     this.renderer.shadowMap.enabled = false; // Отключаем тени для производительности
@@ -155,7 +154,7 @@ export class SceneManager {
       window.innerWidth,
       window.innerHeight,
       {
-        samples: 4,
+      samples: 4,
         type: THREE.HalfFloatType, // Критично для правильной работы свечения!
         colorSpace: THREE.SRGBColorSpace,
       },

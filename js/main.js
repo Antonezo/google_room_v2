@@ -53,9 +53,7 @@ export class GoogleRoomApp {
     this.isExitingToMenu = false;
     this.lastTime = performance.now();
     this.platformImpact = 0;
-    this.lastRenderStatsTime = 0;
-    this.fpsFrameCount = 0;
-    this.fpsLastTime = performance.now();
+  
 
     // === СОСТОЯНИЕ УРОВНЕЙ ===
     // Конфиг уровня описывает:
@@ -244,8 +242,7 @@ cabinPoint: {
     this.camera = this.sceneManager.camera;
     this.renderer = this.sceneManager.renderer;
     this.composer = this.sceneManager.composer;
-    // Не позволяем Three.js сбрасывать статистику после каждого прохода EffectComposer.
-    this.renderer.info.autoReset = false;
+
     this.bloomPass = this.sceneManager.bloomPass;
 
     this._tempVec = new THREE.Vector3();
@@ -257,8 +254,6 @@ cabinPoint: {
     this.fanLevel = 0.0;
     this.lettersHiddenByMagnet = false;
     this.currentRingIntensity = 1.2;
-
-    // ... остальной твой код конструктора (инициализация физики, игрока и т.д.) ...
 
     // Используем мягкую текстуру lampGlowTex и делаем цвет настоящим серым (0x888888)
     this.dustPool = new ParticlePool(
@@ -777,7 +772,7 @@ onStartGameplay: () => {
     if (this.isPreparingGame) {
       return;
     }
-
+  
     const nextFrame = () =>
       new Promise((resolve) => requestAnimationFrame(resolve));
 
@@ -1046,13 +1041,13 @@ onStartGameplay: () => {
   }
 
   startGameplaySession() {
+  const finishStart = () => {
     this.hasStartedGame = true;
 
     if (!this.savedProgress?.hasSave) {
       this.saveProgress(this.currentLevelId);
     }
 
-    // Новая игра или продолжение реально начались.
     this.isGameActive = true;
     this.isExitingToMenu = false;
     this.isPaused = false;
@@ -1067,8 +1062,43 @@ onStartGameplay: () => {
 
     this.unlockGameplayCamera?.();
 
+    // Отбрасываем всё время, которое ушло на GPU-прогрев.
     this.lastTime = performance.now();
+
+    // Комната уже полностью готова.
+    // Теперь плавно показываем её игроку.
+    if (this.fadeScreen) {
+      requestAnimationFrame(() => {
+        requestAnimationFrame(() => {
+          this.fadeScreen.style.opacity = "0";
+        });
+      });
+    }
+  };
+
+  // Если финальный уровень ещё прогревается,
+  // не отдаём управление до завершения.
+  if (this.finalRoomWarmupPromise) {
+    const pendingWarmup = this.finalRoomWarmupPromise;
+
+    this.finalRoomWarmupPromise = null;
+
+    pendingWarmup
+      .then(() => {
+        finishStart();
+      })
+      .catch((error) => {
+        console.error("[FINAL WARMUP] Start fallback:", error);
+
+        // Даже при ошибке прогрева не блокируем игру навсегда.
+        finishStart();
+      });
+
+    return;
   }
+
+  finishStart();
+}
 
 lockGameplayLookInput() {
   // Сразу запрещаем игроку вращать камеру мышью,
@@ -1835,6 +1865,83 @@ if (arrivalElevator) {
     nextFlicker();
   }
 
+async warmupFinalRoomForStart() {
+  if (!this.renderer || !this.scene || !this.camera || !this.composer) {
+    return;
+  }
+
+  const nextFrame = () =>
+    new Promise((resolve) => requestAnimationFrame(resolve));
+
+  const startTime = performance.now();
+
+  console.log(
+    `[FINAL WARMUP] Starting room ${this.currentLevelId} warmup...`,
+  );
+
+  this.isPreparingGame = true;
+
+  try {
+    // Финальные позиции игрока, камеры, дверей и объектов
+    // уже должны быть выставлены ДО вызова этого метода.
+    this.scene.updateMatrixWorld(true);
+    this.camera.updateMatrixWorld(true);
+
+    // Даём браузеру применить изменения сцены.
+    await nextFrame();
+
+    const previousRenderTarget = this.renderer.getRenderTarget();
+
+    const composerRenderTarget =
+      this.composer?.readBuffer ||
+      this.composer?.renderTarget1 ||
+      null;
+
+    try {
+      // Компилируем сцену именно под тот render target,
+      // через который затем реально работает EffectComposer.
+      if (composerRenderTarget) {
+        this.renderer.setRenderTarget(composerRenderTarget);
+      }
+
+      if (typeof this.renderer.compileAsync === "function") {
+        await this.renderer.compileAsync(this.scene, this.camera);
+      } else {
+        this.renderer.compile(this.scene, this.camera);
+      }
+    } finally {
+      this.renderer.setRenderTarget(previousRenderTarget);
+    }
+
+    // Очень важная часть:
+    // не только compileAsync, а настоящий первый рендер.
+    this.renderer.info.reset();
+    this.composer.render();
+
+    await nextFrame();
+
+    // Второй скрытый кадр — чтобы добить ленивую GPU-инициализацию,
+    // которая могла не произойти на первом проходе.
+    this.renderer.info.reset();
+    this.composer.render();
+
+    await nextFrame();
+
+    console.log(
+      `[FINAL WARMUP] Room ${this.currentLevelId} ready in ${Math.round(
+        performance.now() - startTime,
+      )} ms`,
+    );
+  } catch (error) {
+    console.error("[FINAL WARMUP] Failed:", error);
+  } finally {
+    this.isPreparingGame = false;
+
+    // После тяжёлой подготовки не передаём её время физике.
+    this.lastTime = performance.now();
+  }
+}
+
   resetScene(options = {}) {
     const { rebuildRoom = true, levelId = this.currentLevelId || 1 } = options;
 
@@ -1964,27 +2071,45 @@ if (arrivalElevator) {
         this.wordManager.returnLettersToStart();
       }
     }
-    // При запуске сектора из главного меню мир уже начинает жить:
-    // физика работает, шар падает/оседает на пол,
-    // CameraController приводит камеру в корректное положение.
-    //
-    // Но управление игрок получит только после полного открытия хаба.
-    if (startingFromMenu) {
-      this.isGameActive = true;
-      this.isPaused = false;
+ // При запуске сектора из главного меню сначала полностью
+// подготавливаем финально построенную комнату.
+//
+// Пока идёт GPU-прогрев:
+// - физика не работает;
+// - игрок не двигается;
+// - экран остаётся чёрным.
+if (startingFromMenu) {
+  this.isGameActive = false;
+  this.isPaused = true;
 
-      if (this.playerController) {
-        this.playerController.isLocked = true;
+  if (this.playerController) {
+    this.playerController.isLocked = true;
 
-        if (this.playerController.keys) {
-          for (const key in this.playerController.keys) {
-            this.playerController.keys[key] = false;
-          }
-        }
+    if (this.playerController.keys) {
+      for (const key in this.playerController.keys) {
+        this.playerController.keys[key] = false;
       }
-
-      this.lastTime = performance.now();
     }
+  }
+
+  // Показываем чёрный экран мгновенно, без анимации затемнения.
+  if (this.fadeScreen) {
+    this.fadeScreen.style.transition = "none";
+    this.fadeScreen.style.opacity = "1";
+
+    // Форсируем применение opacity: 1.
+    void this.fadeScreen.offsetWidth;
+
+    // Следующее изменение opacity уже снова будет плавным.
+    this.fadeScreen.style.transition = "opacity 0.9s ease-in-out";
+  }
+
+  this.lastTime = performance.now();
+
+  // Запоминаем Promise.
+  // startGameplaySession() дождётся его перед передачей управления.
+  this.finalRoomWarmupPromise = this.warmupFinalRoomForStart();
+}
   }
 
 setupStateReactions() {
@@ -2943,35 +3068,11 @@ if (
     }
     // ========================================================
 
-    if (!this.isPreparingGame) {
-      // Начинаем подсчёт заново для текущего кадра.
-      this.renderer.info.reset();
+if (!this.isPreparingGame) {
+  this.composer.render();
+}
 
-      // Обычный игровой рендер.
-      this.composer.render();
-    }
-
-    if (currentTime - this.lastRenderStatsTime >= 1000) {
-      const elapsedSeconds = (currentTime - this.fpsLastTime) / 1000;
-      const fps = Math.round(this.fpsFrameCount / elapsedSeconds);
-
-      this.lastRenderStatsTime = currentTime;
-      this.fpsLastTime = currentTime;
-      this.fpsFrameCount = 0;
-
-      const info = this.renderer.info;
-
-      console.log(
-        `[RENDER STATS] ` +
-          `level=${this.currentLevelId} | ` +
-          `fps=${fps} | ` +
-          `calls=${info.render.calls} | ` +
-          `triangles=${info.render.triangles} | ` +
-          `geometries=${info.memory.geometries} | ` +
-          `textures=${info.memory.textures} | ` +
-          `programs=${info.programs?.length ?? 0}`,
-      );
-    }
+   
   }
 
   updateEnvironment(dt, timeSec) {
@@ -3254,10 +3355,10 @@ function updatePreparationStatus(stage, percent) {
 
   const safePercent = THREE.MathUtils.clamp(Math.round(percent), 0, 100);
 
-  if (status) {
-    status.classList.add("visible");
-  }
+ if (status) {
+  status.classList.add("visible");
 
+}
   if (stageElement) {
     stageElement.textContent = stage;
   }

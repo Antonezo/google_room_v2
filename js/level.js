@@ -1138,7 +1138,8 @@ export class LevelBuilder {
       levelNumber: 1,
       elevatorRole: "exit",
     });
-
+    // Обучающий пандус комнаты 1.
+    this.buildRoom1TutorialRampVisual();
     // Временная обучающая площадка комнаты 1.
     // Позже её можно будет заменить настоящим заданием,
     // сохранив тот же вызов unlockExitElevator(1).
@@ -1182,6 +1183,242 @@ export class LevelBuilder {
     this.room1UnlockPad = pad;
 
     this.registerMesh(pad);
+  }
+  getRoom1TutorialRampConfig() {
+    // ==========================================
+    // ПАНДУС ОБУЧЕНИЯ — КОМНАТА 1
+    // ==========================================
+
+    const width = 5.0;
+
+    // Пандус теперь идёт вдоль стены с лифтом, по оси X.
+    const lowerX = 10.5;
+    const upperX = -7.0;
+
+    // Высота верхней площадки над полом.
+    // Поднимаем почти к потолку.
+    const rise = 8.0;
+
+    const run = lowerX - upperX;
+    const rampLength = Math.sqrt(run * run + rise * rise);
+    const rampAngle = Math.atan2(rise, run);
+
+    const rampThickness = 0.5;
+
+    // Положение пандуса по глубине комнаты.
+    const centerZ = 36.0;
+
+    // Верхняя площадка.
+    const platformDepth = 4.0;
+    const platformThickness = 0.5;
+
+    // Небольшой перехлёст платформы в сторону пандуса,
+    // чтобы убрать визуальную щель в стыке.
+    const platformOverlap = 0.18;
+
+    return {
+      width,
+
+      lowerX,
+      upperX,
+      centerZ,
+
+      rise,
+      run,
+
+      rampLength,
+      rampAngle,
+      rampThickness,
+
+      platformDepth,
+      platformThickness,
+      platformOverlap,
+    };
+  }
+
+   buildRoom1TutorialRampVisual() {
+    const cfg = this.getRoom1TutorialRampConfig();
+
+    // Материал — белый, в духе стен и пола.
+    // Если sharedTileMaterial уже есть в классе, возьмём его клон.
+    // Если нет — используем простой белый матовый материал.
+    const coatedMat = this.sharedTileMaterial
+      ? this.sharedTileMaterial.clone()
+      : new THREE.MeshStandardMaterial({
+          color: 0xffffff,
+          roughness: 0.35,
+          metalness: 0.0,
+          dithering: true,
+        });
+
+    coatedMat.color.set(0xffffff);
+    coatedMat.roughness = 0.35;
+    coatedMat.metalness = 0.0;
+    coatedMat.needsUpdate = true;
+
+    // ==========================================
+    // ЦЕЛЬНАЯ ГОРКА-КЛИН
+    // ==========================================
+
+    const run = Math.abs(cfg.lowerX - cfg.upperX);
+
+    // Профиль горки в плоскости X/Y:
+    // слева (у верхней площадки) она высокая,
+    // справа (у пола) сходит на нет.
+    const rampShape = new THREE.Shape();
+    rampShape.moveTo(0, 0);
+    rampShape.lineTo(0, cfg.rise);
+    rampShape.lineTo(run, 0);
+    rampShape.lineTo(0, 0);
+
+    const rampGeo = new THREE.ExtrudeGeometry(rampShape, {
+      depth: cfg.width,
+      bevelEnabled: false,
+      steps: 1,
+    });
+
+    // Центрируем по ширине относительно centerZ.
+    rampGeo.translate(0, 0, -cfg.width / 2);
+    rampGeo.computeVertexNormals();
+
+    const ramp = new THREE.Mesh(rampGeo, coatedMat);
+    ramp.name = "Room1_TutorialRampSolid";
+
+    // Начало геометрии ставим в верхнюю точку по X,
+    // а сама геометрия уходит вправо к lowerX.
+    ramp.position.set(
+      cfg.upperX,
+      this.floorY,
+      cfg.centerZ,
+    );
+
+    ramp.castShadow = true;
+    ramp.receiveShadow = true;
+    ramp.userData.skipWallMaterialUpdate = true;
+
+    this.registerMesh(ramp);
+
+    // ==========================================
+    // ВЕРХНЯЯ ПЛОЩАДКА КАК ПОЛНОЦЕННЫЙ БЛОК
+    // ==========================================
+
+    const platformSizeX =
+      cfg.platformDepth + cfg.platformOverlap;
+
+    const platform = new THREE.Mesh(
+      new THREE.BoxGeometry(
+        platformSizeX,
+        cfg.rise,
+        cfg.width,
+      ),
+      coatedMat,
+    );
+
+    platform.name = "Room1_TutorialRampPlatformSolid";
+
+    const platformCenterX =
+      cfg.upperX -
+      cfg.platformDepth / 2 +
+      cfg.platformOverlap / 2;
+
+    platform.position.set(
+      platformCenterX,
+      this.floorY + cfg.rise / 2,
+      cfg.centerZ,
+    );
+
+    platform.castShadow = true;
+    platform.receiveShadow = true;
+    platform.userData.skipWallMaterialUpdate = true;
+
+    this.registerMesh(platform);
+  }
+
+  buildRoom1TutorialRampPhysics() {
+    const cfg = this.getRoom1TutorialRampConfig();
+
+    // ==========================================
+    // ФИЗИКА ПАНДУСА
+    // ==========================================
+
+       // ==========================================
+    // ЦЕЛЬНАЯ ФИЗИКА ГОРКИ-КЛИНА
+    // ==========================================
+
+    const halfWidth = cfg.width / 2;
+    const run = Math.abs(cfg.lowerX - cfg.upperX);
+
+    const rampShape = new CANNON.ConvexPolyhedron({
+      vertices: [
+        // Задняя сторона
+        new CANNON.Vec3(0, 0, -halfWidth),        // 0
+        new CANNON.Vec3(0, cfg.rise, -halfWidth), // 1
+        new CANNON.Vec3(run, 0, -halfWidth),      // 2
+
+        // Передняя сторона
+        new CANNON.Vec3(0, 0, halfWidth),         // 3
+        new CANNON.Vec3(0, cfg.rise, halfWidth),  // 4
+        new CANNON.Vec3(run, 0, halfWidth),       // 5
+      ],
+
+      faces: [
+        [0, 1, 2],       // задняя треугольная стенка
+        [3, 5, 4],       // передняя треугольная стенка
+        [0, 2, 5, 3],    // низ
+        [0, 3, 4, 1],    // высокая вертикальная стенка
+        [1, 4, 5, 2],    // наклонная поверхность
+      ],
+    });
+
+    const rampBody = new CANNON.Body({
+      mass: 0,
+      material: this.matStandard,
+
+      collisionFilterGroup:
+        CONFIG.PHYSICS.GROUPS.SCENE,
+
+      collisionFilterMask:
+        CONFIG.PHYSICS.GROUPS.OBJECTS |
+        CONFIG.PHYSICS.GROUPS.TINY,
+    });
+
+    rampBody.addShape(rampShape);
+
+    rampBody.position.set(
+      cfg.upperX,
+      this.floorY,
+      cfg.centerZ,
+    );
+
+    this.addBody(rampBody);
+
+    // ==========================================
+    // ФИЗИКА ВЕРХНЕЙ ПЛОЩАДКИ
+    // ==========================================
+
+    // ==========================================
+    // ЦЕЛЬНЫЙ БЛОК ВЕРХНЕЙ ПЛОЩАДКИ
+    // ==========================================
+
+    const platformSizeX =
+      cfg.platformDepth + cfg.platformOverlap;
+
+    const platformCenterX =
+      cfg.upperX -
+      cfg.platformDepth / 2 +
+      cfg.platformOverlap / 2;
+
+    this.createPhysicsWall(
+      platformCenterX,
+      this.floorY + cfg.rise / 2,
+      cfg.centerZ,
+
+      platformSizeX / 2,
+      cfg.rise / 2,
+      cfg.width / 2,
+
+      this.matStandard,
+    );
   }
 
   buildSecondRoom() {
@@ -1604,39 +1841,26 @@ export class LevelBuilder {
     contactPad2.userData.skipWallMaterialUpdate = true;
     supportGroup.add(contactPad2);
 
-  this.registerMesh(supportGroup);
+    this.registerMesh(supportGroup);
 
-// ==========================================
-// КРАСНЫЙ КУБ — У ОТКРЫТОГО КРАЯ ПОЛКИ
-// ==========================================
+    // ==========================================
+    // КРАСНЫЙ КУБ — У ОТКРЫТОГО КРАЯ ПОЛКИ
+    // ==========================================
 
-const cubeHalf =
-  cfg.markerSize / 2;
+    const cubeHalf = cfg.markerSize / 2;
 
-// Небольшой безопасный отступ,
-// чтобы куб не сваливался сам.
-const cubeEdgeMargin = 0.22;
+    // Небольшой безопасный отступ,
+    // чтобы куб не сваливался сам.
+    const cubeEdgeMargin = 0.7;
 
-// Полка находится в правом переднем углу.
-// Открытый угол для игрока — направление -X / -Z.
-const cubeX =
-  centerX -
-  cfg.shelfD / 2 +
-  cubeHalf +
-  cubeEdgeMargin;
+    // Полка находится в правом переднем углу.
+    // Открытый угол для игрока — направление -X / -Z.
+    const cubeX = centerX - cfg.shelfD / 2 + cubeHalf + cubeEdgeMargin;
 
-const cubeZ =
-  centerZ -
-  cfg.shelfW / 2 +
-  cubeHalf +
-  cubeEdgeMargin;
+    const cubeZ = centerZ - cfg.shelfW / 2 + cubeHalf + cubeEdgeMargin;
 
-this.createRoom2GoalMarkerCube(
-  cubeX,
-  cubeZ,
-  cfg.topY,
-);
-}
+    this.createRoom2GoalMarkerCube(cubeX, cubeZ, cfg.topY);
+  }
 
   createRedMetalCubeTexture() {
     const canvas = document.createElement("canvas");
@@ -1836,7 +2060,7 @@ this.createRoom2GoalMarkerCube(
     this.registerMesh(marker);
 
     const body = new CANNON.Body({
-      mass: 38,
+      mass: 60,
       material: this.matBox,
       position: new CANNON.Vec3(
         marker.position.x,
@@ -1850,7 +2074,11 @@ this.createRoom2GoalMarkerCube(
         CONFIG.PHYSICS.GROUPS.TINY,
     });
 
-    body.addShape(new CANNON.Box(new CANNON.Vec3(half, half, half)));
+    const physicsHalf = half + edgeThickness / 2;
+
+    body.addShape(
+      new CANNON.Box(new CANNON.Vec3(physicsHalf, physicsHalf, physicsHalf)),
+    );
 
     body.linearDamping = 0.18;
     body.angularDamping = 0.48;
@@ -2491,7 +2719,7 @@ this.createRoom2GoalMarkerCube(
     // Без него белый кубик проваливается сквозь визуальный белый квадрат.
     this.createPhysicsWall(
       cfg.socketCenterX,
-      this.floorY + 0.04,
+      this.floorY - 0.04,
       cfg.socketZ,
       cfg.socketDepth / 2,
       0.04,
@@ -5363,6 +5591,8 @@ this.createRoom2GoalMarkerCube(
     this.createPhysicsWall(-9.375, wallCenterY, 15, 5.625, wallH / 2, 0.1);
     this.createPhysicsWall(9.375, wallCenterY, 15, 5.625, wallH / 2, 0.1);
     this.createPhysicsWall(0, 7.5, 15, 3.75, 5, 0.1); // Козырек
+    // Пандус и верхняя площадка комнаты 1.
+    this.buildRoom1TutorialRampPhysics();
   }
 
   buildRoom2Physics() {

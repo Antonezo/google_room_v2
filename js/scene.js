@@ -204,7 +204,7 @@ export class SceneManager {
       map: marbleBaseTex,
       normalMap: marbleNormalTex,
       roughnessMap: marbleRoughTex,
-      roughness: 0.2, // Можно будет подкрутить потом для глянцевости
+      roughness: 0.26, // Можно будет подкрутить потом для глянцевости
       metalness: 0.1,
     });
     const mesh = new THREE.Mesh(geometry, material);
@@ -681,7 +681,7 @@ export class SceneManager {
     this.scene.background = new THREE.Color(0x050505);
     this.scene.fog = new THREE.Fog(0x050505, 50, 150);
 
-    this.ambientLight.intensity = 0.15;
+this.ambientLight.intensity = 0.28;
 
     this.ringMesh.material.color.setHex(0x0088ff);
     this.ringMesh.material.emissive.setHex(0x0055ff);

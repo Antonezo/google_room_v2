@@ -3034,15 +3034,16 @@ if (
 
       // Управляем основным светом
       if (panel.rectLight) {
-        panel.rectLight.intensity = (isCorridor ? 15.0 : 25.0) * intensity;
+  panel.rectLight.intensity =
+  (isCorridor ? 5.0 : 9.0) * intensity;
         panel.rectLight.visible = isOn;
       }
 
       // Управляем теневым прожектором
-      if (panel.shadowLight) {
-        panel.shadowLight.intensity = (isCorridor ? 3.0 : 5.0) * intensity;
-        panel.shadowLight.visible = isOn;
-      }
+     if (panel.shadowLight) {
+  panel.shadowLight.intensity = 0;
+  panel.shadowLight.visible = false;
+}
     });
 
     // Временно отключаем старую голографическую подсветку пола

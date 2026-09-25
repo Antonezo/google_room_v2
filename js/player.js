@@ -1,9 +1,17 @@
-import * as THREE from 'three';
-import * as CANNON from 'cannon-es';
-import { CONFIG } from './config.js';
+import * as THREE from "three";
+import * as CANNON from "cannon-es";
+import { CONFIG } from "./config.js";
 
 export class PlayerController {
- constructor(world, scene, sceneManager, physicsManager, cameraPivot, startPos, interactivePlatforms = []) {
+  constructor(
+    world,
+    scene,
+    sceneManager,
+    physicsManager,
+    cameraPivot,
+    startPos,
+    interactivePlatforms = [],
+  ) {
     this.world = world;
     this.scene = scene;
     this.cameraPivot = cameraPivot;
@@ -12,7 +20,11 @@ export class PlayerController {
 
     // Инкапсулированное создание игрока
     this.mesh = sceneManager.createPlayerMesh(playerRadius);
-    this.body = physicsManager.createPlayerBody(playerRadius, CONFIG.PLAYER.MASS, startPos);
+    this.body = physicsManager.createPlayerBody(
+      playerRadius,
+      CONFIG.PLAYER.MASS,
+      startPos,
+    );
 
     // Инкапсулированная тень
     const shadowGeo = new THREE.CircleGeometry(playerRadius, 32);
@@ -21,15 +33,14 @@ export class PlayerController {
       color: 0x000000,
       transparent: true,
       opacity: 0.5,
-      depthWrite: false, 
+      depthWrite: false,
     });
     this.shadowMesh = new THREE.Mesh(shadowGeo, shadowMat);
     this.scene.add(this.shadowMesh);
-    
-    
-    this.interactivePlatforms = interactivePlatforms; 
+
+    this.interactivePlatforms = interactivePlatforms;
     // ДОБАВИЛИ КЕШ ТАЙМЕРОВ ДЛЯ ПЛАТФОРМ
-    this.platformTimers = new Map(); 
+    this.platformTimers = new Map();
 
     this.keys = { w: false, a: false, s: false, d: false, space: false };
     this.initInput();
@@ -37,8 +48,10 @@ export class PlayerController {
 
     this.isGrounded = false;
     this.coyoteTimer = 0;
+    this.hasGroundContact = false;
+
     this.radius = CONFIG.PLAYER.RADIUS || 1.5;
-        // Нормаль поверхности под шаром.
+    // Нормаль поверхности под шаром.
     // На ровном полу это (0, 1, 0).
     this.groundNormal = new CANNON.Vec3(0, 1, 0);
 
@@ -53,7 +66,7 @@ export class PlayerController {
   initInput() {
     window.addEventListener("keydown", (e) => {
       if (document.activeElement.tagName === "INPUT") return;
-      const key = e.code.replace('Key', '').toLowerCase();
+      const key = e.code.replace("Key", "").toLowerCase();
       if (this.keys.hasOwnProperty(key)) this.keys[key] = true;
       if (e.code === "Space") {
         e.preventDefault();
@@ -62,7 +75,7 @@ export class PlayerController {
     });
 
     window.addEventListener("keyup", (e) => {
-      const key = e.code.replace('Key', '').toLowerCase();
+      const key = e.code.replace("Key", "").toLowerCase();
       if (this.keys.hasOwnProperty(key)) this.keys[key] = false;
       if (e.code === "Space") this.keys.space = false;
     });
@@ -73,17 +86,17 @@ export class PlayerController {
   }
 
   checkGround(dt) {
-  let actualGroundContact = false;
-  let platformsPlayerIsOn = new Set();
+    let actualGroundContact = false;
+    let platformsPlayerIsOn = new Set();
 
-  let bestGroundNormalY = -Infinity;
-  let bestGroundNormal = null;
+    let bestGroundNormalY = -Infinity;
+    let bestGroundNormal = null;
 
     for (let i = 0; i < this.world.contacts.length; i++) {
       let contact = this.world.contacts[i];
 
       if (contact.bi === this.body || contact.bj === this.body) {
-                // Cannon хранит ni в направлении от bi к bj.
+        // Cannon хранит ni в направлении от bi к bj.
         // Нам нужна нормаль поверхности, всегда направленная вверх от пола к шару.
         let nx;
         let ny;
@@ -105,21 +118,25 @@ export class PlayerController {
           bestGroundNormalY = ny;
           bestGroundNormal = { x: nx, y: ny, z: nz };
         }
-        if (contact.bi === this.body && contact.ni.y < -0.1) actualGroundContact = true;
-        if (contact.bj === this.body && contact.ni.y > 0.1) actualGroundContact = true;
+        if (contact.bi === this.body && contact.ni.y < -0.1)
+          actualGroundContact = true;
+        if (contact.bj === this.body && contact.ni.y > 0.1)
+          actualGroundContact = true;
 
         if (this.interactivePlatforms) {
           this.interactivePlatforms.forEach((platform) => {
             if (contact.bi === platform.body || contact.bj === platform.body) {
-              if (contact.bi === this.body && contact.ni.y < -0.5) platformsPlayerIsOn.add(platform);
-              if (contact.bj === this.body && contact.ni.y > 0.5) platformsPlayerIsOn.add(platform);
+              if (contact.bi === this.body && contact.ni.y < -0.5)
+                platformsPlayerIsOn.add(platform);
+              if (contact.bj === this.body && contact.ni.y > 0.5)
+                platformsPlayerIsOn.add(platform);
             }
           });
         }
       }
     }
 
-        if (bestGroundNormal) {
+    if (bestGroundNormal) {
       this.groundNormal.set(
         bestGroundNormal.x,
         bestGroundNormal.y,
@@ -131,20 +148,21 @@ export class PlayerController {
       this.groundNormal.set(0, 1, 0);
     }
 
+    this.hasGroundContact = actualGroundContact;
     if (actualGroundContact) {
       this.coyoteTimer = 0.25;
     } else {
       this.coyoteTimer -= dt;
     }
-    
+
     this.isGrounded = this.coyoteTimer > 0;
 
     // МАГИЯ УМНЫХ КОРОБОК С ЗАЩИТОЙ ОТ ДРЕБЕЗГА
     if (this.interactivePlatforms) {
-      this.interactivePlatforms.forEach(platform => {
+      this.interactivePlatforms.forEach((platform) => {
         if (platformsPlayerIsOn.has(platform)) {
           // Игрок на платформе — даем ей 200мс "доверия"
-          this.platformTimers.set(platform, 0.2); 
+          this.platformTimers.set(platform, 0.2);
           platform.onPlayerLanded();
         } else {
           // Игрок потерял контакт. Уменьшаем таймер.
@@ -162,7 +180,7 @@ export class PlayerController {
   }
 
   update(dt) {
-   this.mesh.position.copy(this.body.interpolatedPosition);
+    this.mesh.position.copy(this.body.interpolatedPosition);
     this.mesh.quaternion.copy(this.body.interpolatedQuaternion);
 
     this.checkGround(dt);
@@ -170,7 +188,7 @@ export class PlayerController {
     let inputX = (this.keys.d ? 1 : 0) - (this.keys.a ? 1 : 0);
     let inputZ = (this.keys.s ? 1 : 0) - (this.keys.w ? 1 : 0);
 
-     // === НОВОЕ: БЛОКИРОВКА УПРАВЛЕНИЯ ДЛЯ КАТ-СЦЕН ===
+    // === НОВОЕ: БЛОКИРОВКА УПРАВЛЕНИЯ ДЛЯ КАТ-СЦЕН ===
     if (this.isLocked) {
       inputX = 0;
       inputZ = 0;
@@ -180,15 +198,11 @@ export class PlayerController {
     const hasMoveInput = inputX !== 0 || inputZ !== 0;
     const wantsJump = this.keys.space && this.isGrounded;
 
-        // ==========================================
+    // ==========================================
     // ПАРАМЕТРЫ ТЕКУЩЕГО СКЛОНА
     // ==========================================
 
-    const groundNormalY = THREE.MathUtils.clamp(
-      this.groundNormal.y,
-      -1,
-      1,
-    );
+    const groundNormalY = THREE.MathUtils.clamp(this.groundNormal.y, -1, 1);
 
     const slopeAngle = Math.acos(groundNormalY);
 
@@ -213,7 +227,6 @@ export class PlayerController {
     const uphillDir = downhillDir.clone().multiplyScalar(-1);
 
     if (hasMoveInput) {
-
       this._forward.set(0, 0, -1).applyQuaternion(this.cameraPivot.quaternion);
       this._forward.y = 0;
       this._forward.normalize();
@@ -222,15 +235,13 @@ export class PlayerController {
       this._right.y = 0;
       this._right.normalize();
 
-      this._moveDir.set(0, 0, 0)
+      this._moveDir
+        .set(0, 0, 0)
         .addScaledVector(this._right, inputX)
         .addScaledVector(this._forward, -inputZ)
         .normalize();
 
-       this._torqueAxis.crossVectors(
-        this._moveDir,
-        new THREE.Vector3(0, 1, 0),
-      );
+      this._torqueAxis.crossVectors(this._moveDir, new THREE.Vector3(0, 1, 0));
 
       // ==========================================
       // СОПРОТИВЛЕНИЕ ПОДЪЁМУ
@@ -239,7 +250,7 @@ export class PlayerController {
       let torqueMultiplier = 1.0;
 
       if (
-        this.isGrounded &&
+        this.hasGroundContact &&
         slopeStrength > 0.01 &&
         downhillDir.lengthSq() > 0.0001
       ) {
@@ -247,24 +258,23 @@ export class PlayerController {
         // 1 = точно вверх
         // 0 = поперёк
         // -1 = точно вниз
-        const uphillAmount =
-          this._moveDir.dot(uphillDir);
+        const uphillAmount = this._moveDir.dot(uphillDir);
 
-if (uphillAmount > 0) {
-  // Скорость вдоль склона со знаком:
-  //
-  // > 0 — движемся вверх
-  // < 0 — скатываемся вниз
-  const signedUphillSpeed =
-    this.body.velocity.x * uphillDir.x +
-    this.body.velocity.z * uphillDir.z;
+        if (uphillAmount > 0) {
+          // Скорость вдоль склона со знаком:
+          //
+          // > 0 — движемся вверх
+          // < 0 — скатываемся вниз
+          const signedUphillSpeed =
+            this.body.velocity.x * uphillDir.x +
+            this.body.velocity.z * uphillDir.z;
 
-  // ==========================================
-  // 1. ТОРМОЖЕНИЕ ПРИ СКАТЫВАНИИ
-  // ==========================================
+          // ==========================================
+          // 1. ТОРМОЖЕНИЕ ПРИ СКАТЫВАНИИ
+          // ==========================================
 
-  if (signedUphillSpeed < -0.2) {
-    /*
+          if (signedUphillSpeed < -0.2) {
+            /*
       Здесь НЕ увеличиваем торможение вместе со скоростью.
 
       Поэтому быстро разогнавшийся шар имеет большую
@@ -272,102 +282,85 @@ if (uphillAmount > 0) {
       чтобы остановиться.
     */
 
-  const brakeAcceleration =
-  8.5 *
-  THREE.MathUtils.lerp(
-    1.0,
-    0.82,
-    slopeStrength,
-  ) *
-  uphillAmount;
+            const brakeAcceleration =
+              20.0 *
+              THREE.MathUtils.lerp(1.0, 0.82, slopeStrength) *
+              uphillAmount;
 
-    this._forceVec.set(
-      uphillDir.x *
-        brakeAcceleration *
-        this.body.mass,
+            this._forceVec.set(
+              uphillDir.x * brakeAcceleration * this.body.mass,
 
-      0,
+              0,
 
-      uphillDir.z *
-        brakeAcceleration *
-        this.body.mass,
-    );
+              uphillDir.z * brakeAcceleration * this.body.mass,
+            );
 
-    this.body.applyForce(
-      this._forceVec,
-      new CANNON.Vec3(0, 0, 0),
-    );
+            this.body.applyForce(this._forceVec, new CANNON.Vec3(0, 0, 0));
 
-    // В режиме торможения обычный вращающий момент
-    // сильно уменьшаем, иначе он тормозит слишком резко.
-    torqueMultiplier *= 0.18;
-  }
+            // В режиме торможения обычный вращающий момент
+            // сильно уменьшаем, иначе он тормозит слишком резко.
+            torqueMultiplier *= 0.55;
+          }
 
-  // ==========================================
-  // 2. ДВИЖЕНИЕ ВВЕРХ
-  // ==========================================
+          // ==========================================
+          // 2. ДВИЖЕНИЕ ВВЕРХ
+          // ==========================================
+          else {
+            const uphillSpeed = Math.max(0, signedUphillSpeed);
 
-else {
-  const uphillSpeed = Math.max(
-    0,
-    signedUphillSpeed,
-  );
+            // Скорость, которую шар способен поддерживать
+            // при обычном движении вверх.
+            // Чем круче склон — тем она меньше.
+            const sustainedUphillSpeed = THREE.MathUtils.lerp(
+              7.5,
+              2.2,
+              slopeStrength,
+            );
 
-  // Скорость, которую шар способен поддерживать
-  // при обычном движении вверх.
-  // Чем круче склон — тем она меньше.
-  const sustainedUphillSpeed =
-    THREE.MathUtils.lerp(
-      7.5,
-      2.2,
-      slopeStrength,
-    );
+            // Насколько текущая скорость близка
+            // к нормальной скорости подъёма.
+            const speedRatio = THREE.MathUtils.clamp(
+              uphillSpeed / sustainedUphillSpeed,
+              0,
+              1,
+            );
 
-  // Насколько текущая скорость близка
-  // к нормальной скорости подъёма.
-  const speedRatio =
-    THREE.MathUtils.clamp(
-      uphillSpeed / sustainedUphillSpeed,
-      0,
-      1,
-    );
+            // На крутом склоне тяга слабее.
+            const baseUphillTorque = THREE.MathUtils.lerp(
+              0.82,
+              0.24,
+              slopeStrength,
+            );
 
-  // На крутом склоне тяга слабее.
-  const baseUphillTorque =
-    THREE.MathUtils.lerp(
-      0.82,
-      0.24,
-      slopeStrength,
-    );
+            // При маленькой скорости немного помогаем,
+            // чтобы шар мог продолжать карабкаться.
+            const lowSpeedAssist = THREE.MathUtils.lerp(2.2, 1.0, speedRatio);
 
-  // При маленькой скорости немного помогаем,
-  // чтобы шар мог продолжать карабкаться.
-  const lowSpeedAssist =
-    THREE.MathUtils.lerp(
-      1.5,
-      1.0,
-      speedRatio,
-    );
-
-  torqueMultiplier *=
-    baseUphillTorque *
-    lowSpeedAssist *
-    uphillAmount +
-    (1.0 - uphillAmount);
-}
-}
+            torqueMultiplier *=
+              baseUphillTorque * lowSpeedAssist * uphillAmount +
+              (1.0 - uphillAmount);
+          }
+        }
       }
 
-      const torqueForce =
-        -6000.0 * torqueMultiplier;
+      const horizontalSpeed = Math.hypot(
+        this.body.velocity.x,
+        this.body.velocity.z,
+      );
+
+      const speedRatio = THREE.MathUtils.clamp(horizontalSpeed / 10.0, 0, 1);
+
+      const driveFactor = THREE.MathUtils.lerp(0.55, 1.0, speedRatio);
+
+      const torqueForce = -7200.0 * torqueMultiplier * driveFactor;
 
       this._torqueVec.set(
         this._torqueAxis.x * torqueForce,
         this._torqueAxis.y * torqueForce,
         this._torqueAxis.z * torqueForce,
       );
-      
-           // Управление в воздухе должно быть слабым,
+
+      // Управление в воздухе должно быть слабым,
       // иначе шар перелетает маленькие платформы и ступени.
       const airForce = 320.0;
       this._forceVec.set(
@@ -377,101 +370,72 @@ else {
       );
     }
 
-    if (this.isGrounded) {
-          // ==========================================
-    // ДОПОЛНИТЕЛЬНАЯ ГРАВИТАЦИЯ ВДОЛЬ СКЛОНА
-    // ==========================================
+    if (this.hasGroundContact) {
+      // ==========================================
+      // ДОПОЛНИТЕЛЬНАЯ ГРАВИТАЦИЯ ВДОЛЬ СКЛОНА
+      // ==========================================
 
-    if (
-      slopeStrength > 0.01 &&
-      downhillDir.lengthSq() > 0.0001
-    ) {
-      const downhillSpeed = Math.max(
-        0,
-        this.body.velocity.x * downhillDir.x +
-        this.body.velocity.z * downhillDir.z,
+      if (slopeStrength > 0.01 && downhillDir.lengthSq() > 0.0001) {
+        const downhillSpeed = Math.max(
+          0,
+          this.body.velocity.x * downhillDir.x +
+            this.body.velocity.z * downhillDir.z,
+        );
+
+        // Скорость слегка усиливает дальнейший разгон,
+        // но коэффициент жёстко ограничен.
+        const speedBoost = THREE.MathUtils.clamp(downhillSpeed / 10.5, 0, 1);
+
+        // Нелинейная зависимость от угла:
+        // маленькие наклоны почти не затрагиваем,
+        // крутые становятся заметно "тяжелее".
+        const angleBoost = Math.pow(slopeStrength, 1.45);
+
+        const extraDownhillAcceleration =
+          7.0 * angleBoost * (1.0 + speedBoost * 0.35);
+
+        this._forceVec.set(
+          downhillDir.x * extraDownhillAcceleration * this.body.mass,
+
+          0,
+
+          downhillDir.z * extraDownhillAcceleration * this.body.mass,
+        );
+
+        this.body.applyForce(this._forceVec, new CANNON.Vec3(0, 0, 0));
+      }
+      if (hasMoveInput && !wantsJump) {
+        this.body.wakeUp();
+        this.body.applyTorque(this._torqueVec);
+      } else {
+        // На почти горизонтальной поверхности сохраняем привычное торможение.
+        // На склоне не мешаем гравитации естественно разгонять шар вниз.
+        const isNearlyFlat = this.groundNormal.y > 0.995;
+
+        if (isNearlyFlat) {
+          this.body.angularVelocity.scale(0.96, this.body.angularVelocity);
+
+          this.body.velocity.x *= 0.98;
+          this.body.velocity.z *= 0.98;
+        }
+      }
+
+      // Максимальная скорость шара по земле.
+      // Ограничиваем только горизонтальное движение,
+      // чтобы не затрагивать прыжки и падение.
+      const maxGroundHorizontalSpeed = 15.0;
+
+      const groundHorizontalSpeed = Math.hypot(
+        this.body.velocity.x,
+        this.body.velocity.z,
       );
 
-      // Скорость слегка усиливает дальнейший разгон,
-      // но коэффициент жёстко ограничен.
-      const speedBoost = THREE.MathUtils.clamp(
-        downhillSpeed / 10.5,
-        0,
-        1,
-      );
-
-      // Нелинейная зависимость от угла:
-      // маленькие наклоны почти не затрагиваем,
-      // крутые становятся заметно "тяжелее".
-      const angleBoost =
-        Math.pow(slopeStrength, 1.45);
-
-      const extraDownhillAcceleration =
-        7.0 *
-        angleBoost *
-        (1.0 + speedBoost * 0.35);
-
-      this._forceVec.set(
-        downhillDir.x *
-          extraDownhillAcceleration *
-          this.body.mass,
-
-        0,
-
-        downhillDir.z *
-          extraDownhillAcceleration *
-          this.body.mass,
-      );
-
-    this.body.applyForce(
-  this._forceVec,
-  new CANNON.Vec3(0, 0, 0),
-);
-    }
-  if (hasMoveInput && !wantsJump) {
-    this.body.wakeUp();
-    this.body.applyTorque(this._torqueVec);
-
-    const maxSpin = 35.0;
-    if (this.body.angularVelocity.length() > maxSpin) {
-      this.body.angularVelocity.scale(
-        maxSpin / this.body.angularVelocity.length(),
-        this.body.angularVelocity
-      );
-    }
-  } else {
-  // На почти горизонтальной поверхности сохраняем привычное торможение.
-  // На склоне не мешаем гравитации естественно разгонять шар вниз.
-  const isNearlyFlat = this.groundNormal.y > 0.995;
-
-  if (isNearlyFlat) {
-    this.body.angularVelocity.scale(
-      0.96,
-      this.body.angularVelocity,
-    );
-
-    this.body.velocity.x *= 0.98;
-    this.body.velocity.z *= 0.98;
-  }
-}
-
-  // Максимальная скорость шара по земле.
-  // Ограничиваем только горизонтальное движение,
-  // чтобы не затрагивать прыжки и падение.
-  const maxGroundHorizontalSpeed = 15.0;
-
-  const groundHorizontalSpeed = Math.hypot(
-    this.body.velocity.x,
-    this.body.velocity.z,
-  );
-
-  if (groundHorizontalSpeed > maxGroundHorizontalSpeed) {
-    const k = maxGroundHorizontalSpeed / groundHorizontalSpeed;
-    this.body.velocity.x *= k;
-    this.body.velocity.z *= k;
-  }
-
-} else {
+      if (groundHorizontalSpeed > maxGroundHorizontalSpeed) {
+        const k = maxGroundHorizontalSpeed / groundHorizontalSpeed;
+        this.body.velocity.x *= k;
+        this.body.velocity.z *= k;
+      }
+    } else {
       if (inputX !== 0 || inputZ !== 0) {
         this.body.wakeUp();
         this.body.applyForce(this._forceVec, new CANNON.Vec3(0, 0, 0));
@@ -495,34 +459,39 @@ else {
         this.body.velocity.x *= k;
         this.body.velocity.z *= k;
       }
-
-      this.body.angularVelocity.scale(0.92, this.body.angularVelocity);
     }
 
-      if (wantsJump) {
+    if (wantsJump) {
       this.body.wakeUp();
 
       // При прыжке с разбега даём чуть больше вертикали,
       // чтобы шар не цеплялся за край ступеньки.
-      this.body.velocity.y =  hasMoveInput ? 12.2 : 11.2;
+      this.body.velocity.y = hasMoveInput ? 12.2 : 11.2;
 
-      // Убираем лишнюю раскрутку в момент отрыва.
-      // Иначе шар может продолжать буксовать/давить в край блока.
-      this.body.angularVelocity.scale(0.45, this.body.angularVelocity);
+const horizontalTakeoffSpeed = Math.hypot(
+  this.body.velocity.x,
+  this.body.velocity.z,
+);
 
-      // Не даём горизонтальной скорости стать слишком большой при отрыве.
-      // Это не тормозит разбег полностью, а только убирает чрезмерный "влёт" в стенку.
-      const maxTakeoffHorizontalSpeed = 8.0;
-      const takeoffSpeed = Math.hypot(
-        this.body.velocity.x,
-        this.body.velocity.z,
-      );
+if (horizontalTakeoffSpeed > 0.01) {
+  const speedRatio = THREE.MathUtils.clamp(
+    horizontalTakeoffSpeed / 15.0,
+    0,
+    1,
+  );
 
-      if (takeoffSpeed > maxTakeoffHorizontalSpeed) {
-        const k = maxTakeoffHorizontalSpeed / takeoffSpeed;
-        this.body.velocity.x *= k;
-        this.body.velocity.z *= k;
-      }
+  const airSpinFactor = THREE.MathUtils.lerp(
+    0.72,
+    0.38,
+    speedRatio,
+  );
+
+  this.body.angularVelocity.set(
+    (this.body.velocity.z / this.radius) * airSpinFactor,
+    0,
+    (-this.body.velocity.x / this.radius) * airSpinFactor,
+  );
+}
 
       this.isGrounded = false;
       this.coyoteTimer = 0;
@@ -534,11 +503,16 @@ else {
   updateShadow() {
     if (!this.shadowMesh) return;
     const floorY = CONFIG.WORLD.FLOOR_LEVEL;
-    this.shadowMesh.position.set(this.body.interpolatedPosition.x, floorY + 0.05, this.body.interpolatedPosition.z);
-    
-    const heightOffset = this.body.interpolatedPosition.y - this.radius - floorY;
+    this.shadowMesh.position.set(
+      this.body.interpolatedPosition.x,
+      floorY + 0.05,
+      this.body.interpolatedPosition.z,
+    );
+
+    const heightOffset =
+      this.body.interpolatedPosition.y - this.radius - floorY;
     let shadowScale = Math.max(0.2, 1.0 - heightOffset / 12.0);
-    
+
     this.shadowMesh.scale.set(shadowScale, shadowScale, shadowScale);
     this.shadowMesh.material.opacity = 0.5 * shadowScale;
   }

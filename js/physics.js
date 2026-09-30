@@ -2,22 +2,22 @@ import * as CANNON from "cannon-es";
 import { CONFIG } from "./config.js";
 
 export class PhysicsManager {
-constructor() {
+  constructor() {
     this.world = new CANNON.World({
       gravity: new CANNON.Vec3(0, CONFIG.WORLD.GRAVITY, 0),
     });
     this.matStandard = new CANNON.Material("standard");
     this.matBouncy = new CANNON.Material("bouncy");
     this.matSlippery = new CANNON.Material("slippery");
-    
+
     // === НОВЫЙ МАТЕРИАЛ ДЛЯ ТЯЖЕЛОГО ШАРА ===
     this.matHeavy = new CANNON.Material("heavy");
 
-// === НОВЫЙ МАТЕРИАЛ ДЛЯ ИНТЕРАКТИВНЫХ КОРОБОК ===
+    // === НОВЫЙ МАТЕРИАЛ ДЛЯ ИНТЕРАКТИВНЫХ КОРОБОК ===
     this.matBox = new CANNON.Material("box");
-    
-// Верхняя поверхность интерактивных коробок.
-// Она должна быть цепкой, чтобы шар мог ехать по блоку.
+
+    // Верхняя поверхность интерактивных коробок.
+    // Она должна быть цепкой, чтобы шар мог ехать по блоку.
     this.matBoxTop = new CANNON.Material("boxTop");
 
     this.world.addContactMaterial(
@@ -39,7 +39,7 @@ constructor() {
       }),
     );
 
-// === ПРАВИЛА СТОЛКНОВЕНИЯ: ТЯЖЕЛЫЙ ШАР + КОРОБКА ===
+    // === ПРАВИЛА СТОЛКНОВЕНИЯ: ТЯЖЕЛЫЙ ШАР + КОРОБКА ===
     this.world.addContactMaterial(
       new CANNON.ContactMaterial(this.matBox, this.matHeavy, {
         // Низкое трение, чтобы шар толкал блок,
@@ -47,66 +47,204 @@ constructor() {
         friction: 0.02,
         restitution: 0.0,
         contactEquationStiffness: 1e8,
-        contactEquationRelaxation: 3
+        contactEquationRelaxation: 3,
       }),
     );
 
-// === ПРАВИЛА СТОЛКНОВЕНИЯ: ТЯЖЕЛЫЙ ШАР + ВЕРХ КОРОБКИ ===
+    // === ПРАВИЛА СТОЛКНОВЕНИЯ: ТЯЖЕЛЫЙ ШАР + ВЕРХ КОРОБКИ ===
     this.world.addContactMaterial(
       new CANNON.ContactMaterial(this.matBoxTop, this.matHeavy, {
         friction: 1.5,
         restitution: 0.0,
         contactEquationStiffness: 1e8,
-        contactEquationRelaxation: 3
+        contactEquationRelaxation: 3,
       }),
     );
 
- // === ПРАВИЛА СТОЛКНОВЕНИЯ: КОРОБКА + ПОЛ ===
+    // === ПРАВИЛА СТОЛКНОВЕНИЯ: КОРОБКА + ПОЛ ===
     this.world.addContactMaterial(
       new CANNON.ContactMaterial(this.matBox, this.matStandard, {
-        friction: 0.01,    // <--- Почти идеальный лёд/колёса
-        restitution: 0.0,  // Никакой прыгучести
+        friction: 0.01, // Очень низкое трение: блок скользит по полу без зацепа ребром.
+        restitution: 0.0, // Никакой прыгучести
         contactEquationStiffness: 1e7,
-        contactEquationRelaxation: 3
+        contactEquationRelaxation: 3,
       }),
     );
 
     // === ПРАВИЛА СТОЛКНОВЕНИЯ: КОРОБКА + СКОЛЬЗКАЯ СТЕНА ===
-//
-// Стены комнат используют matSlippery.
-// Без отдельного ContactMaterial Cannon применяет настройки по умолчанию,
-// из-за чего зажатый у стены блок может резко отбрасываться обратно.
-this.world.addContactMaterial(
-  new CANNON.ContactMaterial(this.matBox, this.matSlippery, {
-    friction: 0.0,
-    restitution: 0.0,
-    contactEquationStiffness: 1e7,
-    contactEquationRelaxation: 4,
-  }),
-);
+    //
+    // Стены комнат используют matSlippery.
+    // Без отдельного ContactMaterial Cannon применяет настройки по умолчанию,
+    // из-за чего зажатый у стены блок может резко отбрасываться обратно.
+    this.world.addContactMaterial(
+      new CANNON.ContactMaterial(this.matBox, this.matSlippery, {
+        friction: 0.0,
+        restitution: 0.0,
+        contactEquationStiffness: 1e7,
+        contactEquationRelaxation: 4,
+      }),
+    );
 
-   // === ПРАВИЛА СТОЛКНОВЕНИЯ: ТЯЖЕЛЫЙ ШАР + СТЕНА/ПОЛ ===
+    // === ПРАВИЛА СТОЛКНОВЕНИЯ: ТЯЖЕЛЫЙ ШАР + СТЕНА/ПОЛ ===
     this.world.addContactMaterial(
       new CANNON.ContactMaterial(this.matStandard, this.matHeavy, {
         friction: 1.2,
         restitution: 0.15, // <--- СНИЗИЛИ ДО МИНИМУМА (было 0.35)
-        contactEquationStiffness: 5e7, 
-        contactEquationRelaxation: 4
+        contactEquationStiffness: 5e7,
+        contactEquationRelaxation: 4,
       }),
     );
 
     // === ПРАВИЛА СТОЛКНОВЕНИЯ: ТЯЖЕЛЫЙ ШАР + СКОЛЬЗКАЯ СТЕНА ===
     this.world.addContactMaterial(
       new CANNON.ContactMaterial(this.matSlippery, this.matHeavy, {
-        friction: 0.0,      // Идеально скользко! Никакого эффекта "шины".
-        restitution: 0.15,  // Отскок такой же глухой, как у пола
+        friction: 0.0, // Идеально скользко! Никакого эффекта "шины".
+        restitution: 0.15, // Отскок такой же глухой, как у пола
         contactEquationStiffness: 5e7,
-        contactEquationRelaxation: 4
+        contactEquationRelaxation: 4,
       }),
     );
-    
+
     this._tempForce = new CANNON.Vec3();
+    // Настраиваем настоящее направленное трение:
+// верхние поверхности matBox цепкие,
+// боковые поверхности matBox скользкие.
+this.installDirectionalBoxFriction();
   }
+
+installDirectionalBoxFriction() {
+  const narrowphase = this.world.narrowphase;
+
+  // Сохраняем оригинальный метод Cannon.
+  const originalCreateFriction =
+    narrowphase.createFrictionEquationsFromContact.bind(narrowphase);
+
+  narrowphase.createFrictionEquationsFromContact = (
+    contactEquation,
+    outArray,
+  ) => {
+    // Запоминаем, сколько уравнений трения было до этого контакта.
+    const startIndex = outArray.length;
+
+    // Сначала Cannon создаёт свои обычные FrictionEquation.
+    const created = originalCreateFriction(
+      contactEquation,
+      outArray,
+    );
+
+    if (!created) {
+      return created;
+    }
+
+    const bodyA = contactEquation.bi;
+    const bodyB = contactEquation.bj;
+
+    if (!bodyA || !bodyB) {
+      return created;
+    }
+
+    // Нас интересует только:
+    //
+    // шар игрока (matHeavy)
+    //          ↕
+    // динамическая фигура (matBox)
+    const isHeavyBoxPair =
+      (bodyA.material === this.matHeavy &&
+        bodyB.material === this.matBox) ||
+      (bodyA.material === this.matBox &&
+        bodyB.material === this.matHeavy);
+
+    if (!isHeavyBoxPair) {
+      return created;
+    }
+
+    // ==========================================
+    // НОРМАЛЬ ПОВЕРХНОСТИ ФИГУРЫ В СТОРОНУ ШАРА
+    // ==========================================
+    //
+    // contactEquation.ni направлена от bodyA к bodyB.
+    //
+    // Нам нужно понять не порядок тел,
+    // а насколько поверхность matBox смотрит ВВЕРХ.
+
+    let surfaceNormalY;
+
+    if (bodyA.material === this.matHeavy) {
+      // A = шар
+      // B = фигура
+      //
+      // ni идёт от шара к фигуре,
+      // значит нормаль фигуры в сторону шара противоположна.
+      surfaceNormalY = -contactEquation.ni.y;
+    } else {
+      // A = фигура
+      // B = шар
+      //
+      // ni уже идёт от фигуры к шару.
+      surfaceNormalY = contactEquation.ni.y;
+    }
+
+    // ==========================================
+    // ВЫБИРАЕМ КОЭФФИЦИЕНТ ТРЕНИЯ
+    // ==========================================
+
+    const UPWARD_SURFACE_THRESHOLD = 0.93;
+
+    // Такое же нормальное сцепление, как у пола.
+    const TOP_FRICTION = 0.75;
+
+    // Почти скользкая боковая грань.
+    const SIDE_FRICTION = 0.02;
+
+    const friction =
+      surfaceNormalY > UPWARD_SURFACE_THRESHOLD
+        ? TOP_FRICTION
+        : SIDE_FRICTION;
+
+    // ==========================================
+    // ПОВТОРЯЕМ ШТАТНЫЙ РАСЧЁТ CANNON
+    // ==========================================
+    //
+    // Cannon использует:
+    //
+    // friction × gravity × reducedMass
+    //
+    // Мы не создаём собственную физику.
+    // Только меняем допустимую силу уже созданных
+    // Cannon FrictionEquation.
+
+    const frictionGravity =
+      this.world.frictionGravity || this.world.gravity;
+
+    const gravityStrength = frictionGravity.length();
+
+    let reducedMass =
+      bodyA.invMass + bodyB.invMass;
+
+    if (reducedMass > 0) {
+      reducedMass = 1 / reducedMass;
+    }
+
+    const maxFrictionForce =
+      friction *
+      gravityStrength *
+      reducedMass;
+
+    // Для одного контакта Cannon обычно добавляет
+    // две касательные FrictionEquation.
+    //
+    // Меняем только те, которые были созданы
+    // непосредственно этим контактом.
+    for (let i = startIndex; i < outArray.length; i++) {
+      const frictionEquation = outArray[i];
+
+      frictionEquation.minForce = -maxFrictionForce;
+      frictionEquation.maxForce = maxFrictionForce;
+    }
+
+    return created;
+  };
+}
 
   createStaticPlane(pos, rot, configGroups) {
     const body = new CANNON.Body({
@@ -122,7 +260,7 @@ this.world.addContactMaterial(
     return body;
   }
 
-createWallWithHole(
+  createWallWithHole(
     width,
     height,
     thickness,
@@ -133,7 +271,7 @@ createWallWithHole(
     configGroups,
   ) {
     const body = new CANNON.Body({
-      mass: 0, 
+      mass: 0,
       material: this.matSlippery, // <--- БЫЛ matStandard, СТАЛ matSlippery
       collisionFilterGroup: configGroups.SCENE,
       collisionFilterMask: configGroups.OBJECTS | configGroups.TINY,
@@ -186,38 +324,45 @@ createWallWithHole(
     this.world.addBody(body);
     return body;
   }
-  
+
   // НОВЫЙ МЕТОД ДЛЯ ШАРА-ИГРОКА
 
-createPlayerBody(radius, mass, posVec) {
+  createPlayerBody(radius, mass, posVec) {
     const shape = new CANNON.Sphere(radius);
     const body = new CANNON.Body({
       mass: mass,
       material: this.matHeavy, // <--- ИЗМЕНИЛИ: теперь он "Тяжелый", а не "Стандартный"
       position: new CANNON.Vec3(posVec.x, posVec.y, posVec.z),
       collisionFilterGroup: 2, // Группа OBJECTS
-      collisionFilterMask: 3,  // Сталкивается с 1 и 2
+      collisionFilterMask: 3, // Сталкивается с 1 и 2
     });
 
-    body.addShape(shape); 
+    body.addShape(shape);
 
-  body.linearDamping = 0.05; // Почти не тормозит об воздух
+    body.linearDamping = 0.05; // Почти не тормозит об воздух
     body.angularDamping = 0.4; // Чуть снизили, тормозить будет за счет трения качения
 
     // Учим шар чувствовать микро-вибрации перед сном
     body.sleepSpeedLimit = 0.02; // По умолчанию 0.1. Позволяем дребезжать на низких скоростях.
-    body.sleepTimeLimit = 1.5;   // Даем ему полторы секунды на вибрации, прежде чем "уснуть".
+    body.sleepTimeLimit = 1.5; // Даем ему полторы секунды на вибрации, прежде чем "уснуть".
 
     this.world.addBody(body);
     return body;
   }
 
-  step(dt, isSlowMo) {
-    const timeScale = isSlowMo ? 0.2 : 1.0;
-    const scaledDt = dt * timeScale;
-    const fixedTimeStep = (1 / 60) * timeScale;
-    this.world.step(fixedTimeStep, scaledDt, 20);
-  }
+
+
+step(dt, isSlowMo) {
+  const timeScale = isSlowMo ? 0.2 : 1.0;
+  const scaledDt = dt * timeScale;
+  const fixedTimeStep = (1 / 60) * timeScale;
+
+  this.world.step(
+    fixedTimeStep,
+    scaledDt,
+    20,
+  );
+}
 
   applyEnvironmentForces(
     letterBodies,

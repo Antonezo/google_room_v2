@@ -112,12 +112,11 @@ export class PlayerController {
           nz = contact.ni.z;
         }
 
-        // Из всех контактов выбираем наиболее "земляной".
-        // Это защищает от бокового контакта со стеной.
         if (ny > 0.1 && ny > bestGroundNormalY) {
           bestGroundNormalY = ny;
           bestGroundNormal = { x: nx, y: ny, z: nz };
         }
+
         if (contact.bi === this.body && contact.ni.y < -0.1)
           actualGroundContact = true;
         if (contact.bj === this.body && contact.ni.y > 0.1)
@@ -404,7 +403,11 @@ export class PlayerController {
 
         this.body.applyForce(this._forceVec, new CANNON.Vec3(0, 0, 0));
       }
-      if (hasMoveInput && !wantsJump) {
+
+      const hasEffectiveDrive =
+        hasMoveInput && this._torqueAxis.lengthSq() > 0.0001;
+
+      if (hasEffectiveDrive && !wantsJump) {
         this.body.wakeUp();
         this.body.applyTorque(this._torqueVec);
       } else {
@@ -468,30 +471,26 @@ export class PlayerController {
       // чтобы шар не цеплялся за край ступеньки.
       this.body.velocity.y = hasMoveInput ? 12.2 : 11.2;
 
-const horizontalTakeoffSpeed = Math.hypot(
-  this.body.velocity.x,
-  this.body.velocity.z,
-);
+      const horizontalTakeoffSpeed = Math.hypot(
+        this.body.velocity.x,
+        this.body.velocity.z,
+      );
 
-if (horizontalTakeoffSpeed > 0.01) {
-  const speedRatio = THREE.MathUtils.clamp(
-    horizontalTakeoffSpeed / 15.0,
-    0,
-    1,
-  );
+      if (horizontalTakeoffSpeed > 0.01) {
+        const speedRatio = THREE.MathUtils.clamp(
+          horizontalTakeoffSpeed / 15.0,
+          0,
+          1,
+        );
 
-  const airSpinFactor = THREE.MathUtils.lerp(
-    0.72,
-    0.38,
-    speedRatio,
-  );
+        const airSpinFactor = THREE.MathUtils.lerp(0.72, 0.38, speedRatio);
 
-  this.body.angularVelocity.set(
-    (this.body.velocity.z / this.radius) * airSpinFactor,
-    0,
-    (-this.body.velocity.x / this.radius) * airSpinFactor,
-  );
-}
+        this.body.angularVelocity.set(
+          (this.body.velocity.z / this.radius) * airSpinFactor,
+          0,
+          (-this.body.velocity.x / this.radius) * airSpinFactor,
+        );
+      }
 
       this.isGrounded = false;
       this.coyoteTimer = 0;

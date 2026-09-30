@@ -852,7 +852,15 @@ export class LevelBuilder {
     return material;
   }
 
-  createPushableBlock({ name, size, position, mass, material }) {
+  createPushableBlock({
+    name,
+    size,
+    position,
+    mass,
+    material,
+    slideResistance = 8.0,
+    impactTurnSensitivity = 1.4,
+  }) {
     const halfX = size.x / 2;
     const halfY = size.y / 2;
     const halfZ = size.z / 2;
@@ -887,68 +895,53 @@ export class LevelBuilder {
 
     body.addShape(new CANNON.Box(new CANNON.Vec3(halfX, halfY, halfZ)));
 
-    // Блоки теперь могут естественно поворачиваться,
-    // если шар толкнул их не по центру, а в край.
-    // Но разрешаем только поворот вокруг вертикальной оси Y,
-    // чтобы они не заваливались набок и не ломали механику ступенек.
+    // Разрешаем естественное вращение по всем трём осям.
+    // При обычном толчке блок должен в основном скользить и поворачиваться,
+    // но при падении или сильном ударе он может наклониться и перевернуться.
     body.fixedRotation = false;
-    body.angularFactor = new CANNON.Vec3(0, 1, 0);
+    body.angularFactor = new CANNON.Vec3(1, 1, 1);
     body.updateMassProperties();
 
-    body.linearDamping = 0.22;
+    body.linearDamping = 0.55;
     body.angularDamping = 0.35;
     body.sleepSpeedLimit = 0.03;
     body.sleepTimeLimit = 0.8;
 
     this.addBody(body);
 
-    // Невидимая цепкая площадка сверху.
-    // Она чуть меньше блока по X/Z, чтобы шар не цеплялся за её боковые края.
-    const topThickness = 0.04;
-    const topGap = 0.01;
-    const topInset = 0.25;
+    body.addEventListener("collide", (event) => {
+      const otherBody = event.body;
 
-    const topBody = new CANNON.Body({
-      mass: 0,
-      type: CANNON.Body.KINEMATIC,
-      material: this.matBoxTop,
-      collisionFilterGroup: CONFIG.PHYSICS.GROUPS.SCENE,
-      collisionFilterMask:
-        CONFIG.PHYSICS.GROUPS.OBJECTS | CONFIG.PHYSICS.GROUPS.TINY,
+      if (!otherBody) return;
+      if (otherBody.mass <= 0) return;
+
+      const offsetX = otherBody.position.x - body.position.x;
+      const offsetZ = otherBody.position.z - body.position.z;
+
+      const relVelX = otherBody.velocity.x - body.velocity.x;
+      const relVelZ = otherBody.velocity.z - body.velocity.z;
+
+      const torqueY = offsetX * relVelZ - offsetZ * relVelX;
+
+      const turnStrength = 0.035 * impactTurnSensitivity;
+
+      body.angularVelocity.y += torqueY * turnStrength;
     });
 
-    topBody.addShape(
-      new CANNON.Box(
-        new CANNON.Vec3(
-          Math.max(0.1, halfX - topInset),
-          topThickness / 2,
-          Math.max(0.1, halfZ - topInset),
-        ),
-      ),
-    );
 
-    topBody.position.set(
-      position.x,
-      y + halfY + topGap + topThickness / 2,
-      position.z,
-    );
-
-    this.addBody(topBody);
 
     if (!this.pushableObjects) {
       this.pushableObjects = [];
     }
 
-    this.pushableObjects.push({
-      mesh,
-      body,
-      topBody,
-      halfY,
-      topThickness,
-      topGap,
-      slideSound: true,
-    });
-    return { mesh, body, topBody };
+ this.pushableObjects.push({
+  mesh,
+  body,
+  slideResistance,
+  impactTurnSensitivity,
+  slideSound: true,
+});
+   return { mesh, body };
   }
 
   buildRoom2PushableBlocks() {
@@ -985,7 +978,8 @@ export class LevelBuilder {
         x: -4.5,
         z: -10.0,
       },
-      mass: 28,
+      mass: 39,
+      slideResistance: 11.0,
       material: yellowMat,
     });
 
@@ -1001,12 +995,13 @@ export class LevelBuilder {
         x: 4.5,
         z: -16.0,
       },
-      mass: 46,
+      mass: 55,
+      slideResistance: 10.0,
       material: greenMat,
     });
   }
 
-  syncPushableObjects() {
+  syncPushableObjects(dt) {
     if (!this.pushableObjects || this.pushableObjects.length === 0) {
       if (audioManager?.updateBoxSlide) audioManager.updateBoxSlide(0);
       return;
@@ -1017,21 +1012,48 @@ export class LevelBuilder {
     for (const obj of this.pushableObjects) {
       if (!obj || !obj.mesh || !obj.body) continue;
 
+      // ==========================================
+      // СОПРОТИВЛЕНИЕ СКОЛЬЖЕНИЮ БОЛЬШИХ БЛОКОВ
+      // ==========================================
+      //
+      // Не используем большое ContactMaterial.friction,
+      // потому что оно заставляло Cannon подбрасывать блок.
+      //
+      // Вместо этого гасим только горизонтальную скорость X/Z.
+      // Вертикальную velocity.y вообще не трогаем.
+
+      if (obj.slideResistance > 0 && dt > 0) {
+        const vx = obj.body.velocity.x;
+        const vz = obj.body.velocity.z;
+
+        const horizontalSpeed = Math.hypot(vx, vz);
+
+        if (horizontalSpeed > 0.0001) {
+          const frictionDeceleration = obj.slideResistance ?? 0;
+
+          // Ниже этой скорости считаем, что тяжёлый блок
+          // уже практически остановился.
+          const stopSpeed = 0.45;
+
+          if (horizontalSpeed <= stopSpeed) {
+            obj.body.velocity.x = 0;
+            obj.body.velocity.z = 0;
+          } else {
+            const newSpeed = Math.max(
+              0,
+              horizontalSpeed - frictionDeceleration * dt,
+            );
+
+            const scale = newSpeed / horizontalSpeed;
+
+            obj.body.velocity.x *= scale;
+            obj.body.velocity.z *= scale;
+          }
+        }
+      }
+
       obj.mesh.position.copy(obj.body.position);
       obj.mesh.quaternion.copy(obj.body.quaternion);
-
-      // Цепкая верхняя площадка всегда едет вместе с блоком.
-      if (obj.topBody) {
-        obj.topBody.position.set(
-          obj.body.position.x,
-          obj.body.position.y + obj.halfY + obj.topGap + obj.topThickness / 2,
-          obj.body.position.z,
-        );
-
-        obj.topBody.quaternion.copy(obj.body.quaternion);
-        obj.topBody.velocity.copy(obj.body.velocity);
-        obj.topBody.angularVelocity.set(0, 0, 0);
-      }
 
       // Звук волочения только для больших блоков-ступенек.
       // Красный маленький кубик не должен сюда попадать.
@@ -1236,7 +1258,7 @@ export class LevelBuilder {
     };
   }
 
-   buildRoom1TutorialRampVisual() {
+  buildRoom1TutorialRampVisual() {
     const cfg = this.getRoom1TutorialRampConfig();
 
     // Материал — белый, в духе стен и пола.
@@ -1286,11 +1308,7 @@ export class LevelBuilder {
 
     // Начало геометрии ставим в верхнюю точку по X,
     // а сама геометрия уходит вправо к lowerX.
-    ramp.position.set(
-      cfg.upperX,
-      this.floorY,
-      cfg.centerZ,
-    );
+    ramp.position.set(cfg.upperX, this.floorY, cfg.centerZ);
 
     ramp.castShadow = true;
     ramp.receiveShadow = true;
@@ -1302,24 +1320,17 @@ export class LevelBuilder {
     // ВЕРХНЯЯ ПЛОЩАДКА КАК ПОЛНОЦЕННЫЙ БЛОК
     // ==========================================
 
-    const platformSizeX =
-      cfg.platformDepth + cfg.platformOverlap;
+    const platformSizeX = cfg.platformDepth + cfg.platformOverlap;
 
     const platform = new THREE.Mesh(
-      new THREE.BoxGeometry(
-        platformSizeX,
-        cfg.rise,
-        cfg.width,
-      ),
+      new THREE.BoxGeometry(platformSizeX, cfg.rise, cfg.width),
       coatedMat,
     );
 
     platform.name = "Room1_TutorialRampPlatformSolid";
 
     const platformCenterX =
-      cfg.upperX -
-      cfg.platformDepth / 2 +
-      cfg.platformOverlap / 2;
+      cfg.upperX - cfg.platformDepth / 2 + cfg.platformOverlap / 2;
 
     platform.position.set(
       platformCenterX,
@@ -1341,7 +1352,7 @@ export class LevelBuilder {
     // ФИЗИКА ПАНДУСА
     // ==========================================
 
-       // ==========================================
+    // ==========================================
     // ЦЕЛЬНАЯ ФИЗИКА ГОРКИ-КЛИНА
     // ==========================================
 
@@ -1351,22 +1362,22 @@ export class LevelBuilder {
     const rampShape = new CANNON.ConvexPolyhedron({
       vertices: [
         // Задняя сторона
-        new CANNON.Vec3(0, 0, -halfWidth),        // 0
+        new CANNON.Vec3(0, 0, -halfWidth), // 0
         new CANNON.Vec3(0, cfg.rise, -halfWidth), // 1
-        new CANNON.Vec3(run, 0, -halfWidth),      // 2
+        new CANNON.Vec3(run, 0, -halfWidth), // 2
 
         // Передняя сторона
-        new CANNON.Vec3(0, 0, halfWidth),         // 3
-        new CANNON.Vec3(0, cfg.rise, halfWidth),  // 4
-        new CANNON.Vec3(run, 0, halfWidth),       // 5
+        new CANNON.Vec3(0, 0, halfWidth), // 3
+        new CANNON.Vec3(0, cfg.rise, halfWidth), // 4
+        new CANNON.Vec3(run, 0, halfWidth), // 5
       ],
 
       faces: [
-        [0, 1, 2],       // задняя треугольная стенка
-        [3, 5, 4],       // передняя треугольная стенка
-        [0, 2, 5, 3],    // низ
-        [0, 3, 4, 1],    // высокая вертикальная стенка
-        [1, 4, 5, 2],    // наклонная поверхность
+        [0, 1, 2], // задняя треугольная стенка
+        [3, 5, 4], // передняя треугольная стенка
+        [0, 2, 5, 3], // низ
+        [0, 3, 4, 1], // высокая вертикальная стенка
+        [1, 4, 5, 2], // наклонная поверхность
       ],
     });
 
@@ -1374,21 +1385,15 @@ export class LevelBuilder {
       mass: 0,
       material: this.matStandard,
 
-      collisionFilterGroup:
-        CONFIG.PHYSICS.GROUPS.SCENE,
+      collisionFilterGroup: CONFIG.PHYSICS.GROUPS.SCENE,
 
       collisionFilterMask:
-        CONFIG.PHYSICS.GROUPS.OBJECTS |
-        CONFIG.PHYSICS.GROUPS.TINY,
+        CONFIG.PHYSICS.GROUPS.OBJECTS | CONFIG.PHYSICS.GROUPS.TINY,
     });
 
     rampBody.addShape(rampShape);
 
-    rampBody.position.set(
-      cfg.upperX,
-      this.floorY,
-      cfg.centerZ,
-    );
+    rampBody.position.set(cfg.upperX, this.floorY, cfg.centerZ);
 
     this.addBody(rampBody);
 
@@ -1400,13 +1405,10 @@ export class LevelBuilder {
     // ЦЕЛЬНЫЙ БЛОК ВЕРХНЕЙ ПЛОЩАДКИ
     // ==========================================
 
-    const platformSizeX =
-      cfg.platformDepth + cfg.platformOverlap;
+    const platformSizeX = cfg.platformDepth + cfg.platformOverlap;
 
     const platformCenterX =
-      cfg.upperX -
-      cfg.platformDepth / 2 +
-      cfg.platformOverlap / 2;
+      cfg.upperX - cfg.platformDepth / 2 + cfg.platformOverlap / 2;
 
     this.createPhysicsWall(
       platformCenterX,
@@ -5945,7 +5947,7 @@ export class LevelBuilder {
 
   updateDoors(dt) {
     // Общие обновления комнаты.
-    this.syncPushableObjects();
+    this.syncPushableObjects(dt);
 
     // Постоянная мягкая пульсация ячейки.
     this.updateRoom2SocketPulse(dt);
@@ -6078,37 +6080,37 @@ export class LevelBuilder {
       ];
     }
 
-if (levelId === 2) {
-  positions = [
-    // 2-я панель
-    { x: -7.5, z: 0.0 },
-    { x:  7.5, z: 0.0 },
+    if (levelId === 2) {
+      positions = [
+        // 2-я панель
+        { x: -7.5, z: 0.0 },
+        { x: 7.5, z: 0.0 },
 
-    // 5-я панель
-    { x: -7.5, z: -15.0 },
-    { x:  7.5, z: -15.0 },
+        // 5-я панель
+        { x: -7.5, z: -15.0 },
+        { x: 7.5, z: -15.0 },
 
-    // 8-я панель
-    { x: -7.5, z: -30.0 },
-    { x:  7.5, z: -30.0 },
-  ];
-}
+        // 8-я панель
+        { x: -7.5, z: -30.0 },
+        { x: 7.5, z: -30.0 },
+      ];
+    }
 
- if (levelId === 3) {
-  positions = [
-    // 2-я панель
-    { x: -7.5, z: 0.0 },
-    { x:  7.5, z: 0.0 },
+    if (levelId === 3) {
+      positions = [
+        // 2-я панель
+        { x: -7.5, z: 0.0 },
+        { x: 7.5, z: 0.0 },
 
-    // 5-я панель
-    { x: -7.5, z: -15.0 },
-    { x:  7.5, z: -15.0 },
+        // 5-я панель
+        { x: -7.5, z: -15.0 },
+        { x: 7.5, z: -15.0 },
 
-    // 8-я панель
-    { x: -7.5, z: -30.0 },
-    { x:  7.5, z: -30.0 },
-  ];
-}
+        // 8-я панель
+        { x: -7.5, z: -30.0 },
+        { x: 7.5, z: -30.0 },
+      ];
+    }
 
     positions.forEach((pos) => {
       this.sceneManager.corridorPanels.push(

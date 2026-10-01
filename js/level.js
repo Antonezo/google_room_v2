@@ -928,20 +928,18 @@ export class LevelBuilder {
       body.angularVelocity.y += torqueY * turnStrength;
     });
 
-
-
     if (!this.pushableObjects) {
       this.pushableObjects = [];
     }
 
- this.pushableObjects.push({
-  mesh,
-  body,
-  slideResistance,
-  impactTurnSensitivity,
-  slideSound: true,
-});
-   return { mesh, body };
+    this.pushableObjects.push({
+      mesh,
+      body,
+      slideResistance,
+      impactTurnSensitivity,
+      slideSound: true,
+    });
+    return { mesh, body };
   }
 
   buildRoom2PushableBlocks() {
@@ -2062,7 +2060,7 @@ export class LevelBuilder {
     this.registerMesh(marker);
 
     const body = new CANNON.Body({
-      mass: 60,
+      mass: 90,
       material: this.matBox,
       position: new CANNON.Vec3(
         marker.position.x,
@@ -3535,33 +3533,47 @@ export class LevelBuilder {
     return texture;
   }
 
-  createElevatorRunningDotsTexture() {
+  createElevatorRunningDotsTexture({
+    vertical = false,
+    count = 5,
+    radius = 8.5,
+  } = {}) {
     const canvas = document.createElement("canvas");
-    canvas.width = 256;
-    canvas.height = 24;
+
+    if (vertical) {
+      canvas.width = 24;
+      canvas.height = 256;
+    } else {
+      canvas.width = 256;
+      canvas.height = 24;
+    }
 
     const ctx = canvas.getContext("2d");
     ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-    const count = 12;
-    const cy = canvas.height / 2;
-
     for (let i = 0; i < count; i++) {
-      const x = ((i + 0.5) * canvas.width) / count;
+      const t = (i + 0.5) / count;
+
+      const x = vertical ? canvas.width / 2 : t * canvas.width;
+
+      const y = vertical ? t * canvas.height : canvas.height / 2;
 
       ctx.save();
+
       ctx.shadowColor = "rgba(120, 235, 255, 0.95)";
       ctx.shadowBlur = 10;
 
       ctx.fillStyle = "rgba(185, 250, 255, 0.98)";
+
       ctx.beginPath();
-      ctx.arc(x, cy, 2.5, 0, Math.PI * 2);
+      ctx.arc(x, y, radius, 0, Math.PI * 2);
       ctx.fill();
 
       ctx.restore();
     }
 
     const texture = new THREE.CanvasTexture(canvas);
+
     texture.colorSpace = THREE.SRGBColorSpace;
     texture.wrapS = THREE.RepeatWrapping;
     texture.wrapT = THREE.RepeatWrapping;
@@ -4226,18 +4238,6 @@ export class LevelBuilder {
 
     // === ОСВЕЩЕНИЕ КАБИНЫ ===
     // То же RectAreaLight, что используется в центральном лифте.
-    const cabinLight = new THREE.RectAreaLight(0xfff0dd, 4.0, 3.2, 3.2);
-
-    cabinLight.name = `${config.id}_Light`;
-
-    cabinLight.position.copy(
-      makePos(ceilingDecorCenterOffset, 0, this.floorY + style.cabinH - 0.12),
-    );
-
-    // RectAreaLight направлен вертикально вниз.
-    cabinLight.rotation.x = -Math.PI / 2;
-
-    group.add(cabinLight);
 
     const cabinLamp = new THREE.Mesh(
       new THREE.BoxGeometry(2.8, 0.08, 2.8),
@@ -4493,43 +4493,52 @@ export class LevelBuilder {
       metalness: 0.15,
     });
 
-    const antsTextureH = this.createElevatorRunningDotsTexture();
-    antsTextureH.repeat.set(7, 1);
-
-    const antsTextureV = this.createElevatorRunningDotsTexture();
-    antsTextureV.repeat.set(1, 7);
-
-    const displayAntsMatH = new THREE.MeshStandardMaterial({
-      color: 0xffffff,
-      map: antsTextureH,
-
-      emissive: 0x9eefff,
-      emissiveMap: antsTextureH,
-      emissiveIntensity: 1.15,
-
-      transparent: true,
-      opacity: 1.0,
-      depthWrite: false,
-      roughness: 0.2,
-      metalness: 0.0,
-      toneMapped: false,
+    const antsTextureTop = this.createElevatorRunningDotsTexture({
+      vertical: false,
+      count: 6,
+      radius: 8.5,
     });
+    antsTextureTop.repeat.set(4.0, 1);
 
-    const displayAntsMatV = new THREE.MeshStandardMaterial({
-      color: 0xffffff,
-      map: antsTextureV,
-
-      emissive: 0x9eefff,
-      emissiveMap: antsTextureV,
-      emissiveIntensity: 1.15,
-
-      transparent: true,
-      opacity: 1.0,
-      depthWrite: false,
-      roughness: 0.2,
-      metalness: 0.0,
-      toneMapped: false,
+    const antsTextureBottom = this.createElevatorRunningDotsTexture({
+      vertical: false,
+      count: 6,
+      radius: 8.5,
     });
+    antsTextureBottom.repeat.set(4.0, 1);
+
+    const antsTextureLeft = this.createElevatorRunningDotsTexture({
+      vertical: true,
+      count: 5,
+      radius: 11.5,
+    });
+    antsTextureLeft.repeat.set(1, 1.5);
+
+    const antsTextureRight = this.createElevatorRunningDotsTexture({
+      vertical: true,
+      count: 5,
+      radius: 11.5,
+    });
+    antsTextureRight.repeat.set(1, 1.5);
+
+    const createAntMaterial = (texture) =>
+      new THREE.MeshBasicMaterial({
+        color: 0x9eefff,
+        map: texture,
+
+        transparent: true,
+        opacity: 1.0,
+
+        depthWrite: false,
+        blending: THREE.AdditiveBlending,
+
+        toneMapped: false,
+      });
+
+    const displayAntsMatTop = createAntMaterial(antsTextureTop);
+    const displayAntsMatBottom = createAntMaterial(antsTextureBottom);
+    const displayAntsMatLeft = createAntMaterial(antsTextureLeft);
+    const displayAntsMatRight = createAntMaterial(antsTextureRight);
 
     // ------------------------------------------
     // ОСНОВНОЙ КОРПУС
@@ -4717,11 +4726,11 @@ export class LevelBuilder {
     // ------------------------------------------
 
     const antsDepth = 0.008;
-    const antsThickness = 0.022;
+    const antsThickness = 0.045;
+
     const antsNormalOffset =
       glowNormalOffset - glowDepth / 2 - antsDepth / 2 - 0.0015;
 
-    // Верх
     const antsTop = addBoxMesh(
       `${config.id}_level_display_ants_top`,
       antsDepth,
@@ -4730,11 +4739,10 @@ export class LevelBuilder {
       antsNormalOffset,
       0,
       displayY + glassHeight / 2 - antsThickness / 2,
-      displayAntsMatH,
+      displayAntsMatTop,
       false,
     );
 
-    // Низ
     const antsBottom = addBoxMesh(
       `${config.id}_level_display_ants_bottom`,
       antsDepth,
@@ -4743,11 +4751,10 @@ export class LevelBuilder {
       antsNormalOffset,
       0,
       displayY - glassHeight / 2 + antsThickness / 2,
-      displayAntsMatH,
+      displayAntsMatBottom,
       false,
     );
 
-    // Лево
     const antsLeft = addBoxMesh(
       `${config.id}_level_display_ants_left`,
       antsDepth,
@@ -4756,11 +4763,10 @@ export class LevelBuilder {
       antsNormalOffset,
       -(glassWidth / 2 - antsThickness / 2),
       displayY,
-      displayAntsMatV,
+      displayAntsMatLeft,
       false,
     );
 
-    // Право
     const antsRight = addBoxMesh(
       `${config.id}_level_display_ants_right`,
       antsDepth,
@@ -4769,7 +4775,7 @@ export class LevelBuilder {
       antsNormalOffset,
       glassWidth / 2 - antsThickness / 2,
       displayY,
-      displayAntsMatV,
+      displayAntsMatRight,
       false,
     );
     // ==========================================
@@ -4954,6 +4960,8 @@ export class LevelBuilder {
       levelNumber,
       elevatorRole,
 
+      displayActive: elevatorRole !== "exit",
+
       slideAxis: basis.slideAxis,
       slideDistance,
 
@@ -4968,17 +4976,33 @@ export class LevelBuilder {
 
       antMaterials: [
         {
-          material: displayAntsMatH,
-          texture: antsTextureH,
+          material: displayAntsMatTop,
+          texture: antsTextureTop,
           axis: "x",
           direction: 1,
+          speedMultiplier: 1.0,
         },
         {
-          material: displayAntsMatV,
-          texture: antsTextureV,
-          axis: "y",
+          material: displayAntsMatBottom,
+          texture: antsTextureBottom,
+          axis: "x",
           direction: -1,
+          speedMultiplier: 1.0,
         },
+     {
+  material: displayAntsMatLeft,
+  texture: antsTextureLeft,
+  axis: "y",
+  direction: elevatorRole === "exit" ? 1 : -1,
+  speedMultiplier: 1.2,
+},
+{
+  material: displayAntsMatRight,
+  texture: antsTextureRight,
+  axis: "y",
+  direction: elevatorRole === "exit" ? -1 : 1,
+  speedMultiplier: 1.2,
+},
       ],
     });
 
@@ -5776,6 +5800,11 @@ export class LevelBuilder {
       // чтобы потом менять пустой дисплей на NEXT XX.
       displayScreenMaterial: elevator.displayScreenMaterial || null,
 
+      // Активен ли дисплей сейчас.
+      // У start-лифтов — да.
+      // У exit-лифтов — нет, пока не выполнена задача.
+      displayActive: elevator.displayActive ?? true,
+
       antMaterials: elevator.antMaterials || [],
     };
 
@@ -5858,7 +5887,7 @@ export class LevelBuilder {
     const nextLevelNumber = levelNumber + 1;
 
     this.setRoomElevatorDisplay(exitElevator.id, "NEXT", nextLevelNumber);
-
+    exitElevator.displayActive = true;
     return exitElevator;
   }
 
@@ -5905,25 +5934,37 @@ export class LevelBuilder {
           mat.emissiveIntensity = doorGlowPulse;
         }
       }
-      if (Array.isArray(elevator.antMaterials)) {
-        for (const ant of elevator.antMaterials) {
-          if (!ant || !ant.texture) continue;
+     if (Array.isArray(elevator.antMaterials)) {
+  for (const ant of elevator.antMaterials) {
+    if (!ant || !ant.texture) continue;
 
-          const speed = 0.65 * dt * (ant.direction ?? 1);
-
-          if (ant.axis === "y") {
-            ant.texture.offset.y = (ant.texture.offset.y + speed) % 1;
-          } else {
-            ant.texture.offset.x = (ant.texture.offset.x + speed) % 1;
-          }
-
-          if (ant.material) {
-            ant.material.emissiveIntensity =
-              0.85 +
-              0.3 * (0.5 + 0.5 * Math.sin(this.elevatorDoorPulseTime * 1.4));
-          }
-        }
+    // Если дисплей неактивен, муравьи не бегут и не светятся.
+    if (!elevator.displayActive) {
+      if (ant.material) {
+        ant.material.opacity = 0.0;
       }
+      continue;
+    }
+
+    const speed =
+      0.65 *
+      dt *
+      (ant.direction ?? 1) *
+      (ant.speedMultiplier ?? 1.0);
+
+    if (ant.axis === "y") {
+      ant.texture.offset.y = (ant.texture.offset.y + speed) % 1;
+    } else {
+      ant.texture.offset.x = (ant.texture.offset.x + speed) % 1;
+    }
+
+    if (ant.material) {
+      ant.material.opacity =
+        0.8 +
+        0.2 * (0.5 + 0.5 * Math.sin(this.elevatorDoorPulseTime * 1.4));
+    }
+  }
+}
 
       for (const leaf of elevator.leaves) {
         if (!leaf || !leaf.mesh) continue;
@@ -6029,10 +6070,7 @@ export class LevelBuilder {
       root.add(rectLight);
 
       // === СВЕТ ДЛЯ ТЕНЕЙ ===
-     const shadowLight = new THREE.SpotLight(
-  0xffffff,
-  0.0,
-);
+      const shadowLight = new THREE.SpotLight(0xffffff, 0.0);
 
       shadowLight.position.set(0, -0.25, 0);
       shadowLight.angle = Math.PI / 3.5;

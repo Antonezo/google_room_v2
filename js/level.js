@@ -6017,7 +6017,7 @@ export class LevelBuilder {
       // === ОСНОВНОЙ СВЕТ ===
       const rectLight = new THREE.RectAreaLight(
         0xffffff,
-        isCorridor ? 15.0 : 0.0,
+        isCorridor ? 8.0 : 0.0,
         3.8,
         3.8,
       );
@@ -6029,7 +6029,10 @@ export class LevelBuilder {
       root.add(rectLight);
 
       // === СВЕТ ДЛЯ ТЕНЕЙ ===
-      const shadowLight = new THREE.SpotLight(0xffffff, isCorridor ? 3.0 : 0.0);
+     const shadowLight = new THREE.SpotLight(
+  0xffffff,
+  0.0,
+);
 
       shadowLight.position.set(0, -0.25, 0);
       shadowLight.angle = Math.PI / 3.5;

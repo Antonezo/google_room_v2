@@ -170,6 +170,7 @@ export class SceneManager {
       0.15,
     );
     this.composer.addPass(this.bloomPass);
+    this.bloomPass.enabled = false;
 
     // 3. НАСТРОЙКА УПРАВЛЕНИЯ
     this.controls = new OrbitControls(this.camera, this.renderer.domElement);
@@ -205,7 +206,7 @@ export class SceneManager {
       normalMap: marbleNormalTex,
       roughnessMap: marbleRoughTex,
       roughness: 0.26, // Можно будет подкрутить потом для глянцевости
-      metalness: 0.1,
+      metalness: 0.0, // Без металличности, так как это мрамор
     });
     const mesh = new THREE.Mesh(geometry, material);
     mesh.castShadow = true;
@@ -230,7 +231,7 @@ export class SceneManager {
   buildEnvironment() {
     this.dayLights = new THREE.Group();
     this.scene.add(this.dayLights);
-    this.ambientLight = new THREE.HemisphereLight(0xffffff, 0xb0c4de, 0.8);
+    this.ambientLight = new THREE.HemisphereLight(0xffffff, 0xb0c4de,  1.15);
     this.dayLights.add(this.ambientLight);
     this.leftLight = new THREE.DirectionalLight(0x9bb7ff, 0.0);
     this.leftLight.position.set(-10, 6, 8);

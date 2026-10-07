@@ -44,6 +44,68 @@ export class GoogleRoomApp {
     this.isPreparingGame = false;
     this.hasPrewarmedRooms = false;
 
+    // ==========================================
+    // ОБУЧЕНИЕ КОМНАТЫ 1
+    // ==========================================
+
+    this.room1Tutorial = {
+      step: 1,
+
+      state: "collecting",
+
+      collected: 0,
+      targetCount: 0,
+
+      transitionTimer: 0,
+      stage3CurrentShelfIndex: 0,
+      stage3PendingShelfIndex: -1,
+
+      platformAnimation: {
+        active: false,
+
+        time: 0,
+        duration: 0.75,
+
+        // forward = из стены / из пола
+        // reverse = обратно в стену / под пол
+        direction: "forward",
+
+        // Какие именно платформы сейчас двигаются.
+        platforms: [],
+
+        // Что сделать после завершения движения.
+        completionAction: null,
+      },
+
+      stage4Transition: {
+        time: 0,
+
+        // Бордюр поднимается достаточно быстро,
+        // чтобы успеть приготовиться до падения шара.
+        borderDuration: 1.15,
+
+        // Каждая полка уезжает за это время.
+        shelfDuration: 0.62,
+
+        // Задержка между началом движения соседних полок.
+        shelfDelay: 0.18,
+      },
+
+      stage5Transition: {
+        time: 0,
+        duration: 1.0,
+      },
+
+stage5ShelvesAnimation: {
+  time: 0,
+  shelfDuration: 0.75,
+  shelfDelay: 0.4,
+},
+
+      stage4Solved: false,
+      maxImplementedStep: 3,
+    };
+
     // Геймплей активен только когда игрок реально внутри игры.
     // В главном меню физика/триггеры не должны жить своей жизнью.
     this.isGameActive = false;
@@ -53,7 +115,6 @@ export class GoogleRoomApp {
     this.isExitingToMenu = false;
     this.lastTime = performance.now();
     this.platformImpact = 0;
-  
 
     // === СОСТОЯНИЕ УРОВНЕЙ ===
     // Конфиг уровня описывает:
@@ -74,7 +135,7 @@ export class GoogleRoomApp {
 
         // Единая конфигурация выходного лифта.
         exitElevator: {
-         doorId: "room1_exit",
+          doorId: "room1_exit",
 
           // Выход комнаты 1 доступен сразу.
           unlocked: false,
@@ -85,17 +146,17 @@ export class GoogleRoomApp {
             z: 17.0,
           },
 
-    // Конечная точка внутри односторонней кабины.
-//
-// Задняя стенка новой кабины находится примерно у z = 10.
-// Радиус шара = 1.5, поэтому оставляем безопасный запас,
-// чтобы автопилот не пытался вдавить шар в заднюю стену.
-cabinPoint: {
-  x: 0,
-  z: 11.8,
-},
+          // Конечная точка внутри односторонней кабины.
+          //
+          // Задняя стенка новой кабины находится примерно у z = 10.
+          // Радиус шара = 1.5, поэтому оставляем безопасный запас,
+          // чтобы автопилот не пытался вдавить шар в заднюю стену.
+          cabinPoint: {
+            x: 0,
+            z: 11.8,
+          },
           // Через какую дверь игрок выйдет в следующем секторе.
-      arrivalDoorId: "room2_start",
+          arrivalDoorId: "room2_start",
 
           // Круглая зона запуска кат-сцены.
           // markerRadius специально больше radius:
@@ -160,7 +221,7 @@ cabinPoint: {
 
           // В следующем секторе игрок по-прежнему
           // появляется через центральный лифт.
-        arrivalDoorId: "room3_start",
+          arrivalDoorId: "room3_start",
 
           // Зелёный маркер перед новым лифтом.
           activationZone: {
@@ -491,21 +552,21 @@ cabinPoint: {
 
       onPrepareNewGame: (onProgress) => this.prepareNewGame(onProgress),
 
-  onFinishExitToMenu: () => {
-  this.finishExitToMenu();
-},
+      onFinishExitToMenu: () => {
+        this.finishExitToMenu();
+      },
 
-onBlockGameplayLook: () => {
-  this.lockGameplayLookInput();
-},
+      onBlockGameplayLook: () => {
+        this.lockGameplayLookInput();
+      },
 
-onFreezeGameplayCamera: () => {
-  this.lockGameplayCamera();
-},
+      onFreezeGameplayCamera: () => {
+        this.lockGameplayCamera();
+      },
 
-onStartGameplay: () => {
-  this.startGameplaySession();
-},
+      onStartGameplay: () => {
+        this.startGameplaySession();
+      },
     });
 
     this.initSceneObjects();
@@ -669,7 +730,11 @@ onStartGameplay: () => {
       }
     });
 
-    const startPos = { x: 0, y: 0, z: 30 }; // Стартовая позиция переехала сюда
+    const startPos = {
+      x: 0,
+      y: CONFIG.WORLD.FLOOR_LEVEL + (CONFIG.PLAYER.RADIUS || 1.5),
+      z: 30,
+    };
     this.playerController = new PlayerController(
       this.world,
       this.scene,
@@ -772,7 +837,7 @@ onStartGameplay: () => {
     if (this.isPreparingGame) {
       return;
     }
-  
+
     const nextFrame = () =>
       new Promise((resolve) => requestAnimationFrame(resolve));
 
@@ -1041,86 +1106,86 @@ onStartGameplay: () => {
   }
 
   startGameplaySession() {
-  const finishStart = () => {
-    this.hasStartedGame = true;
+    const finishStart = () => {
+      this.hasStartedGame = true;
 
-    if (!this.savedProgress?.hasSave) {
-      this.saveProgress(this.currentLevelId);
-    }
+      if (!this.savedProgress?.hasSave) {
+        this.saveProgress(this.currentLevelId);
+      }
 
-    this.isGameActive = true;
-    this.isExitingToMenu = false;
-    this.isPaused = false;
+      this.isGameActive = true;
+      this.isExitingToMenu = false;
+      this.isPaused = false;
 
-    if (this.playerController) {
-      this.playerController.isLocked = false;
-    }
+      if (this.playerController) {
+        this.playerController.isLocked = false;
+      }
 
-    if (this.controls) {
-      this.controls.enabled = true;
-    }
+      if (this.controls) {
+        this.controls.enabled = true;
+      }
 
-    this.unlockGameplayCamera?.();
+      this.unlockGameplayCamera?.();
 
-    // Отбрасываем всё время, которое ушло на GPU-прогрев.
-    this.lastTime = performance.now();
+      // Отбрасываем всё время, которое ушло на GPU-прогрев.
+      this.lastTime = performance.now();
 
-    // Комната уже полностью готова.
-    // Теперь плавно показываем её игроку.
-    if (this.fadeScreen) {
-      requestAnimationFrame(() => {
+      // Комната уже полностью готова.
+      // Теперь плавно показываем её игроку.
+      if (this.fadeScreen) {
         requestAnimationFrame(() => {
-          this.fadeScreen.style.opacity = "0";
+          requestAnimationFrame(() => {
+            this.fadeScreen.style.opacity = "0";
+          });
         });
-      });
-    }
-  };
+      }
+    };
 
-  // Если финальный уровень ещё прогревается,
-  // не отдаём управление до завершения.
-  if (this.finalRoomWarmupPromise) {
-    const pendingWarmup = this.finalRoomWarmupPromise;
+    // Если финальный уровень ещё прогревается,
+    // не отдаём управление до завершения.
+    if (this.finalRoomWarmupPromise) {
+      const pendingWarmup = this.finalRoomWarmupPromise;
 
-    this.finalRoomWarmupPromise = null;
+      this.finalRoomWarmupPromise = null;
 
-    pendingWarmup
-      .then(() => {
-        finishStart();
-      })
-      .catch((error) => {
-        console.error("[FINAL WARMUP] Start fallback:", error);
+      pendingWarmup
+        .then(() => {
+          finishStart();
+        })
+        .catch((error) => {
+          console.error("[FINAL WARMUP] Start fallback:", error);
 
-        // Даже при ошибке прогрева не блокируем игру навсегда.
-        finishStart();
-      });
+          // Даже при ошибке прогрева не блокируем игру навсегда.
+          finishStart();
+        });
 
-    return;
-  }
-
-  finishStart();
-}
-
-lockGameplayLookInput() {
-  // Сразу запрещаем игроку вращать камеру мышью,
-  // но CameraController продолжает работать и может
-  // сам корректно поставить камеру относительно геометрии.
-  if (this.controls) {
-    if (this.savedPointerSpeed === undefined) {
-      this.savedPointerSpeed = this.controls.pointerSpeed ?? 1.0;
+      return;
     }
 
-    this.controls.pointerSpeed = 0;
+    finishStart();
   }
-}
 
- lockGameplayCamera() {
-  // Сначала запрещаем ручное вращение мышью.
-  this.lockGameplayLookInput();
+  lockGameplayLookInput() {
+    // Сразу запрещаем игроку вращать камеру мышью,
+    // но CameraController продолжает работать и может
+    // сам корректно поставить камеру относительно геометрии.
+    if (this.controls) {
+      if (this.savedPointerSpeed === undefined) {
+        this.savedPointerSpeed = this.controls.pointerSpeed ?? 1.0;
+      }
 
-  // Затем полностью фиксируем автоматическую игровую камеру.
-  if (this.cameraController) {
-    this.cameraController.enabled = false;
+      this.controls.pointerSpeed = 0;
+    }
   }
+
+  lockGameplayCamera() {
+    // Сначала запрещаем ручное вращение мышью.
+    this.lockGameplayLookInput();
+
+    // Затем полностью фиксируем автоматическую игровую камеру.
+    if (this.cameraController) {
+      this.cameraController.enabled = false;
+    }
 
     if (this.cameraPivot) {
       this.cameraPivot.rotation.z = 0;
@@ -1337,6 +1402,1207 @@ lockGameplayLookInput() {
     return this.levelConfigs[1].spawn;
   }
 
+  resetRoom1Tutorial() {
+    // ==========================================
+    // ВРЕМЕННЫЙ DEBUG:
+    // сразу готовим конец этапа 3
+    // ==========================================
+
+    this.room1Tutorial.step = 3;
+    this.room1Tutorial.state = "goal";
+
+    this.room1Tutorial.collected = 4;
+    this.room1Tutorial.targetCount = 4;
+
+    this.room1Tutorial.transitionTimer = 0;
+    this.room1Tutorial.stage4Solved = false;
+
+    this.room1Tutorial.stage3CurrentShelfIndex = 3;
+    this.room1Tutorial.stage3PendingShelfIndex = -1;
+
+    this.room1Tutorial.platformAnimation.active = false;
+    this.room1Tutorial.platformAnimation.time = 0;
+    this.room1Tutorial.platformAnimation.platforms = [];
+    this.room1Tutorial.platformAnimation.completionAction = null;
+
+    if (!this.levelBuilder) {
+      return;
+    }
+
+    // Строим сразу этап 3.
+    this.levelBuilder.buildRoom1TutorialStep(3);
+
+    // ==========================================
+    // СРАЗУ ВЫДВИГАЕМ ВСЕ ПОЛКИ
+    // ==========================================
+
+    const shelves = this.levelBuilder.room1TutorialStage3Shelves || [];
+
+    for (const shelf of shelves) {
+      this.levelBuilder.setRoom1TutorialPlatformProgress(shelf, 1);
+    }
+
+    // ==========================================
+    // СИНИЕ МАРКЕРЫ СЧИТАЕМ УЖЕ СОБРАННЫМИ
+    // ==========================================
+
+    const markers = this.levelBuilder.room1TutorialMarkers || [];
+
+    for (const marker of markers) {
+      marker.visible = false;
+      marker.userData.active = false;
+      marker.userData.collected = true;
+    }
+
+    // ==========================================
+    // ЗЕЛЁНЫЙ ФИНИШ УЖЕ АКТИВЕН
+    // ==========================================
+
+    const goal = this.levelBuilder.room1TutorialGoal;
+
+    if (goal) {
+      goal.visible = true;
+      goal.userData.active = true;
+      goal.userData.collected = false;
+    }
+
+    if (this.playerController) {
+      this.playerController.isLocked = false;
+    }
+
+    console.log("[ROOM 1 DEBUG] Stage 3 ready for Stage 4 test.");
+  }
+
+  // ==========================================
+  // ОБЩИЙ ЗАПУСК АНИМАЦИИ ПЛАТФОРМ ROOM 1
+  // ==========================================
+
+  startRoom1PlatformAnimation({
+    platforms,
+    direction = "forward",
+    duration = 0.75,
+    completionAction = null,
+  }) {
+    const animation = this.room1Tutorial.platformAnimation;
+
+    animation.active = true;
+
+    animation.time = 0;
+    animation.duration = duration;
+
+    animation.direction = direction;
+
+    animation.platforms = Array.isArray(platforms) ? platforms : [];
+
+    if (direction === "forward") {
+  for (const platform of animation.platforms) {
+    if (platform?.kind !== "wallShelf") {
+      continue;
+    }
+
+    audioManager?.playShelfMove(
+      0.42,
+    );
+  }
+}
+
+    animation.completionAction = completionAction;
+  }
+
+  startRoom1TutorialStep(step) {
+    if (!this.levelBuilder) return;
+
+    this.room1Tutorial.step = step;
+    this.room1Tutorial.state = "collecting";
+
+    this.room1Tutorial.collected = 0;
+    this.room1Tutorial.transitionTimer = 0;
+
+    this.levelBuilder.buildRoom1TutorialStep(step);
+
+    this.room1Tutorial.targetCount =
+      this.levelBuilder.room1TutorialMarkers?.length ?? 0;
+
+    // ==========================================
+    // ЭТАП 2
+    // Четыре ступени поднимаются из пола.
+    // ==========================================
+
+    if (step === 2) {
+      this.startRoom1PlatformAnimation({
+        platforms: this.levelBuilder.room1TutorialPlatforms,
+
+        direction: "forward",
+        duration: 0.75,
+
+        completionAction: "unlock_player",
+      });
+
+      if (this.playerController) {
+        this.playerController.isLocked = true;
+      }
+
+      return;
+    }
+
+    // ==========================================
+    // ЭТАП 3
+    // Одновременно появляются стартовая
+    // и финишная полки.
+    // ==========================================
+
+    if (step === 3) {
+      const shelves = this.levelBuilder.room1TutorialStage3Shelves || [];
+
+      const routeShelves = shelves.filter((shelf) => shelf.role === "route");
+
+      const startShelf = routeShelves[0];
+
+      const finishShelf = shelves.find((shelf) => shelf.role === "finish");
+
+      this.startRoom1PlatformAnimation({
+        platforms: [startShelf, finishShelf].filter(Boolean),
+
+        direction: "forward",
+        duration: 0.8,
+
+        completionAction: "stage3_initial_shelves_ready",
+      });
+
+      if (this.playerController) {
+        this.playerController.isLocked = true;
+      }
+
+      return;
+    }
+
+    // Обычный этап без анимации перестройки.
+    if (this.playerController) {
+      this.playerController.isLocked = false;
+    }
+
+    console.log(`[ROOM 1] Tutorial step ${step} started.`);
+  }
+
+  collectRoom1TutorialMarker(marker) {
+    if (!marker) return;
+    if (!marker.userData.active) return;
+    if (marker.userData.collected) return;
+
+    marker.userData.active = false;
+    marker.userData.collected = true;
+
+    marker.visible = false;
+
+    this.room1Tutorial.collected += 1;
+
+    // Пока временный звук.
+    audioManager?.playUI("biosClick");
+
+    // ==========================================
+    // ЭТАП 3 — ПОСЛЕДОВАТЕЛЬНЫЙ МАРШРУТ
+    // ==========================================
+
+    if (this.room1Tutorial.step === 3) {
+      const shelves = this.levelBuilder?.room1TutorialStage3Shelves || [];
+
+      const routeShelves = shelves.filter((shelf) => shelf.role === "route");
+
+      const currentIndex = marker.userData.stage3ShelfIndex ?? -1;
+
+      const nextIndex = currentIndex + 1;
+
+      // ------------------------------------------
+      // ЕСТЬ ЕЩЁ ОДНА СИНЯЯ ПОЛКА
+      // ------------------------------------------
+
+      if (nextIndex < routeShelves.length) {
+        const nextShelf = routeShelves[nextIndex];
+
+        this.room1Tutorial.stage3PendingShelfIndex = nextIndex;
+
+        // Пока следующая полка выезжает,
+        // новые маркеры не проверяем.
+        this.room1Tutorial.state = "rebuilding";
+
+        this.startRoom1PlatformAnimation({
+          platforms: [nextShelf],
+
+          direction: "forward",
+          duration: 0.65,
+
+          completionAction: "stage3_next_shelf_ready",
+        });
+
+        console.log(`[ROOM 1] Stage 3: opening shelf ${nextIndex + 1}.`);
+
+        return;
+      }
+
+      // ------------------------------------------
+      // ЭТО БЫЛ ПОСЛЕДНИЙ СИНИЙ МАРКЕР
+      // ------------------------------------------
+
+      this.room1Tutorial.state = "goal";
+
+      this.levelBuilder?.showRoom1TutorialGoal();
+
+      console.log("[ROOM 1] Stage 3: finish goal activated.");
+
+      return;
+    }
+
+    // ==========================================
+// ЭТАП 5 — ФИНАЛЬНЫЕ ТРИ МАРКЕРА
+// ==========================================
+
+if (this.room1Tutorial.step === 5) {
+  const markers =
+    this.levelBuilder
+      ?.room1TutorialMarkers || [];
+
+  const role =
+    marker.userData.stage5Role;
+
+  // ------------------------------------------
+  // СОБРАН ОДИН ИЗ ДВУХ НИЖНИХ
+  // ------------------------------------------
+
+  if (
+    role === "lowerLeft" ||
+    role === "lowerRight"
+  ) {
+    const lowerMarkers =
+      markers.filter(
+        (item) =>
+          item.userData.stage5Role ===
+            "lowerLeft" ||
+          item.userData.stage5Role ===
+            "lowerRight",
+      );
+
+    const lowerCollected =
+      lowerMarkers.filter(
+        (item) =>
+          item.userData.collected === true,
+      ).length;
+
+    console.log(
+      `[ROOM 1] Stage 5: lower markers ${lowerCollected}/2.`,
+    );
+
+    // Оба нижних собраны —
+    // включаем верхний.
+if (lowerCollected >= 2) {
+  const upperShelf =
+    this.levelBuilder
+      ?.room1TutorialStage5Shelves
+      ?.find(
+        (shelf) =>
+          shelf.name ===
+          "UpperCenter",
+      );
+
+  if (upperShelf) {
+    this.room1Tutorial.state =
+      "stage5_upper_shelf_opening";
+
+    this.room1Tutorial
+      .stage5ShelvesAnimation.time = 0;
+
+    upperShelf.stage5SoundPlayed =
+      false;
+
+    if (this.playerController) {
+      this.playerController.isLocked =
+        true;
+    }
+
+    console.log(
+      "[ROOM 1] Stage 5: upper shelf opening.",
+    );
+  }
+}
+
+    return;
+  }
+
+  // ------------------------------------------
+  // СОБРАН ВЕРХНИЙ МАРКЕР
+  // ------------------------------------------
+
+  if (role === "upper") {
+    this.room1Tutorial.state =
+      "finished";
+
+    this.unlockExitElevator(1);
+
+    console.log(
+      "[ROOM 1] Stage 5 completed. Exit elevator unlocked.",
+    );
+
+    return;
+  }
+
+  return;
+}
+
+    console.log(
+      `[ROOM 1] Collected ${this.room1Tutorial.collected}/${this.room1Tutorial.targetCount}`,
+    );
+
+    if (this.room1Tutorial.collected >= this.room1Tutorial.targetCount) {
+      this.room1Tutorial.state = "goal";
+
+      this.levelBuilder?.showRoom1TutorialGoal();
+
+      console.log(`[ROOM 1] Step ${this.room1Tutorial.step}: goal activated.`);
+    }
+  }
+
+  completeRoom1TutorialStep() {
+    if (this.room1Tutorial.state !== "goal") return;
+
+    this.room1Tutorial.state = "goal_approaching";
+    this.room1Tutorial.transitionTimer = 0;
+
+    const goal = this.levelBuilder?.room1TutorialGoal;
+
+    if (goal) {
+      goal.userData.active = false;
+    }
+
+    if (this.playerController) {
+      this.playerController.isLocked = true;
+    }
+
+    console.log(
+      `[ROOM 1] Tutorial step ${this.room1Tutorial.step}: centering player.`,
+    );
+  }
+
+  updateRoom1Tutorial(dt) {
+    if (this.currentLevelId !== 1) return;
+
+    if (!this.isGameActive) return;
+    if (this.isPaused) return;
+    if (this.isExitingToMenu) return;
+    if (this.isElevatorSequenceActive) return;
+
+    if (!this.playerController?.body) return;
+    if (!this.levelBuilder) return;
+
+    const tutorial = this.room1Tutorial;
+    const playerBody = this.playerController.body;
+    if (tutorial.step === 4) {
+      this.levelBuilder.updateRoom1TutorialStage4Zones();
+
+      const zones = this.levelBuilder.room1TutorialStage4Zones || [];
+
+      const allCorrect =
+        zones.length === 4 &&
+        zones.every((zone) => zone?.occupiedByCorrectCube === true);
+
+      if (allCorrect && !tutorial.stage4Solved) {
+        tutorial.stage4Solved = true;
+
+        this.levelBuilder.showRoom1TutorialStage4Goal();
+
+        tutorial.state = "goal";
+
+        console.log("[ROOM 1] Stage 4 puzzle solved!");
+      }
+    }
+
+    // ==========================================
+    // ОБЩАЯ АНИМАЦИЯ ПЛАТФОРМ ROOM 1
+    // ==========================================
+
+    const platformAnimation = tutorial.platformAnimation;
+
+    if (platformAnimation.active) {
+      platformAnimation.time += dt;
+
+      const rawProgress = platformAnimation.time / platformAnimation.duration;
+
+      const progress = THREE.MathUtils.clamp(rawProgress, 0, 1);
+
+      // Smoothstep.
+      const eased = progress * progress * (3 - 2 * progress);
+
+      const movementProgress =
+        platformAnimation.direction === "reverse" ? 1 - eased : eased;
+
+      const platforms = platformAnimation.platforms || [];
+
+      for (const platform of platforms) {
+        if (!platform) continue;
+
+        this.levelBuilder.setRoom1TutorialPlatformProgress(
+          platform,
+          movementProgress,
+        );
+      }
+
+      if (progress >= 1) {
+        const completionAction = platformAnimation.completionAction;
+
+        platformAnimation.active = false;
+        platformAnimation.time = 0;
+
+        platformAnimation.platforms = [];
+        platformAnimation.completionAction = null;
+
+        // ========================================
+        // ОБЫЧНОЕ ЗАВЕРШЕНИЕ АНИМАЦИИ
+        // ========================================
+
+        if (completionAction === "unlock_player") {
+          if (this.playerController) {
+            this.playerController.isLocked = false;
+          }
+        }
+
+        // ========================================
+        // ЭТАП 2 УЕХАЛ ПОД ПОЛ
+        // ========================================
+        else if (completionAction === "start_step_3") {
+          this.startRoom1TutorialStep(3);
+        }
+
+        // ========================================
+        // ПЕРВЫЕ ДВЕ ПОЛКИ ЭТАПА 3 ГОТОВЫ
+        // ========================================
+        else if (completionAction === "stage3_initial_shelves_ready") {
+          const shelves = this.levelBuilder.room1TutorialStage3Shelves || [];
+
+          const routeShelves = shelves.filter(
+            (shelf) => shelf.role === "route",
+          );
+
+          const startShelf = routeShelves[0];
+
+          // Только теперь показываем первый
+          // синий маркер.
+          if (startShelf?.marker) {
+            startShelf.marker.visible = true;
+            startShelf.marker.userData.active = true;
+          }
+
+          tutorial.state = "collecting";
+          tutorial.stage3CurrentShelfIndex = 0;
+          tutorial.stage3PendingShelfIndex = -1;
+
+          if (this.playerController) {
+            this.playerController.isLocked = false;
+          }
+
+          console.log("[ROOM 1] Tutorial step 3 ready.");
+        } else if (completionAction === "stage3_next_shelf_ready") {
+          const shelves = this.levelBuilder.room1TutorialStage3Shelves || [];
+
+          const routeShelves = shelves.filter(
+            (shelf) => shelf.role === "route",
+          );
+
+          const nextIndex = tutorial.stage3PendingShelfIndex;
+
+          const nextShelf = routeShelves[nextIndex];
+
+          if (nextShelf?.marker) {
+            nextShelf.marker.visible = true;
+            nextShelf.marker.userData.active = true;
+          }
+
+          tutorial.stage3CurrentShelfIndex = nextIndex;
+
+          tutorial.stage3PendingShelfIndex = -1;
+
+          tutorial.state = "collecting";
+
+          console.log(`[ROOM 1] Stage 3: shelf ${nextIndex + 1} ready.`);
+        }
+      }
+
+      // Пока помещение перестраивается,
+      // никакие маркеры не проверяем.
+      return;
+    }
+
+    // ==========================================
+    // КАТ-СЦЕНА 3 → 4
+    // ==========================================
+
+    if (tutorial.state === "stage3_to_4") {
+      const transition = tutorial.stage4Transition;
+
+      transition.time += dt;
+
+      const time = transition.time;
+
+      // ========================================
+      // ПОДЪЁМ БОРДЮРА
+      // ========================================
+
+      const borders = this.levelBuilder.room1TutorialStage4Borders || [];
+
+      const borderRawProgress = time / transition.borderDuration;
+
+      const borderProgress = THREE.MathUtils.clamp(borderRawProgress, 0, 1);
+
+      const borderEased =
+        borderProgress * borderProgress * (3 - 2 * borderProgress);
+
+      for (const border of borders) {
+        this.levelBuilder.setRoom1TutorialPlatformProgress(border, borderEased);
+      }
+
+      this.levelBuilder.setRoom1TutorialStage4TestPlatformProgress(borderEased);
+
+      // ========================================
+      // ПОЛКИ УХОДЯТ СНИЗУ ВВЕРХ
+      // ========================================
+
+      const shelves = this.levelBuilder.room1TutorialStage3Shelves || [];
+
+      for (let index = 0; index < shelves.length; index++) {
+        const shelf = shelves[index];
+
+        // Первая полка начинает сразу.
+        // Каждая следующая — чуть позже.
+        const shelfStartTime = index * transition.shelfDelay;
+
+        const localTime = time - shelfStartTime;
+        if (
+  localTime >= 0 &&
+  !shelf.stage3RetractSoundPlayed
+) {
+  shelf.stage3RetractSoundPlayed = true;
+
+  audioManager?.playShelfMove(
+    0.42,
+  );
+}
+
+        const rawProgress = localTime / transition.shelfDuration;
+
+        const progress = THREE.MathUtils.clamp(rawProgress, 0, 1);
+
+        const eased = progress * progress * (3 - 2 * progress);
+
+        // 1 = полностью выдвинута.
+        // 0 = полностью спрятана.
+        const movementProgress = 1 - eased;
+
+        this.levelBuilder.setRoom1TutorialPlatformProgress(
+          shelf,
+          movementProgress,
+        );
+      }
+
+      // ========================================
+      // ЖДЁМ, ПОКА УЙДЁТ САМАЯ ВЕРХНЯЯ ПОЛКА
+      // ========================================
+
+      const shelvesFinishTime =
+        shelves.length > 0
+          ? (shelves.length - 1) * transition.shelfDelay +
+            transition.shelfDuration
+          : 0;
+
+      const transitionFinished =
+        time >= Math.max(transition.borderDuration, shelvesFinishTime);
+
+      if (transitionFinished) {
+        tutorial.step = 4;
+
+        tutorial.state = "stage4_wait_landing";
+
+        console.log(
+          "[ROOM 1] Stage 4 border ready. Waiting for player landing.",
+        );
+      }
+
+      return;
+    }
+
+    // ==========================================
+    // ШАР УПАЛ НА ГОТОВЫЙ БОРДЮР
+    // ==========================================
+
+    if (tutorial.state === "stage4_wait_landing") {
+      if (this.playerController.isGrounded === true) {
+        this.levelBuilder.activateRoom1TutorialStage4TestCube();
+
+        tutorial.state = "collecting";
+
+        if (this.playerController) {
+          this.playerController.isLocked = false;
+        }
+
+        console.log("[ROOM 1] Player landed. Stage 4 can begin.");
+      }
+
+      return;
+    }
+
+// ==========================================
+// ПЕРЕХОД 4 → 5
+// Бордюр уходит вниз,
+// цветные зоны плавно исчезают.
+// ==========================================
+
+if (
+  tutorial.state ===
+  "stage4_to_5"
+) {
+  const transition =
+    tutorial.stage5Transition;
+
+  transition.time += dt;
+
+  const rawProgress =
+    transition.time /
+    transition.duration;
+
+  const progress =
+    THREE.MathUtils.clamp(
+      rawProgress,
+      0,
+      1,
+    );
+
+  const eased =
+    progress *
+    progress *
+    (3 - 2 * progress);
+
+  // ------------------------------------------
+  // БОРДЮР ОПУСКАЕТСЯ
+  // ------------------------------------------
+
+  const borders =
+    this.levelBuilder
+      .room1TutorialStage4Borders || [];
+
+  const borderProgress =
+    1 - eased;
+
+  for (const border of borders) {
+    this.levelBuilder
+      .setRoom1TutorialPlatformProgress(
+        border,
+        borderProgress,
+      );
+  }
+
+  // ------------------------------------------
+  // ЦВЕТНЫЕ ЗОНЫ ГАСНУТ
+  // ------------------------------------------
+
+  this.levelBuilder
+    .setRoom1TutorialStage4TestPlatformProgress(
+      1 - eased,
+    );
+
+  // ------------------------------------------
+  // ПЕРЕХОД ЗАВЕРШЁН
+  // ------------------------------------------
+
+if (progress >= 1) {
+  this.levelBuilder
+    .createRoom1TutorialStage5Shelves();
+
+  tutorial.state =
+    "stage5_shelves_opening";
+
+  tutorial.stage5ShelvesAnimation.time = 0;
+
+  if (this.playerController) {
+    this.playerController.isLocked = true;
+  }
+
+  console.log(
+    "[ROOM 1] Stage 5 shelves opening.",
+  );
+}
+
+  return;
+}
+
+// ==========================================
+// ЭТАП 5 — ПОЛКИ ВЫЕЗЖАЮТ ПО ОЧЕРЕДИ
+// ==========================================
+
+if (
+  tutorial.state ===
+  "stage5_shelves_opening"
+) {
+  const animation =
+    tutorial.stage5ShelvesAnimation;
+
+  animation.time += dt;
+
+const allShelves =
+  this.levelBuilder
+    .room1TutorialStage5Shelves || [];
+
+const shelves =
+  allShelves.filter(
+    (shelf) =>
+      shelf.name === "LowerLeft" ||
+      shelf.name === "LowerRight",
+  );
+
+  for (
+    let index = 0;
+    index < shelves.length;
+    index++
+  ) {
+    const shelf = shelves[index];
+
+    const startTime =
+      index * animation.shelfDelay;
+
+    const localTime =
+      animation.time - startTime;
+
+      if (
+  localTime >= 0 &&
+  !shelf.stage5SoundPlayed
+) {
+  shelf.stage5SoundPlayed = true;
+
+  audioManager?.playShelfMove(
+    0.42,
+  );
+}
+
+    const rawProgress =
+      localTime /
+      animation.shelfDuration;
+
+    const progress =
+      THREE.MathUtils.clamp(
+        rawProgress,
+        0,
+        1,
+      );
+
+    const eased =
+      progress *
+      progress *
+      (3 - 2 * progress);
+
+    this.levelBuilder
+      .setRoom1TutorialPlatformProgress(
+        shelf,
+        eased,
+      );
+  }
+
+  const finishTime =
+    shelves.length > 0
+      ? (shelves.length - 1) *
+          animation.shelfDelay +
+        animation.shelfDuration
+      : 0;
+
+  if (
+    animation.time >= finishTime
+  ) {
+  tutorial.state =
+  "collecting";
+
+    if (this.playerController) {
+      this.playerController.isLocked =
+        false;
+    }
+
+    console.log(
+      "[ROOM 1] Stage 5 shelves ready.",
+    );
+  }
+
+  return;
+}
+
+// ==========================================
+// ЭТАП 5 — ВЫЕЗЖАЕТ ВЕРХНЯЯ ПОЛКА
+// ==========================================
+
+if (
+  tutorial.state ===
+  "stage5_upper_shelf_opening"
+) {
+  const animation =
+    tutorial.stage5ShelvesAnimation;
+
+  animation.time += dt;
+
+  const upperShelf =
+    this.levelBuilder
+      .room1TutorialStage5Shelves
+      ?.find(
+        (shelf) =>
+          shelf.name ===
+          "UpperCenter",
+      );
+
+  if (!upperShelf) {
+    return;
+  }
+
+  if (
+    !upperShelf.stage5SoundPlayed
+  ) {
+    upperShelf.stage5SoundPlayed =
+      true;
+
+    audioManager?.playShelfMove(
+      0.42,
+    );
+  }
+
+  const rawProgress =
+    animation.time /
+    animation.shelfDuration;
+
+  const progress =
+    THREE.MathUtils.clamp(
+      rawProgress,
+      0,
+      1,
+    );
+
+  const eased =
+    progress *
+    progress *
+    (3 - 2 * progress);
+
+  this.levelBuilder
+    .setRoom1TutorialPlatformProgress(
+      upperShelf,
+      eased,
+    );
+
+  if (progress >= 1) {
+    const upperMarker =
+      upperShelf.marker;
+
+    if (
+      upperMarker &&
+      !upperMarker.userData.collected
+    ) {
+      upperMarker.visible = true;
+      upperMarker.userData.active =
+        true;
+    }
+
+    tutorial.state =
+      "collecting";
+
+    if (this.playerController) {
+      this.playerController.isLocked =
+        false;
+    }
+
+    console.log(
+      "[ROOM 1] Stage 5: upper shelf ready.",
+    );
+  }
+
+  return;
+}
+
+    // ==========================================
+    // ДОКАТЫВАНИЕ К ЦЕНТРУ ЗЕЛЁНОГО МАРКЕРА
+    // ==========================================
+
+    if (tutorial.state === "goal_approaching") {
+      const goal = this.levelBuilder.room1TutorialGoal;
+
+      if (!goal) {
+        return;
+      }
+
+      // Если шар ещё в воздухе, не перехватываем его.
+      // Пусть сначала естественно приземлится.
+      if (this.playerController.isGrounded !== true) {
+        return;
+      }
+
+      const reachedGoalCenter = this.movePlayerHorizontallyToTarget(
+        {
+          x: goal.position.x,
+          z: goal.position.z,
+        },
+        {
+          stopDistance: 0.06,
+          maxSpeed: 3.5,
+          minSpeed: 0.45,
+          acceleration: 3.5,
+        },
+      );
+
+      if (reachedGoalCenter) {
+        const body = this.playerController.body;
+
+        // Финально гасим движение.
+        body.velocity.x = 0;
+        body.velocity.z = 0;
+
+        body.angularVelocity.x = 0;
+        body.angularVelocity.z = 0;
+
+        // Запоминаем точную текущую позицию интерполяции,
+        // чтобы камера и меш не получили скачок.
+        body.previousPosition.copy(body.position);
+        body.interpolatedPosition.copy(body.position);
+
+        if (this.playerController.mesh) {
+          this.playerController.mesh.position.copy(body.position);
+          this.playerController.mesh.quaternion.copy(body.quaternion);
+        }
+
+        // Теперь скрываем зелёный маркер.
+        goal.visible = false;
+
+        // Теперь этап действительно завершён.
+        tutorial.state = "transition";
+        tutorial.transitionTimer = 0;
+
+        // Временный звук завершения.
+        audioManager?.playUI("biosClick");
+
+        console.log(
+          `[ROOM 1] Tutorial step ${tutorial.step} centered and completed.`,
+        );
+      }
+
+      return;
+    }
+
+    if (tutorial.state === "transition") {
+      tutorial.transitionTimer += dt;
+
+      // Потом здесь будет настоящая анимация перестройки.
+      if (tutorial.transitionTimer >= 0.55) {
+        const nextStep = tutorial.step + 1;
+
+        // ==========================================
+        // ОСОБЫЙ ПЕРЕХОД 2 → 3
+        // Сначала старые ступени уходят под пол.
+        // ==========================================
+
+        if (tutorial.step === 2 && nextStep === 3) {
+          tutorial.state = "rebuilding";
+
+          const oldPlatforms = this.levelBuilder.room1TutorialPlatforms || [];
+
+          this.startRoom1PlatformAnimation({
+            platforms: oldPlatforms,
+
+            direction: "reverse",
+            duration: 0.75,
+
+            completionAction: "start_step_3",
+          });
+
+          return;
+        }
+
+        // ==========================================
+        // ОСОБЫЙ ПЕРЕХОД 3 → 4
+        // Бордюр начинает подниматься,
+        // а полки будут уходить снизу вверх.
+        // ==========================================
+
+        if (tutorial.step === 3 && nextStep === 4) {
+          tutorial.state = "stage3_to_4";
+
+          tutorial.stage4Transition.time = 0;
+
+          if (this.playerController) {
+            this.playerController.isLocked = true;
+          }
+
+          console.log("[ROOM 1] Starting transition 3 -> 4.");
+
+          return;
+        }
+
+// ==========================================
+// ОСОБЫЙ ПЕРЕХОД 4 → 5
+// Опускаем бордюр и гасим цветные зоны.
+// Кубы остаются в комнате.
+// ==========================================
+
+if (
+  tutorial.step === 4 &&
+  nextStep === 5
+) {
+  tutorial.step = 5;
+
+  tutorial.state =
+    "stage4_to_5";
+
+  tutorial.stage5Transition.time = 0;
+
+  if (this.playerController) {
+    this.playerController.isLocked = true;
+  }
+
+  console.log(
+    "[ROOM 1] Starting transition 4 -> 5.",
+  );
+
+  return;
+}
+
+        // ==========================================
+        // ОБЫЧНЫЙ ПЕРЕХОД
+        // ==========================================
+
+        if (nextStep <= tutorial.maxImplementedStep) {
+          this.startRoom1TutorialStep(nextStep);
+        } else {
+          tutorial.state = "finished";
+
+          if (this.playerController) {
+            this.playerController.isLocked = false;
+          }
+
+          console.log(
+            "[ROOM 1] All currently implemented tutorial steps completed.",
+          );
+        }
+      }
+
+      return;
+    }
+
+    // ==========================================
+    // ОБЩАЯ ПРОВЕРКА ПОПАДАНИЯ В МАРКЕР
+    // ==========================================
+
+    const isPlayerInsideMarker = (marker) => {
+      if (!marker) return false;
+      if (!marker.visible) return false;
+      if (!marker.userData.active) return false;
+
+      const dx = playerBody.position.x - marker.position.x;
+
+      const dz = playerBody.position.z - marker.position.z;
+
+      const radius = marker.userData.radius ?? 1.5;
+
+      const triggerY =
+        marker.userData.triggerY ??
+        marker.position.y + (CONFIG.PLAYER.RADIUS || 1.5);
+
+      const dy = playerBody.position.y - triggerY;
+
+      const insideHorizontal = dx * dx + dz * dz <= radius * radius;
+
+      // Не позволяем собирать маркер,
+      // находясь этажом ниже или выше него.
+      const insideVertical = Math.abs(dy) <= 0.9;
+
+      return insideHorizontal && insideVertical;
+    };
+
+    // ==========================================
+    // СБОР СИНИХ МАРКЕРОВ
+    // ==========================================
+
+    if (tutorial.state === "collecting") {
+      const markers = this.levelBuilder.room1TutorialMarkers || [];
+
+      for (const marker of markers) {
+        if (isPlayerInsideMarker(marker)) {
+          this.collectRoom1TutorialMarker(marker);
+
+          // За один физический кадр собираем максимум один.
+          break;
+        }
+      }
+
+      return;
+    }
+
+    // ==========================================
+    // ЗЕЛЁНЫЙ ФИНАЛЬНЫЙ МАРКЕР
+    // ==========================================
+
+    if (tutorial.state === "goal") {
+      const goal = this.levelBuilder.room1TutorialGoal;
+
+      if (isPlayerInsideMarker(goal)) {
+        this.completeRoom1TutorialStep();
+      }
+    }
+  }
+
+  movePlayerHorizontallyToTarget(
+    targetPoint,
+    {
+      stopDistance = 0.08,
+      maxSpeed = 6.2,
+      minSpeed = 0.75,
+      acceleration = 4.2,
+    } = {},
+  ) {
+    const playerRef = this.playerController;
+
+    if (!playerRef?.body) {
+      return false;
+    }
+
+    const body = playerRef.body;
+
+    const radius = this.playerController.radius || CONFIG.PLAYER.RADIUS || 1.5;
+
+    const dx = targetPoint.x - body.position.x;
+
+    const dz = targetPoint.z - body.position.z;
+
+    const distance = Math.hypot(dx, dz);
+
+    // Уже достаточно близко.
+    if (distance <= stopDistance) {
+      body.velocity.x = 0;
+      body.velocity.z = 0;
+
+      body.angularVelocity.x = 0;
+      body.angularVelocity.z = 0;
+
+      return true;
+    }
+
+    const dirX = dx / distance;
+    const dirZ = dz / distance;
+
+    // Чем ближе к цели, тем мягче скорость.
+    const speed = THREE.MathUtils.clamp(
+      distance * acceleration,
+      minSpeed,
+      maxSpeed,
+    );
+
+    const vx = dirX * speed;
+    const vz = dirZ * speed;
+
+    body.velocity.x = vx;
+    body.velocity.z = vz;
+
+    // Шар именно катится.
+    body.angularVelocity.x = vz / radius;
+    body.angularVelocity.z = -vx / radius;
+
+    return false;
+  }
+
   resetPlayerForLevel(levelId) {
     if (!this.playerController || !this.playerController.body) return;
 
@@ -1345,7 +2611,13 @@ lockGameplayLookInput() {
 
     body.velocity.set(0, 0, 0);
     body.angularVelocity.set(0, 0, 0);
-    body.position.set(startPos.x, startPos.y, startPos.z);
+    const playerRadius =
+      this.playerController.radius || CONFIG.PLAYER.RADIUS || 1.5;
+
+    // Точная высота центра шара, когда он лежит на полу.
+    const spawnY = CONFIG.WORLD.FLOOR_LEVEL + playerRadius;
+
+    body.position.set(startPos.x, spawnY, startPos.z);
     body.quaternion.set(0, 0, 0, 1);
 
     body.previousPosition.copy(body.position);
@@ -1365,86 +2637,76 @@ lockGameplayLookInput() {
     }
   }
 
-resetElevatorForLevel(levelId) {
-  if (!this.levelBuilder) return;
+  resetElevatorForLevel(levelId) {
+    if (!this.levelBuilder) return;
 
-  this.isExitDoorClosingPending = false;
+    this.isExitDoorClosingPending = false;
 
-  // После buildRoom() в roomElevators находятся только лифты
-  // текущего сектора, потому что clearCurrentRoom()
-  // очищает карту перед построением новой комнаты.
-  const elevators = this.levelBuilder.roomElevators;
+    // После buildRoom() в roomElevators находятся только лифты
+    // текущего сектора, потому что clearCurrentRoom()
+    // очищает карту перед построением новой комнаты.
+    const elevators = this.levelBuilder.roomElevators;
 
-  if (elevators) {
-    for (const elevator of elevators.values()) {
-      elevator.openState = 0;
-      elevator.targetOpenState = 0;
-    }
-  }
-
-  // Первый сектор начинается непосредственно в комнате:
-  // его единственный финишный лифт должен быть закрыт.
-  if (levelId === 1) {
-    this.levelBuilder.closeElevator("room1_exit");
-  }
-
-  // Сектор 2 начинается внутри room2_start.
-  if (levelId === 2) {
-    const startElevator = this.levelBuilder.getRoomElevator?.("room2_start");
-
-    if (startElevator) {
-      startElevator.openState = 1;
-      startElevator.targetOpenState = 1;
+    if (elevators) {
+      for (const elevator of elevators.values()) {
+        elevator.openState = 0;
+        elevator.targetOpenState = 0;
+      }
     }
 
-    this.levelBuilder.openElevator("room2_start");
-    this.levelBuilder.closeElevator("room2_exit");
-  }
+    // Сектор 2 начинается внутри room2_start.
+    if (levelId === 2) {
+      const startElevator = this.levelBuilder.getRoomElevator?.("room2_start");
 
-  // Сектор 3 начинается внутри room3_start.
-  if (levelId === 3) {
-    const startElevator = this.levelBuilder.getRoomElevator?.("room3_start");
+      if (startElevator) {
+        startElevator.openState = 1;
+        startElevator.targetOpenState = 1;
+      }
 
-    if (startElevator) {
-      startElevator.openState = 1;
-      startElevator.targetOpenState = 1;
+      this.levelBuilder.openElevator("room2_start");
+      this.levelBuilder.closeElevator("room2_exit");
     }
 
-    this.levelBuilder.openElevator("room3_start");
-  }
+    // Сектор 3 начинается внутри room3_start.
+    if (levelId === 3) {
+      const startElevator = this.levelBuilder.getRoomElevator?.("room3_start");
 
-  // Немедленно применяем положение створок и коллайдеров.
-  this.levelBuilder.updateDoors?.(999);
-}
+      if (startElevator) {
+        startElevator.openState = 1;
+        startElevator.targetOpenState = 1;
+      }
+
+      this.levelBuilder.openElevator("room3_start");
+    }
+
+    // Немедленно применяем положение створок и коллайдеров.
+    this.levelBuilder.updateDoors?.(999);
+  }
 
   resetCameraForLevel(levelId) {
     if (!this.cameraPivot || !this.camera) return;
 
     const startPos = this.getLevelStartPosition(levelId);
 
-   if (levelId > 1) {
-  this.cameraPivot.position.set(
-    startPos.x,
-    startPos.y + 5.5,
-    startPos.z,
-  );
+    if (levelId > 1) {
+      this.cameraPivot.position.set(startPos.x, startPos.y + 5.5, startPos.z);
 
-  this.cameraPivot.rotation.set(-0.30, 0, 0);
+      this.cameraPivot.rotation.set(-0.3, 0, 0);
 
-  if (this.cameraController) {
-    this.cameraController.currentZoom = 15.0;
-    this.cameraController.targetZoom = 15.0;
-  }
+      if (this.cameraController) {
+        this.cameraController.currentZoom = 15.0;
+        this.cameraController.targetZoom = 15.0;
+      }
 
-  this.camera.position.set(0, 0, 15.0);
-  this.camera.rotation.set(0, 0, 0);
+      this.camera.position.set(0, 0, 15.0);
+      this.camera.rotation.set(0, 0, 0);
 
-  return;
-}
+      return;
+    }
 
     // Уровень 1 оставляем как раньше.
     this.cameraPivot.position.set(startPos.x, startPos.y + 4.0, startPos.z);
-   this.cameraPivot.rotation.set(-0.30, 0, 0);
+    this.cameraPivot.rotation.set(-0.3, 0, 0);
 
     if (this.cameraController) {
       this.cameraController.currentZoom = 15.0;
@@ -1460,9 +2722,8 @@ resetElevatorForLevel(levelId) {
 
     const playerRef = this.playerController;
 
-const arrivalDoorId =
-  this.activeExitElevator?.arrivalDoorId ||
-  `room${nextLevelId}_start`;
+    const arrivalDoorId =
+      this.activeExitElevator?.arrivalDoorId || `room${nextLevelId}_start`;
 
     this.targetLevelId = nextLevelId;
     this.isElevatorSequenceActive = true;
@@ -1500,19 +2761,18 @@ const arrivalDoorId =
       }
 
       if (nextLevelId > 1 && this.levelBuilder) {
-
         // Двери прибытия должны быть закрыты уже в первом видимом кадре.
         // resetElevatorForLevel() оставляет выходную сторону открытой,
         // поэтому сбрасываем не только target, но и текущее состояние.
         this.levelBuilder.closeElevator(arrivalDoorId);
 
-     const arrivalElevator =
-  this.levelBuilder.getRoomElevator?.(arrivalDoorId);
+        const arrivalElevator =
+          this.levelBuilder.getRoomElevator?.(arrivalDoorId);
 
-if (arrivalElevator) {
-  arrivalElevator.openState = 0;
-  arrivalElevator.targetOpenState = 0;
-}
+        if (arrivalElevator) {
+          arrivalElevator.openState = 0;
+          arrivalElevator.targetOpenState = 0;
+        }
 
         // Немедленно применяем закрытое положение к мешам и коллайдерам,
         // пока экран ещё полностью чёрный.
@@ -1865,82 +3125,80 @@ if (arrivalElevator) {
     nextFlicker();
   }
 
-async warmupFinalRoomForStart() {
-  if (!this.renderer || !this.scene || !this.camera || !this.composer) {
-    return;
-  }
-
-  const nextFrame = () =>
-    new Promise((resolve) => requestAnimationFrame(resolve));
-
-  const startTime = performance.now();
-
-  console.log(
-    `[FINAL WARMUP] Starting room ${this.currentLevelId} warmup...`,
-  );
-
-  this.isPreparingGame = true;
-
-  try {
-    // Финальные позиции игрока, камеры, дверей и объектов
-    // уже должны быть выставлены ДО вызова этого метода.
-    this.scene.updateMatrixWorld(true);
-    this.camera.updateMatrixWorld(true);
-
-    // Даём браузеру применить изменения сцены.
-    await nextFrame();
-
-    const previousRenderTarget = this.renderer.getRenderTarget();
-
-    const composerRenderTarget =
-      this.composer?.readBuffer ||
-      this.composer?.renderTarget1 ||
-      null;
-
-    try {
-      // Компилируем сцену именно под тот render target,
-      // через который затем реально работает EffectComposer.
-      if (composerRenderTarget) {
-        this.renderer.setRenderTarget(composerRenderTarget);
-      }
-
-      if (typeof this.renderer.compileAsync === "function") {
-        await this.renderer.compileAsync(this.scene, this.camera);
-      } else {
-        this.renderer.compile(this.scene, this.camera);
-      }
-    } finally {
-      this.renderer.setRenderTarget(previousRenderTarget);
+  async warmupFinalRoomForStart() {
+    if (!this.renderer || !this.scene || !this.camera || !this.composer) {
+      return;
     }
 
-    // Очень важная часть:
-    // не только compileAsync, а настоящий первый рендер.
-    this.renderer.info.reset();
-    this.composer.render();
+    const nextFrame = () =>
+      new Promise((resolve) => requestAnimationFrame(resolve));
 
-    await nextFrame();
-
-    // Второй скрытый кадр — чтобы добить ленивую GPU-инициализацию,
-    // которая могла не произойти на первом проходе.
-    this.renderer.info.reset();
-    this.composer.render();
-
-    await nextFrame();
+    const startTime = performance.now();
 
     console.log(
-      `[FINAL WARMUP] Room ${this.currentLevelId} ready in ${Math.round(
-        performance.now() - startTime,
-      )} ms`,
+      `[FINAL WARMUP] Starting room ${this.currentLevelId} warmup...`,
     );
-  } catch (error) {
-    console.error("[FINAL WARMUP] Failed:", error);
-  } finally {
-    this.isPreparingGame = false;
 
-    // После тяжёлой подготовки не передаём её время физике.
-    this.lastTime = performance.now();
+    this.isPreparingGame = true;
+
+    try {
+      // Финальные позиции игрока, камеры, дверей и объектов
+      // уже должны быть выставлены ДО вызова этого метода.
+      this.scene.updateMatrixWorld(true);
+      this.camera.updateMatrixWorld(true);
+
+      // Даём браузеру применить изменения сцены.
+      await nextFrame();
+
+      const previousRenderTarget = this.renderer.getRenderTarget();
+
+      const composerRenderTarget =
+        this.composer?.readBuffer || this.composer?.renderTarget1 || null;
+
+      try {
+        // Компилируем сцену именно под тот render target,
+        // через который затем реально работает EffectComposer.
+        if (composerRenderTarget) {
+          this.renderer.setRenderTarget(composerRenderTarget);
+        }
+
+        if (typeof this.renderer.compileAsync === "function") {
+          await this.renderer.compileAsync(this.scene, this.camera);
+        } else {
+          this.renderer.compile(this.scene, this.camera);
+        }
+      } finally {
+        this.renderer.setRenderTarget(previousRenderTarget);
+      }
+
+      // Очень важная часть:
+      // не только compileAsync, а настоящий первый рендер.
+      this.renderer.info.reset();
+      this.composer.render();
+
+      await nextFrame();
+
+      // Второй скрытый кадр — чтобы добить ленивую GPU-инициализацию,
+      // которая могла не произойти на первом проходе.
+      this.renderer.info.reset();
+      this.composer.render();
+
+      await nextFrame();
+
+      console.log(
+        `[FINAL WARMUP] Room ${this.currentLevelId} ready in ${Math.round(
+          performance.now() - startTime,
+        )} ms`,
+      );
+    } catch (error) {
+      console.error("[FINAL WARMUP] Failed:", error);
+    } finally {
+      this.isPreparingGame = false;
+
+      // После тяжёлой подготовки не передаём её время физике.
+      this.lastTime = performance.now();
+    }
   }
-}
 
   resetScene(options = {}) {
     const { rebuildRoom = true, levelId = this.currentLevelId || 1 } = options;
@@ -1955,6 +3213,16 @@ async warmupFinalRoomForStart() {
     // в том уровне, который нам передали.
     this.currentLevelId = levelId;
     this.targetLevelId = null;
+
+    // ==========================================
+    // СБРОС ОБУЧЕНИЯ КОМНАТЫ 1
+    // ==========================================
+
+    if (levelId === 1) {
+      this.room1TutorialStep = 1;
+      this.room1TutorialCompleting = false;
+      this.room1TutorialCompleteTimer = 0;
+    }
 
     // Сбрасываем runtime-состояние выбранного сектора
     // и всех следующих уже существующих секторов.
@@ -1976,6 +3244,9 @@ async warmupFinalRoomForStart() {
       if (this.cameraController) {
         this.cameraController.invalidateWallsCache();
       }
+    }
+    if (levelId === 1) {
+      this.resetRoom1Tutorial();
     }
     // === 1. СБРОС ЛИФТА И КАТ-СЦЕНЫ ===
     this.resetElevatorForLevel(levelId);
@@ -2025,14 +3296,14 @@ async warmupFinalRoomForStart() {
 
     // Сброс UI и стейта
     if (store && typeof store.get === "function") {
-  const currentState = store.get();
+      const currentState = store.get();
 
-  if (typeof store.set === "function") {
-    store.set({ ...currentState, currentTool: -1, paintToolColor: -1 });
-  } else if (typeof store.update === "function") {
-    store.update({ currentTool: -1, paintToolColor: -1 });
-  }
-}
+      if (typeof store.set === "function") {
+        store.set({ ...currentState, currentTool: -1, paintToolColor: -1 });
+      } else if (typeof store.update === "function") {
+        store.update({ currentTool: -1, paintToolColor: -1 });
+      }
+    }
 
     document.body.classList.remove("is-pressing");
 
@@ -2071,62 +3342,62 @@ async warmupFinalRoomForStart() {
         this.wordManager.returnLettersToStart();
       }
     }
- // При запуске сектора из главного меню сначала полностью
-// подготавливаем финально построенную комнату.
-//
-// Пока идёт GPU-прогрев:
-// - физика не работает;
-// - игрок не двигается;
-// - экран остаётся чёрным.
-if (startingFromMenu) {
-  this.isGameActive = false;
-  this.isPaused = true;
+    // При запуске сектора из главного меню сначала полностью
+    // подготавливаем финально построенную комнату.
+    //
+    // Пока идёт GPU-прогрев:
+    // - физика не работает;
+    // - игрок не двигается;
+    // - экран остаётся чёрным.
+    if (startingFromMenu) {
+      this.isGameActive = false;
+      this.isPaused = true;
 
-  if (this.playerController) {
-    this.playerController.isLocked = true;
+      if (this.playerController) {
+        this.playerController.isLocked = true;
 
-    if (this.playerController.keys) {
-      for (const key in this.playerController.keys) {
-        this.playerController.keys[key] = false;
+        if (this.playerController.keys) {
+          for (const key in this.playerController.keys) {
+            this.playerController.keys[key] = false;
+          }
+        }
       }
+
+      // Показываем чёрный экран мгновенно, без анимации затемнения.
+      if (this.fadeScreen) {
+        this.fadeScreen.style.transition = "none";
+        this.fadeScreen.style.opacity = "1";
+
+        // Форсируем применение opacity: 1.
+        void this.fadeScreen.offsetWidth;
+
+        // Следующее изменение opacity уже снова будет плавным.
+        this.fadeScreen.style.transition = "opacity 0.9s ease-in-out";
+      }
+
+      this.lastTime = performance.now();
+
+      // Запоминаем Promise.
+      // startGameplaySession() дождётся его перед передачей управления.
+      this.finalRoomWarmupPromise = this.warmupFinalRoomForStart();
     }
   }
 
-  // Показываем чёрный экран мгновенно, без анимации затемнения.
-  if (this.fadeScreen) {
-    this.fadeScreen.style.transition = "none";
-    this.fadeScreen.style.opacity = "1";
+  setupStateReactions() {
+    let lastTool = store.get().currentTool;
 
-    // Форсируем применение opacity: 1.
-    void this.fadeScreen.offsetWidth;
+    store.subscribe((state) => {
+      this.sceneManager.setAtmosphere();
 
-    // Следующее изменение opacity уже снова будет плавным.
-    this.fadeScreen.style.transition = "opacity 0.9s ease-in-out";
-  }
+      for (const l of this.wordManager.letterObjects) {
+        l.mesh.material.emissiveIntensity = 0.0;
+        l.mesh.material.roughness = 0.5;
+        l.mesh.material.color.setHex(l.body.userData.googleColor);
+      }
 
-  this.lastTime = performance.now();
+      this.setBallGlow(false);
 
-  // Запоминаем Promise.
-  // startGameplaySession() дождётся его перед передачей управления.
-  this.finalRoomWarmupPromise = this.warmupFinalRoomForStart();
-}
-  }
-
-setupStateReactions() {
-  let lastTool = store.get().currentTool;
-
-  store.subscribe((state) => {
-    this.sceneManager.setAtmosphere();
-
-    for (const l of this.wordManager.letterObjects) {
-      l.mesh.material.emissiveIntensity = 0.0;
-      l.mesh.material.roughness = 0.5;
-      l.mesh.material.color.setHex(l.body.userData.googleColor);
-    }
-
-    this.setBallGlow(false);
-
-    if (state.currentTool !== lastTool) {
+      if (state.currentTool !== lastTool) {
         const wasMagnet = lastTool !== -1;
         const isMagnet = state.currentTool !== -1;
 
@@ -2283,7 +3554,7 @@ setupStateReactions() {
         (this.ballSpawnIndex + 1) % CONFIG.PHYSICS.MAX_BALLS;
     }
 
-   this.setBallGlow(false);
+    this.setBallGlow(false);
 
     this.updateBeadsBlinking();
   }
@@ -2609,50 +3880,7 @@ setupStateReactions() {
         this.levelBuilder.updateDoors(dt);
       }
 
-      // === ВРЕМЕННОЕ ЗАДАНИЕ КОМНАТЫ 1 ===
-      //
-      // Игрок заезжает на голубую площадку,
-      // после чего выходной лифт комнаты 1 разблокируется.
-      if (
-        this.currentLevelId === 1 &&
-        this.isGameActive &&
-        !this.isPaused &&
-        !this.isExitingToMenu &&
-        !this.isElevatorSequenceActive &&
-        this.playerController?.body &&
-        this.levelBuilder?.room1UnlockPad &&
-        !this.isExitElevatorUnlocked(1)
-      ) {
-        const pad = this.levelBuilder.room1UnlockPad;
-        const playerPosition = this.playerController.body.position;
-
-        const dx = playerPosition.x - pad.position.x;
-        const dz = playerPosition.z - pad.position.z;
-
-        const activationRadius = pad.userData.radius ?? 2.0;
-
-        const isPlayerOnPad =
-          dx * dx + dz * dz <= activationRadius * activationRadius;
-
-        if (isPlayerOnPad) {
-          pad.userData.activated = true;
-
-          // Площадка визуально гаснет после активации.
-          if (pad.material) {
-            pad.material.opacity = 0.2;
-            pad.material.emissiveIntensity = 0.08;
-          }
-
-        // Общий механизм разблокировки выходного лифта.
-this.unlockExitElevator(1);
-
-// Активируем дисплей финишного лифта:
-// NEXT 02
-this.levelBuilder?.activateExitElevator(1);
-
-console.log("[ROOM 1] Temporary unlock pad activated.");
-        }
-      }
+      this.updateRoom1Tutorial(dt);
 
       // === 1. ТРИГГЕР ВЫХОДНОГО ЛИФТА ===
       // Доступность берётся из общей конфигурации exitElevator.
@@ -2756,54 +3984,17 @@ console.log("[ROOM 1] Temporary unlock pad activated.");
           const body = playerRef.body;
           const radius = CONFIG.PLAYER.RADIUS || 1.5;
 
-          const moveHorizontallyTo = (
-            targetPoint,
-            stopDistance = 0.08,
-            maxSpeed = 6.2,
-          ) => {
-            const dx = targetPoint.x - body.position.x;
-            const dz = targetPoint.z - body.position.z;
-            const distance = Math.hypot(dx, dz);
-
-            if (distance <= stopDistance) {
-              body.velocity.x = 0;
-              body.velocity.z = 0;
-
-              body.angularVelocity.x = 0;
-              body.angularVelocity.z = 0;
-
-              return true;
-            }
-
-            const dirX = dx / distance;
-            const dirZ = dz / distance;
-
-            // Чем ближе шар к точке, тем мягче движение.
-            const speed = THREE.MathUtils.clamp(distance * 4.2, 0.75, maxSpeed);
-
-            const vx = dirX * speed;
-            const vz = dirZ * speed;
-
-            body.velocity.x = vx;
-            body.velocity.z = vz;
-
-            // Визуально и физически продолжаем катить шар,
-            // а не просто скользить им по полу.
-            body.angularVelocity.x = vz / radius;
-            body.angularVelocity.z = -vx / radius;
-
-            return false;
-          };
-
           // === ФАЗА 1: ПОДХОД К ЛИФТУ ===
           if (this.elevatorPhase === "elevator_approaching") {
             // Пока шар находится в воздухе, горизонтальную и вертикальную
             // скорость не трогаем. Он должен естественно приземлиться.
             if (playerRef.isGrounded === true) {
-              const reachedApproach = moveHorizontallyTo(
+              const reachedApproach = this.movePlayerHorizontallyToTarget(
                 exitElevator.approachPoint,
-                0.12,
-                5.2,
+                {
+                  stopDistance: 0.12,
+                  maxSpeed: 5.2,
+                },
               );
 
               if (reachedApproach) {
@@ -2832,7 +4023,10 @@ console.log("[ROOM 1] Temporary unlock pad activated.");
             // Если физика слегка сдвинула шар от точки,
             // мягко возвращаем его, не телепортируя.
             if (distanceToApproach > 0.1) {
-              moveHorizontallyTo(approachPoint, 0.08, 1.6);
+              this.movePlayerHorizontallyToTarget(approachPoint, {
+                stopDistance: 0.08,
+                maxSpeed: 1.6,
+              });
 
               this.elevatorSettlingTime = 0;
             } else {
@@ -2880,10 +4074,12 @@ console.log("[ROOM 1] Temporary unlock pad activated.");
 
           // === ФАЗА 3: ВЪЕЗД В КАБИНУ ===
           if (this.elevatorPhase === "elevator_entering") {
-            const reachedCabin = moveHorizontallyTo(
+            const reachedCabin = this.movePlayerHorizontallyToTarget(
               exitElevator.cabinPoint,
-              0.08,
-              6.2,
+              {
+                stopDistance: 0.08,
+                maxSpeed: 6.2,
+              },
             );
 
             if (reachedCabin) {
@@ -2962,45 +4158,45 @@ console.log("[ROOM 1] Temporary unlock pad activated.");
         }
       }
 
-    // === 3. СЕНСОР ЗАКРЫТИЯ СТАРТОВОГО ЛИФТА ЗА ИГРОКОМ ===
-//
-// Начиная со второго сектора игрок появляется внутри
-// обычного универсального лифта roomN_start.
-//
-// Когда и шар, и камера полностью выехали из кабины,
-// закрываем именно стартовый лифт текущего сектора.
-if (
-  !this.isElevatorSequenceActive &&
-  this.currentLevelId > 1 &&
-  this.levelBuilder &&
-  this.playerController &&
-  this.camera
-) {
-  const pPos = this.playerController.body.position;
+      // === 3. СЕНСОР ЗАКРЫТИЯ СТАРТОВОГО ЛИФТА ЗА ИГРОКОМ ===
+      //
+      // Начиная со второго сектора игрок появляется внутри
+      // обычного универсального лифта roomN_start.
+      //
+      // Когда и шар, и камера полностью выехали из кабины,
+      // закрываем именно стартовый лифт текущего сектора.
+      if (
+        !this.isElevatorSequenceActive &&
+        this.currentLevelId > 1 &&
+        this.levelBuilder &&
+        this.playerController &&
+        this.camera
+      ) {
+        const pPos = this.playerController.body.position;
 
-  const cameraWorldPos = new THREE.Vector3();
-  this.camera.getWorldPosition(cameraWorldPos);
+        const cameraWorldPos = new THREE.Vector3();
+        this.camera.getWorldPosition(cameraWorldPos);
 
-  // Стартовый проём находится у z = 7.5,
-  // а игровая комната уходит в сторону -Z.
-  const playerLeftElevator = pPos.z < 5.0;
-  const cameraLeftElevator = cameraWorldPos.z < 7.0;
+        // Стартовый проём находится у z = 7.5,
+        // а игровая комната уходит в сторону -Z.
+        const playerLeftElevator = pPos.z < 5.0;
+        const cameraLeftElevator = cameraWorldPos.z < 7.0;
 
-  // Единое соглашение:
-  // room2_start, room3_start, room4_start...
-  const startElevatorId = `room${this.currentLevelId}_start`;
+        // Единое соглашение:
+        // room2_start, room3_start, room4_start...
+        const startElevatorId = `room${this.currentLevelId}_start`;
 
-  const startElevatorOpenState =
-    this.levelBuilder.getElevatorOpenState(startElevatorId);
+        const startElevatorOpenState =
+          this.levelBuilder.getElevatorOpenState(startElevatorId);
 
-  if (
-    playerLeftElevator &&
-    cameraLeftElevator &&
-    startElevatorOpenState > 0.05
-  ) {
-    this.levelBuilder.closeElevator(startElevatorId);
-  }
-}
+        if (
+          playerLeftElevator &&
+          cameraLeftElevator &&
+          startElevatorOpenState > 0.05
+        ) {
+          this.levelBuilder.closeElevator(startElevatorId);
+        }
+      }
 
       // 6. Синхронизация интерактивных объектов
       if (this.interactivePlatforms) {
@@ -3034,16 +4230,15 @@ if (
 
       // Управляем основным светом
       if (panel.rectLight) {
-  panel.rectLight.intensity =
-  (isCorridor ? 5.0 : 9.0) * intensity;
+        panel.rectLight.intensity = (isCorridor ? 5.0 : 9.0) * intensity;
         panel.rectLight.visible = isOn;
       }
 
       // Управляем теневым прожектором
-     if (panel.shadowLight) {
-  panel.shadowLight.intensity = 0;
-  panel.shadowLight.visible = false;
-}
+      if (panel.shadowLight) {
+        panel.shadowLight.intensity = 0;
+        panel.shadowLight.visible = false;
+      }
     });
 
     // Временно отключаем старую голографическую подсветку пола
@@ -3069,11 +4264,9 @@ if (
     }
     // ========================================================
 
-if (!this.isPreparingGame) {
-  this.composer.render();
-}
-
-   
+    if (!this.isPreparingGame) {
+      this.composer.render();
+    }
   }
 
   updateEnvironment(dt, timeSec) {
@@ -3087,14 +4280,14 @@ if (!this.isPreparingGame) {
     const TOOL_COLORS = { 0: 0x34a853, 1: 0xfbbc05, 2: 0xea4335, 3: 0x4285f4 };
     const activeColor = isMagnetEquipped ? TOOL_COLORS[tool] : null;
 
-this.sceneManager.updateAtmosphere(
-  timeSec,
-  this.platformImpact,
-  this.fanLevel,
-  isMagnetEquipped,
-  activeColor,
-  isMagnetPulling,
-);
+    this.sceneManager.updateAtmosphere(
+      timeSec,
+      this.platformImpact,
+      this.fanLevel,
+      isMagnetEquipped,
+      activeColor,
+      isMagnetPulling,
+    );
 
     if (isMagnetEquipped && this.inputManager.hasInteractionTarget) {
       this.sceneManager.magnetReticle.position.copy(
@@ -3121,7 +4314,7 @@ this.sceneManager.updateAtmosphere(
     if (env > 0) {
       const tries = isSlowMo() ? 2 : 4;
       for (let k = 0; k < tries; k++) {
-      const spawnChance = 0.85;
+        const spawnChance = 0.85;
         if (Math.random() < spawnChance)
           this.createHeatAirPuff(
             (Math.random() - 0.5) * 26,
@@ -3356,10 +4549,9 @@ function updatePreparationStatus(stage, percent) {
 
   const safePercent = THREE.MathUtils.clamp(Math.round(percent), 0, 100);
 
- if (status) {
-  status.classList.add("visible");
-
-}
+  if (status) {
+    status.classList.add("visible");
+  }
   if (stageElement) {
     stageElement.textContent = stage;
   }

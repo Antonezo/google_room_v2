@@ -26,6 +26,8 @@ export class LevelBuilder {
     this.matSlippery = physicsManager.matSlippery;
     this.matBox = physicsManager.matBox || physicsManager.matStandard;
     this.matBoxTop = physicsManager.matBoxTop || this.matBox;
+    this.matTutorialShelf =
+      physicsManager.matTutorialShelf || physicsManager.matStandard;
 
     // Параметры комнаты
     this.h = CONFIG.WORLD.ROOM_SIZE;
@@ -63,6 +65,42 @@ export class LevelBuilder {
     this.preservePrewarmedMaterials = false;
     this.prewarmedMaterialKeepAlive = new Set();
 
+    // ==========================================
+    // ОБУЧЕНИЕ КОМНАТЫ 1
+    // ==========================================
+
+    // Отдельная группа для временных объектов текущего под-уровня.
+    this.room1TutorialGroup = null;
+
+    // Физические тела ступеней / платформ текущего под-уровня.
+    this.room1TutorialBodies = [];
+
+    // Активные синие маркеры.
+    this.room1TutorialMarkers = [];
+
+    // Зелёный финальный маркер под-уровня.
+    this.room1TutorialGoal = null;
+
+    // Платформы текущего под-уровня.
+    // Нужны в том числе для анимации их появления.
+    this.room1TutorialPlatforms = [];
+
+    // Этап 3 — маршрут по выдвижным полкам.
+    this.room1TutorialStage3Shelves = [];
+    this.room1TutorialStage3FinishShelf = null;
+    // Этап 4 — поднимающийся бордюр по периметру.
+ this.room1TutorialStage4Borders = [];
+
+// Этап 4 — цветные зоны и падающие кубы.
+this.room1TutorialStage4Zones = [];
+this.room1TutorialStage4Cubes = [];
+// Этап 5 — финальные полки у дальней стены.
+this.room1TutorialStage5Shelves = [];
+
+// Временно оставляем старые ссылки,
+// пока переводим механику на массивы.
+this.room1TutorialStage4TestPlatform = null;
+this.room1TutorialStage4TestCube = null;
     this.room2GoalMarkerMesh = null;
     this.room2GoalMarkerBody = null;
 
@@ -221,6 +259,10 @@ export class LevelBuilder {
   }
 
   clearCurrentRoom() {
+    // Сначала удаляем временные объекты и физику обучения Room 1.
+    this.clearRoom1TutorialContent();
+
+    this.room1TutorialGroup = null;
     this.clearGroup(this.currentRoomGroup);
     this.clearBodies(this.currentRoomBodies);
 
@@ -230,6 +272,7 @@ export class LevelBuilder {
 
     this.room2GoalMarkerMesh = null;
     this.room2GoalMarkerBody = null;
+    this.room1TutorialMarker = null;
 
     // При полной перестройке комнаты её головоломка
     // снова считается нерешённой.
@@ -1009,6 +1052,89 @@ export class LevelBuilder {
 
     for (const obj of this.pushableObjects) {
       if (!obj || !obj.mesh || !obj.body) continue;
+      // ==========================================
+// ВРЕМЕННЫЙ "РЕЗИНОВЫЙ" РЕЖИМ
+// ==========================================
+
+if (obj.rubberUntilSettled) {
+  const body = obj.body;
+
+
+  let touchingFloor = false;
+
+  // Проверяем реальный физический контакт
+  // именно с обычным полом.
+  for (const contact of this.world.contacts) {
+    const isOurBody =
+      contact.bi === body ||
+      contact.bj === body;
+
+    if (!isOurBody) continue;
+
+    const otherBody =
+      contact.bi === body
+        ? contact.bj
+        : contact.bi;
+
+    if (
+      otherBody &&
+      otherBody.mass === 0 &&
+      otherBody.material === this.matStandard
+    ) {
+      touchingFloor = true;
+      break;
+    }
+  }
+
+  const linearSpeed =
+    Math.hypot(
+      body.velocity.x,
+      body.velocity.y,
+      body.velocity.z,
+    );
+
+  const angularSpeed =
+    Math.hypot(
+      body.angularVelocity.x,
+      body.angularVelocity.y,
+      body.angularVelocity.z,
+    );
+
+  const isAlmostStill =
+    linearSpeed < 0.28 &&
+    angularSpeed < 0.35;
+
+  if (
+    touchingFloor &&
+    isAlmostStill
+  ) {
+    obj.settleTimer += dt;
+  } else {
+    obj.settleTimer = 0;
+  }
+
+  // Куб должен спокойно пролежать некоторое время,
+  // а не просто на мгновение пройти через нулевую скорость.
+  if (obj.settleTimer >= 0.45) {
+    obj.rubberUntilSettled = false;
+    if (body.userData) {
+  body.userData.allowDropImpactSound =
+    false;
+}
+
+    body.material =
+      this.matBox;
+
+    body.linearDamping = 0.55;
+    body.angularDamping = 0.42;
+
+    body.wakeUp();
+
+    console.log(
+      "[ROOM 1] Stage 4 cube settled.",
+    );
+  }
+}
 
       // ==========================================
       // СОПРОТИВЛЕНИЕ СКОЛЬЖЕНИЮ БОЛЬШИХ БЛОКОВ
@@ -1020,7 +1146,11 @@ export class LevelBuilder {
       // Вместо этого гасим только горизонтальную скорость X/Z.
       // Вертикальную velocity.y вообще не трогаем.
 
-      if (obj.slideResistance > 0 && dt > 0) {
+     if (
+  !obj.rubberUntilSettled &&
+  obj.slideResistance > 0 &&
+  dt > 0
+) {
         const vx = obj.body.velocity.x;
         const vz = obj.body.velocity.z;
 
@@ -1055,11 +1185,21 @@ export class LevelBuilder {
 
       // Звук волочения только для больших блоков-ступенек.
       // Красный маленький кубик не должен сюда попадать.
-      if (obj.slideSound && obj.body) {
-        const slideSpeed = Math.hypot(obj.body.velocity.x, obj.body.velocity.z);
+    if (
+  obj.slideSound &&
+  obj.body &&
+  !obj.rubberUntilSettled
+) {
+  const slideSpeed = Math.hypot(
+    obj.body.velocity.x,
+    obj.body.velocity.z,
+  );
 
-        maxSlideSpeed = Math.max(maxSlideSpeed, slideSpeed);
-      }
+  maxSlideSpeed = Math.max(
+    maxSlideSpeed,
+    slideSpeed,
+  );
+}
     }
 
     if (audioManager?.updateBoxSlide) {
@@ -1158,267 +1298,1629 @@ export class LevelBuilder {
       levelNumber: 1,
       elevatorRole: "exit",
     });
-    // Обучающий пандус комнаты 1.
-    this.buildRoom1TutorialRampVisual();
-    // Временная обучающая площадка комнаты 1.
-    // Позже её можно будет заменить настоящим заданием,
-    // сохранив тот же вызов unlockExitElevator(1).
-    this.buildRoom1UnlockPad();
+
+    // Начальное состояние обучающей комнаты.
+    this.buildRoom1TutorialStep(1);
   }
 
-  buildRoom1UnlockPad() {
-    const padRadius = 2.0;
+  ensureRoom1TutorialGroup() {
+    if (
+      this.room1TutorialGroup &&
+      this.room1TutorialGroup.parent === this.currentRoomGroup
+    ) {
+      return this.room1TutorialGroup;
+    }
+
+    const group = new THREE.Group();
+    group.name = "Room1Tutorial";
+
+    this.currentRoomGroup.add(group);
+
+    this.room1TutorialGroup = group;
+
+    return group;
+  }
+
+  clearRoom1TutorialContent() {
+    // ------------------------------------------
+    // Визуальные объекты
+    // ------------------------------------------
+
+    if (this.room1TutorialGroup) {
+      while (this.room1TutorialGroup.children.length > 0) {
+        const child = this.room1TutorialGroup.children[0];
+
+        this.disposeObject3D(child);
+        this.room1TutorialGroup.remove(child);
+      }
+    }
+
+    // ------------------------------------------
+    // Физика
+    // ------------------------------------------
+
+    if (Array.isArray(this.room1TutorialBodies)) {
+      for (const body of this.room1TutorialBodies) {
+        if (body && this.world.bodies.includes(body)) {
+          this.world.removeBody(body);
+        }
+      }
+
+      this.room1TutorialBodies.length = 0;
+    }
+
+    this.room1TutorialMarkers = [];
+    this.room1TutorialPlatforms = [];
+
+   this.room1TutorialStage3Shelves = [];
+this.room1TutorialStage3FinishShelf = null;
+
+this.room1TutorialStage4Borders = [];
+this.room1TutorialStage4Zones = [];
+this.room1TutorialStage4Cubes = [];
+this.room1TutorialStage5Shelves = [];
+
+this.room1TutorialStage4TestPlatform = null;
+this.room1TutorialStage4TestCube = null;
+
+this.room1TutorialGoal = null;
+  }
+
+  createRoom1TutorialMarker({
+    x,
+    z,
+    surfaceY = this.floorY,
+    type = "collect",
+  }) {
+    const isGoal = type === "goal";
+
+    const radius = isGoal ? 1.8 : 1.35;
 
     const material = new THREE.MeshStandardMaterial({
-      color: 0x5fc9e8,
-      emissive: 0x1687aa,
-      emissiveIntensity: 0.85,
+      color: isGoal ? 0x58e88b : 0x67e8ff,
+
+      emissive: isGoal ? 0x16a84f : 0x1da7c9,
+      emissiveIntensity: isGoal ? 1.1 : 0.9,
+
       transparent: true,
-      opacity: 0.82,
-      roughness: 0.55,
+      opacity: 0.88,
+
+      roughness: 0.45,
       metalness: 0.05,
+
       depthWrite: false,
     });
 
-    const pad = new THREE.Mesh(
-      new THREE.CircleGeometry(padRadius, 48),
+    const marker = new THREE.Mesh(
+      new THREE.CircleGeometry(radius, 48),
       material,
     );
 
-    pad.name = "Room1_UnlockPad";
+    marker.name = isGoal ? "Room1_TutorialGoal" : "Room1_TutorialCollect";
 
-    // Дальний правый угол комнаты 1.
-    // Комната занимает x: -15...15 и z: 15...45.
-    pad.position.set(10.5, this.floorY + 0.025, 40.5);
+    marker.position.set(x, surfaceY + 0.03, z);
 
-    pad.rotation.x = -Math.PI / 2;
-    pad.renderOrder = 2;
+    marker.rotation.x = -Math.PI / 2;
+    marker.renderOrder = 2;
 
-    pad.userData.radius = padRadius;
-    pad.userData.activated = false;
-    pad.userData.baseOpacity = 0.82;
-    pad.userData.baseEmissiveIntensity = 0.85;
-    pad.userData.skipWallMaterialUpdate = true;
+    marker.userData.type = type;
 
-    this.room1UnlockPad = pad;
+    marker.userData.radius = radius;
 
-    this.registerMesh(pad);
-  }
-  getRoom1TutorialRampConfig() {
-    // ==========================================
-    // ПАНДУС ОБУЧЕНИЯ — КОМНАТА 1
-    // ==========================================
+    // Центр шара должен находиться примерно на эту высоту
+    // выше поверхности маркера.
+    marker.userData.triggerY = surfaceY + (CONFIG.PLAYER.RADIUS || 1.5);
 
-    const width = 5.0;
+    marker.userData.active = true;
+    marker.userData.collected = false;
 
-    // Пандус теперь идёт вдоль стены с лифтом, по оси X.
-    const lowerX = 10.5;
-    const upperX = -7.0;
+    marker.userData.skipWallMaterialUpdate = true;
 
-    // Высота верхней площадки над полом.
-    // Поднимаем почти к потолку.
-    const rise = 8.0;
+    this.ensureRoom1TutorialGroup().add(marker);
 
-    const run = lowerX - upperX;
-    const rampLength = Math.sqrt(run * run + rise * rise);
-    const rampAngle = Math.atan2(rise, run);
-
-    const rampThickness = 0.5;
-
-    // Положение пандуса по глубине комнаты.
-    const centerZ = 36.0;
-
-    // Верхняя площадка.
-    const platformDepth = 4.0;
-    const platformThickness = 0.5;
-
-    // Небольшой перехлёст платформы в сторону пандуса,
-    // чтобы убрать визуальную щель в стыке.
-    const platformOverlap = 0.18;
-
-    return {
-      width,
-
-      lowerX,
-      upperX,
-      centerZ,
-
-      rise,
-      run,
-
-      rampLength,
-      rampAngle,
-      rampThickness,
-
-      platformDepth,
-      platformThickness,
-      platformOverlap,
-    };
+    return marker;
   }
 
-  buildRoom1TutorialRampVisual() {
-    const cfg = this.getRoom1TutorialRampConfig();
+  createRoom1TutorialStepPlatform({
+    x,
+    z,
+    width = 4.5,
+    depth = 4.5,
+    height = 1.6,
 
-    // Материал — белый, в духе стен и пола.
-    // Если sharedTileMaterial уже есть в классе, возьмём его клон.
-    // Если нет — используем простой белый матовый материал.
-    const coatedMat = this.sharedTileMaterial
+    // Если true — платформа создаётся под полом
+    // и позже будет поднята анимацией.
+    animated = false,
+  }) {
+    const material = this.sharedTileMaterial
       ? this.sharedTileMaterial.clone()
       : new THREE.MeshStandardMaterial({
           color: 0xffffff,
-          roughness: 0.35,
+          roughness: 0.4,
           metalness: 0.0,
-          dithering: true,
         });
 
-    coatedMat.color.set(0xffffff);
-    coatedMat.roughness = 0.35;
-    coatedMat.metalness = 0.0;
-    coatedMat.needsUpdate = true;
+    // Конечное положение центра платформы.
+    const targetY = this.floorY + height / 2;
 
-    // ==========================================
-    // ЦЕЛЬНАЯ ГОРКА-КЛИН
-    // ==========================================
+    // Насколько глубоко она спрятана перед появлением.
+    const riseDistance = 2.2;
 
-    const run = Math.abs(cfg.lowerX - cfg.upperX);
+    const startY = animated ? targetY - riseDistance : targetY;
 
-    // Профиль горки в плоскости X/Y:
-    // слева (у верхней площадки) она высокая,
-    // справа (у пола) сходит на нет.
-    const rampShape = new THREE.Shape();
-    rampShape.moveTo(0, 0);
-    rampShape.lineTo(0, cfg.rise);
-    rampShape.lineTo(run, 0);
-    rampShape.lineTo(0, 0);
-
-    const rampGeo = new THREE.ExtrudeGeometry(rampShape, {
-      depth: cfg.width,
-      bevelEnabled: false,
-      steps: 1,
-    });
-
-    // Центрируем по ширине относительно centerZ.
-    rampGeo.translate(0, 0, -cfg.width / 2);
-    rampGeo.computeVertexNormals();
-
-    const ramp = new THREE.Mesh(rampGeo, coatedMat);
-    ramp.name = "Room1_TutorialRampSolid";
-
-    // Начало геометрии ставим в верхнюю точку по X,
-    // а сама геометрия уходит вправо к lowerX.
-    ramp.position.set(cfg.upperX, this.floorY, cfg.centerZ);
-
-    ramp.castShadow = true;
-    ramp.receiveShadow = true;
-    ramp.userData.skipWallMaterialUpdate = true;
-
-    this.registerMesh(ramp);
-
-    // ==========================================
-    // ВЕРХНЯЯ ПЛОЩАДКА КАК ПОЛНОЦЕННЫЙ БЛОК
-    // ==========================================
-
-    const platformSizeX = cfg.platformDepth + cfg.platformOverlap;
-
-    const platform = new THREE.Mesh(
-      new THREE.BoxGeometry(platformSizeX, cfg.rise, cfg.width),
-      coatedMat,
+    const mesh = new THREE.Mesh(
+      new THREE.BoxGeometry(width, height, depth),
+      material,
     );
 
-    platform.name = "Room1_TutorialRampPlatformSolid";
+    mesh.name = "Room1_TutorialStepPlatform";
 
-    const platformCenterX =
-      cfg.upperX - cfg.platformDepth / 2 + cfg.platformOverlap / 2;
+    mesh.position.set(x, startY, z);
 
-    platform.position.set(
-      platformCenterX,
-      this.floorY + cfg.rise / 2,
-      cfg.centerZ,
-    );
+    mesh.castShadow = true;
+    mesh.receiveShadow = true;
 
-    platform.castShadow = true;
-    platform.receiveShadow = true;
-    platform.userData.skipWallMaterialUpdate = true;
+    mesh.userData.skipWallMaterialUpdate = true;
 
-    this.registerMesh(platform);
-  }
-
-  buildRoom1TutorialRampPhysics() {
-    const cfg = this.getRoom1TutorialRampConfig();
+    this.ensureRoom1TutorialGroup().add(mesh);
 
     // ==========================================
-    // ФИЗИКА ПАНДУСА
+    // ФИЗИКА
     // ==========================================
 
-    // ==========================================
-    // ЦЕЛЬНАЯ ФИЗИКА ГОРКИ-КЛИНА
-    // ==========================================
-
-    const halfWidth = cfg.width / 2;
-    const run = Math.abs(cfg.lowerX - cfg.upperX);
-
-    const rampShape = new CANNON.ConvexPolyhedron({
-      vertices: [
-        // Задняя сторона
-        new CANNON.Vec3(0, 0, -halfWidth), // 0
-        new CANNON.Vec3(0, cfg.rise, -halfWidth), // 1
-        new CANNON.Vec3(run, 0, -halfWidth), // 2
-
-        // Передняя сторона
-        new CANNON.Vec3(0, 0, halfWidth), // 3
-        new CANNON.Vec3(0, cfg.rise, halfWidth), // 4
-        new CANNON.Vec3(run, 0, halfWidth), // 5
-      ],
-
-      faces: [
-        [0, 1, 2], // задняя треугольная стенка
-        [3, 5, 4], // передняя треугольная стенка
-        [0, 2, 5, 3], // низ
-        [0, 3, 4, 1], // высокая вертикальная стенка
-        [1, 4, 5, 2], // наклонная поверхность
-      ],
-    });
-
-    const rampBody = new CANNON.Body({
+    const body = new CANNON.Body({
       mass: 0,
       material: this.matStandard,
-
-      collisionFilterGroup: CONFIG.PHYSICS.GROUPS.SCENE,
-
-      collisionFilterMask:
-        CONFIG.PHYSICS.GROUPS.OBJECTS | CONFIG.PHYSICS.GROUPS.TINY,
     });
 
-    rampBody.addShape(rampShape);
-
-    rampBody.position.set(cfg.upperX, this.floorY, cfg.centerZ);
-
-    this.addBody(rampBody);
-
-    // ==========================================
-    // ФИЗИКА ВЕРХНЕЙ ПЛОЩАДКИ
-    // ==========================================
-
-    // ==========================================
-    // ЦЕЛЬНЫЙ БЛОК ВЕРХНЕЙ ПЛОЩАДКИ
-    // ==========================================
-
-    const platformSizeX = cfg.platformDepth + cfg.platformOverlap;
-
-    const platformCenterX =
-      cfg.upperX - cfg.platformDepth / 2 + cfg.platformOverlap / 2;
-
-    this.createPhysicsWall(
-      platformCenterX,
-      this.floorY + cfg.rise / 2,
-      cfg.centerZ,
-
-      platformSizeX / 2,
-      cfg.rise / 2,
-      cfg.width / 2,
-
-      this.matStandard,
+    body.addShape(
+      new CANNON.Box(new CANNON.Vec3(width / 2, height / 2, depth / 2)),
     );
+
+    body.position.set(x, startY, z);
+
+    this.world.addBody(body);
+
+    this.room1TutorialBodies.push(body);
+
+    // Верхняя поверхность платформы:
+    // начальная и конечная.
+    const startTopY = startY + height / 2;
+
+    const targetTopY = targetY + height / 2;
+
+    const platform = {
+      mesh,
+      body,
+
+      // Старые поля пока оставляем.
+      startY,
+      targetY,
+
+      startTopY,
+      targetTopY,
+
+      // Универсальные координаты.
+      // Они пригодятся и вертикальным ступеням,
+      // и горизонтально выезжающим полкам.
+      startPosition: new THREE.Vector3(x, startY, z),
+
+      targetPosition: new THREE.Vector3(x, targetY, z),
+
+      topOffsetY: height / 2,
+
+      marker: null,
+
+      kind: "floorStep",
+    };
+
+    this.room1TutorialPlatforms.push(platform);
+
+    return platform;
+  }
+
+showRoom1TutorialStage4Goal() {
+  const oldGoal =
+    this.room1TutorialGoal;
+
+  if (oldGoal) {
+    oldGoal.visible = false;
+    oldGoal.userData.active = false;
+  }
+
+  const goal =
+    this.createRoom1TutorialMarker({
+      x: 0,
+      z: 30,
+      surfaceY: this.floorY,
+      type: "goal",
+    });
+
+  goal.visible = true;
+  goal.userData.active = true;
+  goal.userData.collected = false;
+
+  this.room1TutorialGoal = goal;
+
+  return goal;
+}
+
+  setRoom1TutorialPlatformProgress(platform, progress) {
+    if (!platform?.mesh || !platform?.body) {
+      return;
+    }
+
+    const t = THREE.MathUtils.clamp(progress, 0, 1);
+
+    const position = new THREE.Vector3().lerpVectors(
+      platform.startPosition,
+      platform.targetPosition,
+      t,
+    );
+
+    // Визуал.
+    platform.mesh.position.copy(position);
+
+    // Физика.
+    platform.body.position.set(position.x, position.y, position.z);
+
+    platform.body.aabbNeedsUpdate = true;
+
+    // Если маркер связан с этой платформой —
+    // он едет вместе с ней.
+    if (platform.marker) {
+      const surfaceY = position.y + (platform.topOffsetY ?? 0);
+
+      platform.marker.position.set(position.x, surfaceY + 0.03, position.z);
+
+      platform.marker.userData.triggerY =
+        surfaceY + (CONFIG.PLAYER.RADIUS || 1.5);
+    }
+  }
+
+  createRoom1TutorialWallShelf({
+    wall,
+    along = 30,
+
+    topY,
+
+    width = 5.0,
+    depth = 3.6,
+    thickness = 0.65,
+
+    role = "route",
+  }) {
+    const material = this.sharedTileMaterial
+      ? this.sharedTileMaterial.clone()
+      : new THREE.MeshStandardMaterial({
+          color: 0xffffff,
+          roughness: 0.4,
+          metalness: 0.0,
+        });
+
+    let sizeX;
+    let sizeZ;
+
+    let startX;
+    let startZ;
+
+    let targetX;
+    let targetZ;
+
+    // Чуть утапливаем спрятанную полку за стену,
+    // чтобы её грань не совпадала с плоскостью стены.
+    const hiddenInset = 0.08;
+
+    // ==========================================
+    // ЛЕВАЯ СТЕНА
+    // ==========================================
+
+    if (wall === "left") {
+      sizeX = depth;
+      sizeZ = width;
+
+      startX = -15 - depth / 2 - hiddenInset;
+
+      targetX = -15 + depth / 2;
+
+      startZ = along;
+      targetZ = along;
+    } else if (wall === "right") {
+      sizeX = depth;
+      sizeZ = width;
+
+      startX = 15 + depth / 2 + hiddenInset;
+
+      targetX = 15 - depth / 2;
+
+      startZ = along;
+      targetZ = along;
+    } else if (wall === "back") {
+      sizeX = width;
+      sizeZ = depth;
+
+      startX = along;
+      targetX = along;
+
+      startZ = 45 + depth / 2 + hiddenInset;
+
+      targetZ = 45 - depth / 2;
+    } else {
+      console.warn(`[ROOM 1] Unknown shelf wall: ${wall}`);
+
+      return null;
+    }
+
+    const centerY = topY - thickness / 2;
+
+    const mesh = new THREE.Mesh(
+      new THREE.BoxGeometry(sizeX, thickness, sizeZ),
+      material,
+    );
+
+    mesh.name = `Room1_TutorialShelf_${role}`;
+
+    // Полка сначала полностью спрятана за стеной.
+    mesh.position.set(startX, centerY, startZ);
+
+    mesh.castShadow = true;
+    mesh.receiveShadow = true;
+
+    mesh.userData.skipWallMaterialUpdate = true;
+
+    this.ensureRoom1TutorialGroup().add(mesh);
+
+    // ==========================================
+    // ФИЗИКА
+    // ==========================================
+
+    const body = new CANNON.Body({
+      mass: 0,
+      material: this.matTutorialShelf,
+    });
+
+    body.addShape(
+      new CANNON.Box(new CANNON.Vec3(sizeX / 2, thickness / 2, sizeZ / 2)),
+    );
+
+    body.position.set(startX, centerY, startZ);
+
+    this.world.addBody(body);
+
+    this.room1TutorialBodies.push(body);
+
+    const shelf = {
+      mesh,
+      body,
+
+      startPosition: new THREE.Vector3(startX, centerY, startZ),
+
+      targetPosition: new THREE.Vector3(targetX, centerY, targetZ),
+
+      topOffsetY: thickness / 2,
+
+      marker: null,
+
+      kind: "wallShelf",
+      role,
+
+      extended: false,
+    };
+
+    this.room1TutorialPlatforms.push(shelf);
+    this.room1TutorialStage3Shelves.push(shelf);
+
+    return shelf;
+  }
+
+  createRoom1TutorialStage4Border() {
+    const borderHeight = 1.8;
+    const borderWidth = 4.0;
+
+    // Комната Room 1:
+    // X: -15 ... 15
+    // Z: 15 ... 45
+    const roomSize = 30.0;
+    const roomCenterZ = 30.0;
+
+    // Бордюр сначала полностью спрятан под полом.
+    // Маленький дополнительный отступ нужен,
+    // чтобы верхняя грань не мерцала вместе с полом.
+    const hiddenInset = 0.08;
+
+    const startY = this.floorY - borderHeight / 2 - hiddenInset;
+
+    const targetY = this.floorY + borderHeight / 2;
+
+    // Левый и правый бордюр идут на всю глубину.
+    // Передний и задний занимают только пространство
+    // между ними, поэтому физические тела не
+    // накладываются друг на друга в углах.
+    const innerWidth = roomSize - borderWidth * 2;
+
+    const configs = [
+      {
+        name: "Left",
+        width: borderWidth,
+        depth: roomSize,
+
+        x: -15 + borderWidth / 2,
+        z: roomCenterZ,
+      },
+
+      {
+        name: "Right",
+        width: borderWidth,
+        depth: roomSize,
+
+        x: 15 - borderWidth / 2,
+        z: roomCenterZ,
+      },
+
+      {
+        name: "Front",
+        width: innerWidth,
+        depth: borderWidth,
+
+        x: 0,
+        z: 15 + borderWidth / 2,
+      },
+
+      {
+        name: "Back",
+        width: innerWidth,
+        depth: borderWidth,
+
+        x: 0,
+        z: 45 - borderWidth / 2,
+      },
+    ];
+
+    const borders = [];
+
+    for (const config of configs) {
+      const material = this.sharedTileMaterial
+        ? this.sharedTileMaterial.clone()
+        : new THREE.MeshStandardMaterial({
+            color: 0xffffff,
+            roughness: 0.4,
+            metalness: 0.0,
+          });
+
+      const mesh = new THREE.Mesh(
+        new THREE.BoxGeometry(config.width, borderHeight, config.depth),
+        material,
+      );
+
+      mesh.name = `Room1_TutorialStage4Border_${config.name}`;
+
+      mesh.position.set(config.x, startY, config.z);
+
+      mesh.castShadow = true;
+      mesh.receiveShadow = true;
+
+      mesh.userData.skipWallMaterialUpdate = true;
+
+      this.ensureRoom1TutorialGroup().add(mesh);
+
+      // ==========================================
+      // ФИЗИКА
+      // ==========================================
+
+      const body = new CANNON.Body({
+        mass: 0,
+        material: this.matStandard,
+      });
+
+      body.addShape(
+        new CANNON.Box(
+          new CANNON.Vec3(config.width / 2, borderHeight / 2, config.depth / 2),
+        ),
+      );
+
+      body.position.set(config.x, startY, config.z);
+
+      this.world.addBody(body);
+
+      this.room1TutorialBodies.push(body);
+
+      // Та же структура, которую уже понимает
+      // setRoom1TutorialPlatformProgress().
+      const border = {
+        mesh,
+        body,
+
+        startPosition: new THREE.Vector3(config.x, startY, config.z),
+
+        targetPosition: new THREE.Vector3(config.x, targetY, config.z),
+
+        topOffsetY: borderHeight / 2,
+
+        marker: null,
+
+        kind: "stage4Border",
+        role: "border",
+      };
+
+      this.room1TutorialPlatforms.push(border);
+
+      this.room1TutorialStage4Borders.push(border);
+
+      borders.push(border);
+    }
+
+    return borders;
+  }
+
+  createRoom1TutorialStage5Shelf({
+  name,
+  x,
+  topY,
+
+  width = 4.8,
+  depth = 3.6,
+  thickness = 0.65,
+}) {
+  const material = this.sharedTileMaterial
+    ? this.sharedTileMaterial.clone()
+    : new THREE.MeshStandardMaterial({
+        color: 0xffffff,
+        roughness: 0.4,
+        metalness: 0.0,
+      });
+
+  // Дальняя стена Room 1 находится на z = 45.
+  // Полка выступает из неё внутрь комнаты.
+ const hiddenInset = 0.08;
+
+const startZ =
+  45 + depth / 2 + hiddenInset;
+
+const targetZ =
+  45 - depth / 2;
+
+const centerY =
+  topY - thickness / 2;
+
+  const mesh =
+    new THREE.Mesh(
+      new THREE.BoxGeometry(
+        width,
+        thickness,
+        depth,
+      ),
+      material,
+    );
+
+  mesh.name =
+    `Room1_Stage5Shelf_${name}`;
+
+mesh.position.set(
+  x,
+  centerY,
+  startZ,
+);
+
+  mesh.castShadow = true;
+  mesh.receiveShadow = true;
+
+  mesh.userData.skipWallMaterialUpdate =
+    true;
+
+  this.ensureRoom1TutorialGroup()
+    .add(mesh);
+
+  // ==========================================
+  // ФИЗИКА
+  // ==========================================
+
+  const body =
+    new CANNON.Body({
+      mass: 0,
+      material: this.matTutorialShelf,
+    });
+
+  body.addShape(
+    new CANNON.Box(
+      new CANNON.Vec3(
+        width / 2,
+        thickness / 2,
+        depth / 2,
+      ),
+    ),
+  );
+
+body.position.set(
+  x,
+  centerY,
+  startZ,
+);
+
+  this.world.addBody(body);
+
+  this.room1TutorialBodies.push(body);
+
+const shelf = {
+  name,
+  mesh,
+  body,
+
+  startPosition:
+    new THREE.Vector3(
+      x,
+      centerY,
+      startZ,
+    ),
+
+  targetPosition:
+    new THREE.Vector3(
+      x,
+      centerY,
+      targetZ,
+    ),
+
+  topOffsetY:
+    thickness / 2,
+
+  marker: null,
+
+  kind: "stage5Shelf",
+};
+  this.room1TutorialStage5Shelves.push(
+    shelf,
+  );
+
+  return shelf;
+}
+
+createRoom1TutorialStage5Shelves() {
+  // Защита от повторного создания.
+  if (
+    this.room1TutorialStage5Shelves
+      ?.length > 0
+  ) {
+    return this.room1TutorialStage5Shelves;
+  }
+
+  const lowerTopY =
+    this.floorY + 5.0;
+
+  const upperTopY =
+    this.floorY + 8.0;
+
+const lowerLeft =
+  this.createRoom1TutorialStage5Shelf({
+    name: "LowerLeft",
+
+    x: -8.25,
+    topY: lowerTopY,
+
+    width: 6.5,
+    depth: 4.0,
+  });
+
+const lowerRight =
+  this.createRoom1TutorialStage5Shelf({
+    name: "LowerRight",
+
+    x: 8.25,
+    topY: lowerTopY,
+
+    width: 6.5,
+    depth: 4.0,
+  });
+
+const upperCenter =
+  this.createRoom1TutorialStage5Shelf({
+    name: "UpperCenter",
+
+    x: 0,
+    topY: upperTopY,
+
+    width: 10.0,
+    depth: 4.0,
+  });
+
+// ==========================================
+// ЭТАП 5 — МАРКЕРЫ НА ПОЛКАХ
+// ==========================================
+
+// Левая нижняя полка.
+const lowerLeftMarker =
+  this.createRoom1TutorialMarker({
+    x: lowerLeft.targetPosition.x,
+    z: lowerLeft.targetPosition.z,
+
+    surfaceY:
+      lowerLeft.targetPosition.y +
+      lowerLeft.topOffsetY,
+
+    type: "collect",
+  });
+
+lowerLeftMarker.visible = true;
+lowerLeftMarker.userData.active = true;
+lowerLeftMarker.userData.collected = false;
+
+lowerLeftMarker.userData.stage5Role =
+  "lowerLeft";
+
+lowerLeft.marker =
+  lowerLeftMarker;
+
+this.room1TutorialMarkers.push(
+  lowerLeftMarker,
+);
+
+this.setRoom1TutorialPlatformProgress(
+  lowerLeft,
+  0,
+);
+
+// Правая нижняя полка.
+const lowerRightMarker =
+  this.createRoom1TutorialMarker({
+    x: lowerRight.targetPosition.x,
+    z: lowerRight.targetPosition.z,
+
+    surfaceY:
+      lowerRight.targetPosition.y +
+      lowerRight.topOffsetY,
+
+    type: "collect",
+  });
+
+lowerRightMarker.visible = true;
+lowerRightMarker.userData.active = true;
+lowerRightMarker.userData.collected = false;
+
+lowerRightMarker.userData.stage5Role =
+  "lowerRight";
+
+lowerRight.marker =
+  lowerRightMarker;
+
+this.room1TutorialMarkers.push(
+  lowerRightMarker,
+);
+
+this.setRoom1TutorialPlatformProgress(
+  lowerRight,
+  0,
+);
+
+// Верхняя центральная полка.
+const upperMarker =
+  this.createRoom1TutorialMarker({
+    x: upperCenter.targetPosition.x,
+    z: upperCenter.targetPosition.z,
+
+    surfaceY:
+      upperCenter.targetPosition.y +
+      upperCenter.topOffsetY,
+
+    type: "collect",
+  });
+
+// Пока верхний маркер закрыт.
+upperMarker.visible = false;
+upperMarker.userData.active = false;
+upperMarker.userData.collected = false;
+
+upperMarker.userData.stage5Role =
+  "upper";
+
+upperCenter.marker =
+  upperMarker;
+
+this.room1TutorialMarkers.push(
+  upperMarker,
+);
+
+this.setRoom1TutorialPlatformProgress(
+  upperCenter,
+  0,
+);
+
+  return this.room1TutorialStage5Shelves;
+}
+
+createRoom1TutorialStage4TestPlatform({
+  corner = "backRight",
+
+  zoneId = "red",
+  zoneColor = 0xf0a08c,
+  zoneEmissive = 0x8a3b22,
+
+  cubeId = "blue",
+  cubeColor = 0x6f98d8,
+} = {}) {
+    const zoneSize = 4.2;
+    const cubeSize = 3.5;
+
+    const borderWidth = 4.0;
+
+    const innerRightX = 15 - borderWidth;
+
+    const innerBackZ = 45 - borderWidth;
+
+  const innerLeftX =
+  -15 + borderWidth;
+
+const innerFrontZ =
+  15 + borderWidth;
+
+let x;
+let z;
+
+if (corner === "backRight") {
+  x = innerRightX - zoneSize / 2;
+  z = innerBackZ - zoneSize / 2;
+} else if (corner === "backLeft") {
+  x = innerLeftX + zoneSize / 2;
+  z = innerBackZ - zoneSize / 2;
+} else if (corner === "frontRight") {
+  x = innerRightX - zoneSize / 2;
+  z = innerFrontZ + zoneSize / 2;
+} else {
+  x = innerLeftX + zoneSize / 2;
+  z = innerFrontZ + zoneSize / 2;
+}
+
+    // ==========================================
+    // КРАСНАЯ ЦВЕТНАЯ ЗОНА
+    // Это НЕ физическая платформа.
+    // Просто плоское пастельное пятно на полу.
+    // ==========================================
+
+    const zoneMaterial = new THREE.MeshStandardMaterial({
+     color: zoneColor,
+emissive: zoneEmissive,
+      emissiveIntensity: 0.08,
+
+      roughness: 0.65,
+      metalness: 0.0,
+
+      transparent: true,
+      opacity: 0.0,
+
+      depthWrite: false,
+    });
+
+    const zoneMesh = new THREE.Mesh(
+      new THREE.PlaneGeometry(zoneSize, zoneSize),
+      zoneMaterial,
+    );
+
+    zoneMesh.name = "Room1_Stage4TestZone_Red";
+
+    zoneMesh.rotation.x = -Math.PI / 2;
+
+    zoneMesh.position.set(x, this.floorY + 0.035, z);
+
+    zoneMesh.renderOrder = 2;
+
+    zoneMesh.userData.skipWallMaterialUpdate = true;
+
+    this.ensureRoom1TutorialGroup().add(zoneMesh);
+
+const zone = {
+  id: zoneId,
+
+  mesh: zoneMesh,
+  material: zoneMaterial,
+
+  size: zoneSize,
+
+  occupiedByCorrectCube: false,
+};
+
+this.room1TutorialStage4TestPlatform =
+  zone;
+
+this.room1TutorialStage4Zones.push(
+  zone,
+);
+
+    // ==========================================
+    // СИНИЙ ТЕСТОВЫЙ КУБ
+    // Пока только визуальный меш.
+    // Физическое тело создадим в момент падения.
+    // ==========================================
+
+    const dropOffset = 1.3;
+
+    // Точка падения немного смещена
+    // от бордюра внутрь комнаты.
+let cubeX = x;
+let cubeZ = z;
+
+if (corner === "backRight") {
+  cubeX -= dropOffset;
+  cubeZ -= dropOffset;
+} else if (corner === "backLeft") {
+  cubeX += dropOffset;
+  cubeZ -= dropOffset;
+} else if (corner === "frontRight") {
+  cubeX -= dropOffset;
+  cubeZ += dropOffset;
+} else {
+  cubeX += dropOffset;
+  cubeZ += dropOffset;
+}
+
+    // Стартуем чуть ниже потолка,
+    // чтобы куб не пересекал его геометрически.
+    const cubeStartY = this.ceilingY - cubeSize * 0.75;
+
+    const cubeMaterial = new THREE.MeshStandardMaterial({
+     color: cubeColor,
+      roughness: 0.68,
+      metalness: 0.0,
+    });
+
+    const cubeMesh = new THREE.Mesh(
+      new THREE.BoxGeometry(cubeSize, cubeSize, cubeSize),
+      cubeMaterial,
+    );
+
+    cubeMesh.name = "Room1_Stage4TestCube_Blue";
+
+    cubeMesh.position.set(cubeX, cubeStartY, cubeZ);
+
+    // Намеренно ставим куб углом вниз.
+    cubeMesh.rotation.set(
+      THREE.MathUtils.degToRad(35),
+      THREE.MathUtils.degToRad(45),
+      THREE.MathUtils.degToRad(-35),
+    );
+
+    cubeMesh.castShadow = true;
+    cubeMesh.receiveShadow = true;
+
+    // Пока этап 4 не начался — куб вообще не видно.
+    cubeMesh.visible = false;
+
+    cubeMesh.userData.skipWallMaterialUpdate = true;
+
+    this.ensureRoom1TutorialGroup().add(cubeMesh);
+
+const cube = {
+  id: cubeId,
+
+  mesh: cubeMesh,
+  body: null,
+
+  activated: false,
+
+  startPosition:
+    new THREE.Vector3(
+      cubeX,
+      cubeStartY,
+      cubeZ,
+    ),
+};
+
+this.room1TutorialStage4TestCube =
+  cube;
+
+this.room1TutorialStage4Cubes.push(
+  cube,
+);
+  }
+
+  buildRoom1TutorialStep(step) {
+    this.ensureRoom1TutorialGroup();
+    this.clearRoom1TutorialContent();
+
+    // Четыре угла обучающей зоны.
+    const corners = [
+      { x: -10.0, z: 20.0 },
+      { x: 10.0, z: 20.0 },
+      { x: -10.0, z: 40.0 },
+      { x: 10.0, z: 40.0 },
+    ];
+
+    // ==========================================
+    // ЭТАП 1
+    // 4 маркера просто лежат на полу.
+    // ==========================================
+
+    if (step === 1) {
+      for (const corner of corners) {
+        const marker = this.createRoom1TutorialMarker({
+          x: corner.x,
+          z: corner.z,
+          surfaceY: this.floorY,
+          type: "collect",
+        });
+
+        this.room1TutorialMarkers.push(marker);
+      }
+    }
+
+    // ==========================================
+    // ЭТАП 2
+    // Те же 4 маркера, но уже на ступеньках.
+    // ==========================================
+    else if (step === 2) {
+      for (const corner of corners) {
+        const platform = this.createRoom1TutorialStepPlatform({
+          x: corner.x,
+          z: corner.z,
+
+          width: 4.5,
+          depth: 4.5,
+          height: 1.6,
+
+          animated: true,
+        });
+
+        const marker = this.createRoom1TutorialMarker({
+          x: corner.x,
+          z: corner.z,
+
+          // Конечная высота маркера.
+          surfaceY: platform.targetTopY,
+
+          type: "collect",
+        });
+
+        // Но визуально начинаем вместе с платформой под полом.
+        marker.position.y = platform.startTopY + 0.03;
+
+        // Trigger тоже пока находится внизу.
+        marker.userData.triggerY =
+          platform.startTopY + (CONFIG.PLAYER.RADIUS || 1.5);
+
+        // Связываем маркер с его платформой.
+        platform.marker = marker;
+
+        this.room1TutorialMarkers.push(marker);
+      }
+    }
+
+    // ==========================================
+    // ЭТАП 3
+    // МАРШРУТ ПО ВЫДВИЖНЫМ ПОЛКАМ
+    // ==========================================
+    else if (step === 3) {
+      // ==========================================
+      // ЭТАП 3
+      // ПОСЛЕДОВАТЕЛЬНАЯ ЛЕСТНИЦА ПО ПЕРИМЕТРУ
+      // ==========================================
+
+      const routeShelves = [];
+
+      const routeConfig = [
+        {
+          wall: "left",
+          along: 27.0,
+          topY: this.floorY + 2.0,
+        },
+        {
+          wall: "left",
+          along: 32.5,
+          topY: this.floorY + 4.0,
+        },
+        {
+          wall: "left",
+          along: 38.5,
+          topY: this.floorY + 6.0,
+        },
+        {
+          wall: "back",
+          along: -12.5,
+          topY: this.floorY + 8.0,
+        },
+      ];
+
+      for (let index = 0; index < routeConfig.length; index++) {
+        const config = routeConfig[index];
+
+        const shelf = this.createRoom1TutorialWallShelf({
+          wall: config.wall,
+          along: config.along,
+
+          topY: config.topY,
+
+          width: 5.0,
+          depth: 3.8,
+
+          role: "route",
+        });
+
+        shelf.stage3ShelfIndex = index;
+
+        routeShelves.push(shelf);
+      }
+
+      // ==========================================
+      // СИНИЕ МАРКЕРЫ
+      // ==========================================
+
+      routeShelves.forEach((shelf, index) => {
+        const marker = this.createRoom1TutorialMarker({
+          x: shelf.targetPosition.x,
+          z: shelf.targetPosition.z,
+
+          surfaceY: shelf.targetPosition.y + shelf.topOffsetY,
+
+          type: "collect",
+        });
+
+        marker.visible = false;
+        marker.userData.active = false;
+
+        marker.userData.stage3ShelfIndex = index;
+
+        shelf.marker = marker;
+
+        this.room1TutorialMarkers.push(marker);
+      });
+
+      // ==========================================
+      // ФИНИШНАЯ ПОЛКА
+      // ==========================================
+
+      const finalTopY = this.floorY + 10.5;
+
+      const finishShelf = this.createRoom1TutorialWallShelf({
+        wall: "back",
+        along: -6.0,
+        topY: finalTopY,
+        width: 5.5,
+        depth: 4.0,
+        role: "finish",
+      });
+
+      this.room1TutorialStage3FinishShelf = finishShelf;
+
+      // ==========================================
+      // ЗЕЛЁНЫЙ ФИНИШ
+      // ==========================================
+
+      const goal = this.createRoom1TutorialMarker({
+        x: finishShelf.targetPosition.x,
+        z: finishShelf.targetPosition.z,
+
+        surfaceY: finishShelf.targetPosition.y + finishShelf.topOffsetY,
+
+        type: "goal",
+      });
+
+      goal.visible = false;
+      goal.userData.active = false;
+
+      finishShelf.marker = goal;
+
+      this.room1TutorialGoal = goal;
+      // Бордюр этапа 4 уже существует,
+      // но пока полностью спрятан под полом.
+      this.createRoom1TutorialStage4Border();
+ this.createRoom1TutorialStage4TestPlatform({
+  corner: "backRight",
+
+  zoneId: "red",
+  zoneColor: 0xf0a08c,
+  zoneEmissive: 0x8a3b22,
+
+  cubeId: "blue",
+  cubeColor: 0x6f98d8,
+});
+
+this.createRoom1TutorialStage4TestPlatform({
+  corner: "backLeft",
+
+  zoneId: "blue",
+  zoneColor: 0x9fc5f8,
+  zoneEmissive: 0x355f9e,
+
+  cubeId: "green",
+  cubeColor: 0x8fd19e,
+});
+
+this.createRoom1TutorialStage4TestPlatform({
+  corner: "frontRight",
+
+  zoneId: "green",
+  zoneColor: 0xa8d5a2,
+  zoneEmissive: 0x3f7f45,
+
+  cubeId: "yellow",
+  cubeColor: 0xf2cf6b,
+});
+
+this.createRoom1TutorialStage4TestPlatform({
+  corner: "frontLeft",
+
+  zoneId: "yellow",
+  zoneColor: 0xf3d77a,
+  zoneEmissive: 0x8a6a20,
+
+  cubeId: "red",
+  cubeColor: 0xe98678,
+});
+      return;
+    }
+
+    // ==========================================
+    // ЗЕЛЁНЫЙ ФИНАЛЬНЫЙ МАРКЕР
+    // ==========================================
+
+    const goal = this.createRoom1TutorialMarker({
+      x: 0,
+      z: 30,
+      surfaceY: this.floorY,
+      type: "goal",
+    });
+
+    // До сбора всех синих он выключен.
+    goal.visible = false;
+    goal.userData.active = false;
+
+    this.room1TutorialGoal = goal;
+  }
+
+ setRoom1TutorialStage4TestPlatformProgress(
+  progress,
+) {
+  const t =
+    THREE.MathUtils.clamp(
+      progress,
+      0,
+      1,
+    );
+
+  const zones =
+    this.room1TutorialStage4Zones || [];
+
+  for (const zone of zones) {
+    if (!zone?.material) continue;
+
+    zone.material.opacity =
+      THREE.MathUtils.lerp(
+        0.0,
+        0.78,
+        t,
+      );
+  }
+}
+
+updateRoom1TutorialStage4Zones() {
+  const zones =
+    this.room1TutorialStage4Zones || [];
+
+  const cubes =
+    this.room1TutorialStage4Cubes || [];
+
+  for (const zone of zones) {
+    if (
+      !zone?.mesh ||
+      !zone?.material
+    ) {
+      continue;
+    }
+
+    const matchingCube =
+      cubes.find(
+        (cube) =>
+          cube?.id === zone.id &&
+          cube?.body,
+      );
+
+    let isCorrect = false;
+
+    if (matchingCube) {
+      const halfSize =
+        (zone.size ?? 4.2) / 2;
+
+      const dx =
+        matchingCube.body.position.x -
+        zone.mesh.position.x;
+
+      const dz =
+        matchingCube.body.position.z -
+        zone.mesh.position.z;
+
+      isCorrect =
+        Math.abs(dx) <= halfSize &&
+        Math.abs(dz) <= halfSize;
+    }
+
+    zone.occupiedByCorrectCube =
+      isCorrect;
+
+   if (isCorrect) {
+  const pulse =
+    0.5 +
+    Math.sin(performance.now() * 0.004) * 0.5;
+
+  zone.material.emissiveIntensity =
+    0.45 + pulse * 0.35;
+
+  zone.material.opacity =
+    0.88 + pulse * 0.08;
+
+  const scale =
+    1.0 + pulse * 0.035;
+
+  zone.mesh.scale.set(
+    scale,
+    scale,
+    1,
+  );
+} else {
+  zone.material.emissiveIntensity =
+    0.08;
+
+  zone.material.opacity =
+    0.78;
+
+  zone.mesh.scale.set(
+    1,
+    1,
+    1,
+  );
+}
+  }
+}
+
+activateRoom1TutorialStage4TestCube() {
+  const cubes =
+    this.room1TutorialStage4Cubes || [];
+
+  for (const cube of cubes) {
+    this.activateRoom1TutorialStage4Cube(
+      cube,
+    );
+  }
+}
+
+  activateRoom1TutorialStage4Cube(cube) {
+ 
+
+    if (!cube?.mesh || cube.activated) {
+      return;
+    }
+
+    cube.activated = true;
+
+    const mesh = cube.mesh;
+
+    mesh.visible = true;
+    
+
+    // Размер берём прямо из геометрии.
+    mesh.geometry.computeBoundingBox();
+
+    const box = mesh.geometry.boundingBox;
+
+    const sizeX = box.max.x - box.min.x;
+
+    const sizeY = box.max.y - box.min.y;
+
+    const sizeZ = box.max.z - box.min.z;
+
+    // ==========================================
+    // ВРЕМЕННЫЙ ПРУГИЙ МАТЕРИАЛ ДЛЯ ПАДЕНИЯ
+    // ==========================================
+
+    const dropMaterial = new CANNON.Material("room1Stage4DropCube");
+
+    this.world.addContactMaterial(
+      new CANNON.ContactMaterial(dropMaterial, this.matStandard, {
+        friction: 0.01,
+        restitution: 0.65,
+
+        contactEquationStiffness: 1e7,
+        contactEquationRelaxation: 3,
+      }),
+    );
+
+    // ==========================================
+    // ФИЗИЧЕСКОЕ ТЕЛО КУБА
+    // ==========================================
+
+    const body = new CANNON.Body({
+      mass: 18,
+
+      material: dropMaterial,
+
+      position: new CANNON.Vec3(
+        mesh.position.x,
+        mesh.position.y,
+        mesh.position.z,
+      ),
+
+      collisionFilterGroup: CONFIG.PHYSICS.GROUPS.OBJECTS,
+
+      collisionFilterMask:
+        CONFIG.PHYSICS.GROUPS.SCENE |
+        CONFIG.PHYSICS.GROUPS.OBJECTS |
+        CONFIG.PHYSICS.GROUPS.TINY,
+    });
+
+    body.addShape(
+      new CANNON.Box(new CANNON.Vec3(sizeX / 2, sizeY / 2, sizeZ / 2)),
+    );
+
+    // Копируем наклон меша.
+    body.quaternion.copy(mesh.quaternion);
+
+    body.fixedRotation = false;
+
+    body.angularFactor = new CANNON.Vec3(1, 1, 1);
+
+   body.linearDamping = 0.08;
+body.angularDamping = 0.10;
+
+    body.sleepSpeedLimit = 0.03;
+    body.sleepTimeLimit = 0.8;
+
+    // Небольшое движение от угла к центру комнаты.
+    body.velocity.set(-0.75, 0, -0.75);
+
+    this.world.addBody(body);
+    let hasLanded = false;
+
+    body.addEventListener("collide", (event) => {
+      if (hasLanded) return;
+
+      const otherBody = event.body;
+
+      if (!otherBody) return;
+
+      const isFloor = otherBody.material === this.matStandard;
+
+      if (!isFloor) return;
+
+      hasLanded = true;
+      // Первый удар должен выглядеть как брошенная игрушка.
+
+      body.wakeUp();
+    });
+
+    body.userData =
+  body.userData || {};
+
+body.userData.lastCubeImpactSoundTime =
+  -Infinity;
+
+  body.userData.allowDropImpactSound =
+  true;
+
+body.addEventListener(
+  "collide",
+  (event) => {
+    if (
+  body.userData
+    ?.allowDropImpactSound !== true
+) {
+  return;
+}
+   const otherBody =
+  event.body;
+
+const contact =
+  event.contact;
+
+if (
+  !otherBody ||
+  !contact
+) {
+  return;
+}
+
+// ==========================================
+// ЗВУК ТОЛЬКО ПРИ УДАРЕ О ПОВЕРХНОСТЬ СНИЗУ
+// ==========================================
+//
+// Cannon хранит normal от bi к bj.
+//
+// Если куб = bi:
+// пол находится ниже него,
+// поэтому normal.y будет отрицательной.
+//
+// Если куб = bj:
+// normal идёт от пола к кубу,
+// поэтому normal.y будет положительной.
+
+let isSurfaceBelowCube = false;
+
+if (contact.bi === body) {
+  isSurfaceBelowCube =
+    contact.ni.y < -0.65;
+} else if (contact.bj === body) {
+  isSurfaceBelowCube =
+    contact.ni.y > 0.65;
+}
+
+if (!isSurfaceBelowCube) {
+  return;
+}
+
+let impactSpeed = 0;
+
+    if (
+      event.contact &&
+      typeof event.contact
+        .getImpactVelocityAlongNormal ===
+        "function"
+    ) {
+      impactSpeed =
+        Math.abs(
+          event.contact
+            .getImpactVelocityAlongNormal(),
+        );
+    } else {
+      impactSpeed =
+        Math.abs(
+          body.velocity.y,
+        );
+    }
+
+    // Слишком слабые касания
+    // не озвучиваем.
+    if (impactSpeed < 1.1) {
+      return;
+    }
+
+    const now =
+      performance.now();
+
+    // Защита от дребезга:
+    // несколько collision-событий
+    // почти одновременно считаем
+    // одним ударом.
+    if (
+      now -
+        body.userData
+          .lastCubeImpactSoundTime <
+      90
+    ) {
+      return;
+    }
+
+    body.userData
+      .lastCubeImpactSoundTime =
+      now;
+
+    audioManager?.playCubeImpact(
+      impactSpeed,
+    );
+  },
+);
+
+    this.room1TutorialBodies.push(body);
+
+    cube.body = body;
+
+this.pushableObjects.push({
+  mesh,
+  body,
+
+  slideResistance: 10.0,
+  impactTurnSensitivity: 0.7,
+
+  slideSound: true,
+
+  rubberUntilSettled: true,
+  settleTimer: 0,
+});
+
+    body.wakeUp();
+
+    console.log("[ROOM 1] Stage 4 test cube dropped.");
+  }
+
+  showRoom1TutorialGoal() {
+    const goal = this.room1TutorialGoal;
+
+    if (!goal) return;
+
+    goal.visible = true;
+    goal.userData.active = true;
   }
 
   buildSecondRoom() {
@@ -4989,20 +6491,20 @@ export class LevelBuilder {
           direction: -1,
           speedMultiplier: 1.0,
         },
-     {
-  material: displayAntsMatLeft,
-  texture: antsTextureLeft,
-  axis: "y",
-  direction: elevatorRole === "exit" ? 1 : -1,
-  speedMultiplier: 1.2,
-},
-{
-  material: displayAntsMatRight,
-  texture: antsTextureRight,
-  axis: "y",
-  direction: elevatorRole === "exit" ? -1 : 1,
-  speedMultiplier: 1.2,
-},
+        {
+          material: displayAntsMatLeft,
+          texture: antsTextureLeft,
+          axis: "y",
+          direction: elevatorRole === "exit" ? 1 : -1,
+          speedMultiplier: 1.2,
+        },
+        {
+          material: displayAntsMatRight,
+          texture: antsTextureRight,
+          axis: "y",
+          direction: elevatorRole === "exit" ? -1 : 1,
+          speedMultiplier: 1.2,
+        },
       ],
     });
 
@@ -5617,8 +7119,6 @@ export class LevelBuilder {
     this.createPhysicsWall(-9.375, wallCenterY, 15, 5.625, wallH / 2, 0.1);
     this.createPhysicsWall(9.375, wallCenterY, 15, 5.625, wallH / 2, 0.1);
     this.createPhysicsWall(0, 7.5, 15, 3.75, 5, 0.1); // Козырек
-    // Пандус и верхняя площадка комнаты 1.
-    this.buildRoom1TutorialRampPhysics();
   }
 
   buildRoom2Physics() {
@@ -5934,37 +7434,34 @@ export class LevelBuilder {
           mat.emissiveIntensity = doorGlowPulse;
         }
       }
-     if (Array.isArray(elevator.antMaterials)) {
-  for (const ant of elevator.antMaterials) {
-    if (!ant || !ant.texture) continue;
+      if (Array.isArray(elevator.antMaterials)) {
+        for (const ant of elevator.antMaterials) {
+          if (!ant || !ant.texture) continue;
 
-    // Если дисплей неактивен, муравьи не бегут и не светятся.
-    if (!elevator.displayActive) {
-      if (ant.material) {
-        ant.material.opacity = 0.0;
+          // Если дисплей неактивен, муравьи не бегут и не светятся.
+          if (!elevator.displayActive) {
+            if (ant.material) {
+              ant.material.opacity = 0.0;
+            }
+            continue;
+          }
+
+          const speed =
+            0.65 * dt * (ant.direction ?? 1) * (ant.speedMultiplier ?? 1.0);
+
+          if (ant.axis === "y") {
+            ant.texture.offset.y = (ant.texture.offset.y + speed) % 1;
+          } else {
+            ant.texture.offset.x = (ant.texture.offset.x + speed) % 1;
+          }
+
+          if (ant.material) {
+            ant.material.opacity =
+              0.8 +
+              0.2 * (0.5 + 0.5 * Math.sin(this.elevatorDoorPulseTime * 1.4));
+          }
+        }
       }
-      continue;
-    }
-
-    const speed =
-      0.65 *
-      dt *
-      (ant.direction ?? 1) *
-      (ant.speedMultiplier ?? 1.0);
-
-    if (ant.axis === "y") {
-      ant.texture.offset.y = (ant.texture.offset.y + speed) % 1;
-    } else {
-      ant.texture.offset.x = (ant.texture.offset.x + speed) % 1;
-    }
-
-    if (ant.material) {
-      ant.material.opacity =
-        0.8 +
-        0.2 * (0.5 + 0.5 * Math.sin(this.elevatorDoorPulseTime * 1.4));
-    }
-  }
-}
 
       for (const leaf of elevator.leaves) {
         if (!leaf || !leaf.mesh) continue;

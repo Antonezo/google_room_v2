@@ -13,6 +13,9 @@ export class PhysicsManager {
     // === НОВЫЙ МАТЕРИАЛ ДЛЯ ТЯЖЕЛОГО ШАРА ===
     this.matHeavy = new CANNON.Material("heavy");
 
+    this.matTutorialShelf =
+  new CANNON.Material("tutorialShelf");
+
     // === НОВЫЙ МАТЕРИАЛ ДЛЯ ИНТЕРАКТИВНЫХ КОРОБОК ===
     this.matBox = new CANNON.Material("box");
 
@@ -26,6 +29,21 @@ export class PhysicsManager {
         restitution: 0.9,
       }),
     );
+
+this.world.addContactMaterial(
+  new CANNON.ContactMaterial(
+    this.matTutorialShelf,
+    this.matHeavy,
+    {
+      friction: 1.35,
+      restitution: 0.05,
+
+      contactEquationStiffness: 5e7,
+      contactEquationRelaxation: 4,
+    },
+  ),
+);
+
     this.world.addContactMaterial(
       new CANNON.ContactMaterial(this.matBouncy, this.matBouncy, {
         friction: 0.1,

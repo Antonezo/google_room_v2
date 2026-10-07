@@ -19,9 +19,11 @@ this.uiBuffers = {
   connection: null,
   error: null,
   lamps: null,
-  biosClick: null,
-  openDoor: null,
-  boxSlide: null,
+biosClick: null,
+openDoor: null,
+boxSlide: null,
+shelfMove: null,
+cubeImpact: null,
 };
 
 this.currentOpenDoorSound = null;
@@ -277,6 +279,133 @@ this.initPromise = null;
     this.boxSlideGain = null;
   }
 
+  async playShelfMove(volume = 0.42) {
+  await this.resumeContext();
+
+  if (
+    !this.ctx ||
+    this.ctx.state === "suspended"
+  ) {
+    return;
+  }
+
+  if (this.initPromise) {
+    await this.initPromise;
+  }
+
+  const buffer =
+    this.uiBuffers.shelfMove;
+
+  if (!buffer) {
+    console.warn(
+      '⚠️ Звук "shelfMove" не найден или не загружен!',
+    );
+
+    return;
+  }
+
+  // На случай, если игровой канал ещё приглушён меню.
+  if (
+    this.isMenuMuted &&
+    this.fadeIn
+  ) {
+    this.fadeIn(0.08);
+  }
+
+  const source =
+    this.ctx.createBufferSource();
+
+  const gain =
+    this.ctx.createGain();
+
+  source.buffer = buffer;
+
+  gain.gain.value =
+    Math.max(
+      0,
+      Math.min(1, volume),
+    );
+
+  source.connect(gain);
+
+  gain.connect(
+    this.sfxGainNode ||
+      this.ctx.destination,
+  );
+
+  source.start(0);
+
+  source.onended = () => {
+    try {
+      source.disconnect();
+      gain.disconnect();
+    } catch (e) {
+      // Уже отключён.
+    }
+  };
+}
+
+async playCubeImpact(impactSpeed = 1) {
+  await this.resumeContext();
+
+  if (
+    !this.ctx ||
+    this.ctx.state === "suspended"
+  ) {
+    return;
+  }
+
+  if (this.initPromise) {
+    await this.initPromise;
+  }
+
+  const buffer =
+    this.uiBuffers.cubeImpact;
+
+  if (!buffer) {
+    return;
+  }
+
+  const source =
+    this.ctx.createBufferSource();
+
+  const gain =
+    this.ctx.createGain();
+
+  // Сильный удар громче,
+  // слабый отскок — тише.
+  const volume =
+    Math.max(
+      0.12,
+      Math.min(
+        0.75,
+        impactSpeed / 8,
+      ),
+    );
+
+  source.buffer = buffer;
+
+  gain.gain.value = volume;
+
+  source.connect(gain);
+
+  gain.connect(
+    this.sfxGainNode ||
+      this.ctx.destination,
+  );
+
+  source.start(0);
+
+  source.onended = () => {
+    try {
+      source.disconnect();
+      gain.disconnect();
+    } catch (e) {
+      // Звук уже закончился.
+    }
+  };
+}
+
   async loadUISounds() {
     console.log("🔊 Попытка загрузки звуков UI...");
 
@@ -306,6 +435,8 @@ const [
   bios_click,
   openDoor,
   boxSlide,
+  shelfMove,
+  cubeImpact,
 ] = await Promise.all([
   load("audio/mouse_menu.mp3"),
   load("audio/start.mp3"),
@@ -318,6 +449,8 @@ const [
   load("audio/bios-click.mp3"),
   load("audio/open-door.mp3"),
   load("audio/box-slide.mp3"),
+  load("audio/shelf-move.mp3"),
+  load("audio/cube-impact.mp3"),
 ]);
 
     this.uiBuffers.mouse_menu = m;
@@ -331,6 +464,8 @@ const [
     this.uiBuffers.biosClick = bios_click; 
     this.uiBuffers.openDoor = openDoor;
     this.uiBuffers.boxSlide = boxSlide;
+this.uiBuffers.shelfMove = shelfMove;
+this.uiBuffers.cubeImpact = cubeImpact;
 
     console.log("📂 Все буферы UI обновлены", this.uiBuffers);
   }

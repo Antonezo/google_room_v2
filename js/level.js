@@ -1,5 +1,6 @@
 import * as THREE from "three";
 import * as CANNON from "cannon-es";
+import { RoundedBoxGeometry } from "three/addons/geometries/RoundedBoxGeometry.js";
 import { CONFIG } from "./config.js";
 import { audioManager } from "./audio.js";
 import {
@@ -12,6 +13,12 @@ import {
   plasticGreenBaseTex,
   plasticGreenNormalTex,
   plasticGreenRoughTex,
+  rubberBaseTex,
+  rubberNormalTex,
+  rubberRoughTex,
+  shelfColorTex,
+  shelfNormalTex,
+  shelfRoughTex,
 } from "./scene.js";
 
 export class LevelBuilder {
@@ -89,18 +96,18 @@ export class LevelBuilder {
     this.room1TutorialStage3Shelves = [];
     this.room1TutorialStage3FinishShelf = null;
     // Этап 4 — поднимающийся бордюр по периметру.
- this.room1TutorialStage4Borders = [];
+    this.room1TutorialStage4Borders = [];
 
-// Этап 4 — цветные зоны и падающие кубы.
-this.room1TutorialStage4Zones = [];
-this.room1TutorialStage4Cubes = [];
-// Этап 5 — финальные полки у дальней стены.
-this.room1TutorialStage5Shelves = [];
+    // Этап 4 — цветные зоны и падающие кубы.
+    this.room1TutorialStage4Zones = [];
+    this.room1TutorialStage4Cubes = [];
+    // Этап 5 — финальные полки у дальней стены.
+    this.room1TutorialStage5Shelves = [];
 
-// Временно оставляем старые ссылки,
-// пока переводим механику на массивы.
-this.room1TutorialStage4TestPlatform = null;
-this.room1TutorialStage4TestCube = null;
+    // Временно оставляем старые ссылки,
+    // пока переводим механику на массивы.
+    this.room1TutorialStage4TestPlatform = null;
+    this.room1TutorialStage4TestCube = null;
     this.room2GoalMarkerMesh = null;
     this.room2GoalMarkerBody = null;
 
@@ -664,6 +671,12 @@ this.room1TutorialStage4TestCube = null;
     );
 
     mesh.userData.skipWallMaterialUpdate = true;
+    // Для Room 1 декоративная сетка
+// создаётся отдельно от геометрии стен.
+if (this.currentRoomId === 1) {
+  this.registerMesh(mesh);
+  return mesh;
+}
 
     // ==========================================
     // ОБЩАЯ СЕТКА ПАНЕЛЕЙ
@@ -694,6 +707,8 @@ this.room1TutorialStage4TestCube = null;
       Math.ceil((segmentStart - epsilon) / panelWidth) * panelWidth;
 
     while (seamGridPos <= segmentEnd + epsilon) {
+
+
       // Переводим координату общей сетки
       // в локальную координату текущего меша.
       const localX = seamGridPos - segmentStart - width / 2;
@@ -1053,88 +1068,71 @@ this.room1TutorialStage4TestCube = null;
     for (const obj of this.pushableObjects) {
       if (!obj || !obj.mesh || !obj.body) continue;
       // ==========================================
-// ВРЕМЕННЫЙ "РЕЗИНОВЫЙ" РЕЖИМ
-// ==========================================
+      // ВРЕМЕННЫЙ "РЕЗИНОВЫЙ" РЕЖИМ
+      // ==========================================
 
-if (obj.rubberUntilSettled) {
-  const body = obj.body;
+      if (obj.rubberUntilSettled) {
+        const body = obj.body;
 
+        let touchingFloor = false;
 
-  let touchingFloor = false;
+        // Проверяем реальный физический контакт
+        // именно с обычным полом.
+        for (const contact of this.world.contacts) {
+          const isOurBody = contact.bi === body || contact.bj === body;
 
-  // Проверяем реальный физический контакт
-  // именно с обычным полом.
-  for (const contact of this.world.contacts) {
-    const isOurBody =
-      contact.bi === body ||
-      contact.bj === body;
+          if (!isOurBody) continue;
 
-    if (!isOurBody) continue;
+          const otherBody = contact.bi === body ? contact.bj : contact.bi;
 
-    const otherBody =
-      contact.bi === body
-        ? contact.bj
-        : contact.bi;
+          if (
+            otherBody &&
+            otherBody.mass === 0 &&
+            otherBody.material === this.matStandard
+          ) {
+            touchingFloor = true;
+            break;
+          }
+        }
 
-    if (
-      otherBody &&
-      otherBody.mass === 0 &&
-      otherBody.material === this.matStandard
-    ) {
-      touchingFloor = true;
-      break;
-    }
-  }
+        const linearSpeed = Math.hypot(
+          body.velocity.x,
+          body.velocity.y,
+          body.velocity.z,
+        );
 
-  const linearSpeed =
-    Math.hypot(
-      body.velocity.x,
-      body.velocity.y,
-      body.velocity.z,
-    );
+        const angularSpeed = Math.hypot(
+          body.angularVelocity.x,
+          body.angularVelocity.y,
+          body.angularVelocity.z,
+        );
 
-  const angularSpeed =
-    Math.hypot(
-      body.angularVelocity.x,
-      body.angularVelocity.y,
-      body.angularVelocity.z,
-    );
+        const isAlmostStill = linearSpeed < 0.28 && angularSpeed < 0.35;
 
-  const isAlmostStill =
-    linearSpeed < 0.28 &&
-    angularSpeed < 0.35;
+        if (touchingFloor && isAlmostStill) {
+          obj.settleTimer += dt;
+        } else {
+          obj.settleTimer = 0;
+        }
 
-  if (
-    touchingFloor &&
-    isAlmostStill
-  ) {
-    obj.settleTimer += dt;
-  } else {
-    obj.settleTimer = 0;
-  }
+        // Куб должен спокойно пролежать некоторое время,
+        // а не просто на мгновение пройти через нулевую скорость.
+        if (obj.settleTimer >= 0.45) {
+          obj.rubberUntilSettled = false;
+          if (body.userData) {
+            body.userData.allowDropImpactSound = false;
+          }
 
-  // Куб должен спокойно пролежать некоторое время,
-  // а не просто на мгновение пройти через нулевую скорость.
-  if (obj.settleTimer >= 0.45) {
-    obj.rubberUntilSettled = false;
-    if (body.userData) {
-  body.userData.allowDropImpactSound =
-    false;
-}
+          body.material = this.matBox;
 
-    body.material =
-      this.matBox;
+          body.linearDamping = 0.55;
+          body.angularDamping = 0.42;
 
-    body.linearDamping = 0.55;
-    body.angularDamping = 0.42;
+          body.wakeUp();
 
-    body.wakeUp();
-
-    console.log(
-      "[ROOM 1] Stage 4 cube settled.",
-    );
-  }
-}
+          console.log("[ROOM 1] Stage 4 cube settled.");
+        }
+      }
 
       // ==========================================
       // СОПРОТИВЛЕНИЕ СКОЛЬЖЕНИЮ БОЛЬШИХ БЛОКОВ
@@ -1145,19 +1143,35 @@ if (obj.rubberUntilSettled) {
       //
       // Вместо этого гасим только горизонтальную скорость X/Z.
       // Вертикальную velocity.y вообще не трогаем.
+if (!obj.rubberUntilSettled && obj.slideResistance > 0 && dt > 0) {
+        // Проверяем, стоит ли сверху на этом кубе тяжелый шар игрока
+        let pressedFromTop = false;
+        for (const contact of this.world.contacts) {
+          const isBi = contact.bi === obj.body;
+          const isBj = contact.bj === obj.body;
+          if (!isBi && !isBj) continue;
 
-     if (
-  !obj.rubberUntilSettled &&
-  obj.slideResistance > 0 &&
-  dt > 0
-) {
+          const other = isBi ? contact.bj : contact.bi;
+          if (other && other.material === this.physicsManager.matHeavy) {
+            // Нормаль от куба к шару смотрит вверх
+            const ny = isBi ? contact.ni.y : -contact.ni.y;
+            if (ny > 0.65) {
+              pressedFromTop = true;
+              break;
+            }
+          }
+        }
+
         const vx = obj.body.velocity.x;
         const vz = obj.body.velocity.z;
 
         const horizontalSpeed = Math.hypot(vx, vz);
 
         if (horizontalSpeed > 0.0001) {
-          const frictionDeceleration = obj.slideResistance ?? 0;
+          const baseResistance = obj.slideResistance ?? 0;
+          const frictionDeceleration = pressedFromTop
+            ? baseResistance * 4.5
+            : baseResistance;
 
           // Ниже этой скорости считаем, что тяжёлый блок
           // уже практически остановился.
@@ -1185,21 +1199,11 @@ if (obj.rubberUntilSettled) {
 
       // Звук волочения только для больших блоков-ступенек.
       // Красный маленький кубик не должен сюда попадать.
-    if (
-  obj.slideSound &&
-  obj.body &&
-  !obj.rubberUntilSettled
-) {
-  const slideSpeed = Math.hypot(
-    obj.body.velocity.x,
-    obj.body.velocity.z,
-  );
+      if (obj.slideSound && obj.body && !obj.rubberUntilSettled) {
+        const slideSpeed = Math.hypot(obj.body.velocity.x, obj.body.velocity.z);
 
-  maxSlideSpeed = Math.max(
-    maxSlideSpeed,
-    slideSpeed,
-  );
-}
+        maxSlideSpeed = Math.max(maxSlideSpeed, slideSpeed);
+      }
     }
 
     if (audioManager?.updateBoxSlide) {
@@ -1212,6 +1216,173 @@ if (obj.rubberUntilSettled) {
       audioManager.updateBoxSlide(intensity);
     }
   }
+
+  // ==========================================
+// ROOM 1 — ЕДИНАЯ СЕТКА ДЕКОРАТИВНЫХ ШВОВ
+// ==========================================
+
+buildRoom1WallSeams(openings = []) {
+  const floorY = this.floorY;
+  const ceilingY = this.ceilingY;
+
+  const seamMaterial = new THREE.MeshStandardMaterial({
+    color: 0x899196,
+    roughness: 0.65,
+    metalness: 0.12,
+    side: THREE.DoubleSide,
+  });
+
+  const seamWidth = 0.045;
+
+  // Создаём вертикальный отрезок шва.
+  const addSeam = (wall, along, bottomY, topY) => {
+    const height = topY - bottomY;
+
+    if (height <= 0.01) return;
+
+    const seam = new THREE.Mesh(
+      new THREE.PlaneGeometry(seamWidth, height),
+      seamMaterial,
+    );
+
+    const centerY = (bottomY + topY) / 2;
+
+    switch (wall) {
+      case "left":
+        seam.position.set(-14.975, centerY, along);
+        seam.rotation.y = Math.PI / 2;
+        break;
+
+      case "right":
+        seam.position.set(14.975, centerY, along);
+        seam.rotation.y = -Math.PI / 2;
+        break;
+
+      case "back":
+        seam.position.set(along, centerY, 44.975);
+        seam.rotation.y = Math.PI;
+        break;
+
+      case "front":
+        seam.position.set(along, centerY, 15.025);
+        break;
+    }
+
+    seam.name = "Room1_WallSeam";
+    seam.castShadow = false;
+    seam.receiveShadow = false;
+    seam.userData.skipWallMaterialUpdate = true;
+
+    this.registerMesh(seam);
+  };
+
+  // Четыре стены с одинаковым шагом сетки.
+  const walls = [
+    { name: "left", from: 15, to: 45 },
+    { name: "right", from: 15, to: 45 },
+    { name: "back", from: -15, to: 15 },
+    { name: "front", from: -15, to: 15 },
+  ];
+
+  for (const wall of walls) {
+    // Не создаём швы на углах —
+    // угловые стыки добавим отдельно.
+    for (
+      let along = wall.from + 5;
+      along < wall.to;
+      along += 5
+    ) {
+      // Сначала линия занимает всю высоту стены.
+      let segments = [[floorY, ceilingY]];
+
+      // Вырезаем из линии участки проёмов.
+      for (const opening of openings) {
+        if (opening.wall !== wall.name) continue;
+
+        const minAlong =
+          opening.along - opening.width / 2;
+
+        const maxAlong =
+          opening.along + opening.width / 2;
+
+        if (
+          along + seamWidth / 2 <= minAlong ||
+          along - seamWidth / 2 >= maxAlong
+        ) {
+          continue;
+        }
+
+        const nextSegments = [];
+
+        for (const [bottom, top] of segments) {
+          // Часть ниже проёма.
+          if (bottom < opening.bottomY) {
+            nextSegments.push([
+              bottom,
+              Math.min(top, opening.bottomY),
+            ]);
+          }
+
+          // Часть выше проёма.
+          if (top > opening.topY) {
+            nextSegments.push([
+              Math.max(bottom, opening.topY),
+              top,
+            ]);
+          }
+        }
+
+        segments = nextSegments;
+      }
+
+      // Создаём только оставшиеся отрезки.
+      for (const [bottom, top] of segments) {
+        addSeam(wall.name, along, bottom, top);
+      }
+    }
+  }
+
+// ==========================================
+// ROOM 1 — УГЛОВЫЕ ШВЫ
+// ПЛОСКИЕ, КАК ОБЫЧНЫЕ ШВЫ СТЕН
+// ==========================================
+
+const cornerInset = 0.045;
+
+const cornerSeams = [
+  { x: -15 + cornerInset, z: 15.025, rotation: 0 },
+  { x:  15 - cornerInset, z: 15.025, rotation: 0 },
+
+  { x: -15 + cornerInset, z: 44.975, rotation: Math.PI },
+  { x:  15 - cornerInset, z: 44.975, rotation: Math.PI },
+];
+
+for (const corner of cornerSeams) {
+  const seam = new THREE.Mesh(
+    new THREE.PlaneGeometry(
+      seamWidth,
+      ceilingY - floorY,
+    ),
+    seamMaterial,
+  );
+
+  seam.position.set(
+    corner.x,
+    (floorY + ceilingY) / 2,
+    corner.z,
+  );
+
+  seam.rotation.y = corner.rotation;
+
+  seam.name = "Room1_CornerSeam";
+
+  seam.castShadow = false;
+  seam.receiveShadow = false;
+  seam.userData.skipWallMaterialUpdate = true;
+
+  this.registerMesh(seam);
+}
+}
 
   // --- ЭТАПЫ СТРОИТЕЛЬСТВА ---
 
@@ -1243,16 +1414,120 @@ if (obj.rubberUntilSettled) {
     );
 
     // ==========================================
-    // ЛЕВАЯ, ПРАВАЯ И ЗАДНЯЯ СТЕНЫ
+    // ЛЕВАЯ СТЕНА С ПРОЁМОМ ПОД ТЕСТОВЫЙ МОДУЛЬ
     // ==========================================
 
-    // Левая стена
-    this.addPanelWall(
-      roomD,
-      wallH,
-      new THREE.Vector3(-15, wallCenterY, 30),
-      new THREE.Vector3(0, Math.PI / 2, 0),
-    );
+    const moduleCenterZ = 27.0;
+    const moduleWidth = 5.4;
+    const moduleHeight = 3.8;
+
+  const moduleCenterY =
+  this.floorY +
+  2.0 +
+  moduleHeight / 2 -
+  0.80;
+
+    const moduleBottomY = moduleCenterY - moduleHeight / 2;
+
+    const moduleTopY = moduleCenterY + moduleHeight / 2;
+
+    const moduleMinZ = moduleCenterZ - moduleWidth / 2;
+
+    const moduleMaxZ = moduleCenterZ + moduleWidth / 2;
+
+ // ------------------------------------------
+// СТЕНА ОТ z = 15 ДО НАЧАЛА ПРОЁМА
+// ------------------------------------------
+
+const frontPartDepth = moduleMinZ - 15;
+
+if (frontPartDepth > 0.01) {
+  this.addPlainSurface(
+    frontPartDepth,
+    wallH,
+    new THREE.Vector3(
+      -15,
+      wallCenterY,
+      15 + frontPartDepth / 2,
+    ),
+    new THREE.Vector3(0, Math.PI / 2, 0),
+  );
+}
+
+   // ------------------------------------------
+// СТЕНА ОТ КОНЦА ПРОЁМА ДО z = 45
+// ------------------------------------------
+
+const backPartDepth = 45 - moduleMaxZ;
+
+if (backPartDepth > 0.01) {
+  this.addPlainSurface(
+    backPartDepth,
+    wallH,
+    new THREE.Vector3(
+      -15,
+      wallCenterY,
+      moduleMaxZ + backPartDepth / 2,
+    ),
+    new THREE.Vector3(0, Math.PI / 2, 0),
+  );
+}
+
+    // ------------------------------------------
+    // СТЕНА ПОД ПРОЁМОМ
+    // ------------------------------------------
+
+    const bottomPartHeight = moduleBottomY - this.floorY;
+
+    if (bottomPartHeight > 0.01) {
+      this.addPlainSurface(
+        moduleWidth,
+        bottomPartHeight,
+
+        new THREE.Vector3(
+          -15,
+          this.floorY + bottomPartHeight / 2,
+          moduleCenterZ,
+        ),
+
+        new THREE.Vector3(0, Math.PI / 2, 0),
+
+        {
+          color: 0xe4e7e9,
+          roughness: 0.48,
+          metalness: 0.06,
+        },
+      );
+    }
+
+    // ------------------------------------------
+    // СТЕНА НАД ПРОЁМОМ
+    // ------------------------------------------
+
+    const topPartHeight = this.ceilingY - moduleTopY;
+
+    if (topPartHeight > 0.01) {
+      this.addPlainSurface(
+        moduleWidth,
+        topPartHeight,
+
+        new THREE.Vector3(
+          -15,
+
+          moduleTopY + topPartHeight / 2,
+
+          moduleCenterZ,
+        ),
+
+        new THREE.Vector3(0, Math.PI / 2, 0),
+
+        {
+          color: 0xe4e7e9,
+          roughness: 0.48,
+          metalness: 0.06,
+        },
+      );
+    }
 
     // Правая стена
     this.addPanelWall(
@@ -1270,6 +1545,8 @@ if (obj.rubberUntilSettled) {
       new THREE.Vector3(0, Math.PI, 0),
     );
 
+ 
+
     this.addPanelWallWithElevatorOpening({
       wallWidth: roomW,
       wallHeight: wallH,
@@ -1282,6 +1559,31 @@ if (obj.rubberUntilSettled) {
 
       reverseGrid: false,
     });
+
+    // ==========================================
+// ОБЩАЯ СЕТКА ВСЕХ СТЕН ROOM 1
+// ==========================================
+
+this.buildRoom1WallSeams([
+  // Первая тестовая ниша Stage 3.
+  {
+    wall: "left",
+    along: moduleCenterZ,
+    width: moduleWidth,
+    bottomY: moduleBottomY,
+    topY: moduleTopY,
+  },
+
+  // Проём стартового лифта.
+  {
+    wall: "front",
+    along: 0,
+    width: elW,
+    bottomY: this.floorY,
+    topY: this.floorY + elH,
+  },
+]);
+
     // === ФИНИШНЫЙ ЛИФТ СЕКТОРА 1 ===
     //
     // Используем тот же универсальный шаблон,
@@ -1299,8 +1601,544 @@ if (obj.rubberUntilSettled) {
       elevatorRole: "exit",
     });
 
+    // ==========================================
+    // ROOM 1 — ПРОТОТИП КРЕПЛЕНИЯ ПОЛКИ STAGE 3
+    // ==========================================
+
+    this.createRoom1ShelfWallModule({
+      wall: "left",
+      along: 27.0,
+      topY: this.floorY + 2.0,
+
+      width: 5.4,
+      height: 3.8,
+    });
+
     // Начальное состояние обучающей комнаты.
     this.buildRoom1TutorialStep(1);
+  }
+
+  createRoom1ShelfWallModule({
+    wall,
+    along,
+    topY,
+
+    width = 5.4,
+    height = 3.8,
+  }) {
+    const root = new THREE.Group();
+
+    root.name = "Room1_ShelfWallModule_Test";
+
+    // ==========================================
+    // ЧИСТАЯ БАЗОВАЯ НИША
+    // ==========================================
+
+    const recessDepth = 2.0;
+
+    // Цвет почти как у стен Room 1.
+const backMaterial =
+  new THREE.MeshStandardMaterial({
+    color: 0xe4e7e9,
+    roughness: 0.48,
+    metalness: 0.06,
+  });
+
+    // Боковины чуть темнее,
+    // чтобы глубина хорошо читалась.
+const sideMaterial =
+  new THREE.MeshStandardMaterial({
+    color: 0xd6dadd,
+    roughness: 0.52,
+    metalness: 0.06,
+  });
+
+    // ==========================================
+    // ЗАДНЯЯ СТЕНКА НИШИ
+    // ==========================================
+
+    const recessBack = new THREE.Mesh(
+      new THREE.PlaneGeometry(width, height),
+      backMaterial,
+    );
+
+    recessBack.position.z = -recessDepth;
+
+    root.add(recessBack);
+
+    // ==========================================
+    // ВНУТРЕННИЕ СТЕНКИ НИШИ
+    // ==========================================
+
+    const sideThickness = 0.08;
+
+    const recessTop = new THREE.Mesh(
+      new THREE.BoxGeometry(width, sideThickness, recessDepth),
+      sideMaterial,
+    );
+
+    const recessBottom = recessTop.clone();
+
+    const recessLeft = new THREE.Mesh(
+      new THREE.BoxGeometry(sideThickness, height, recessDepth),
+      sideMaterial,
+    );
+
+    const recessRight = recessLeft.clone();
+
+    recessTop.position.set(0, height / 2 - sideThickness / 2, -recessDepth / 2);
+
+    recessBottom.position.set(
+      0,
+      -height / 2 + sideThickness / 2,
+      -recessDepth / 2,
+    );
+
+    recessLeft.position.set(
+      -width / 2 + sideThickness / 2,
+      0,
+      -recessDepth / 2,
+    );
+
+    recessRight.position.set(
+      width / 2 - sideThickness / 2,
+      0,
+      -recessDepth / 2,
+    );
+
+    root.add(recessTop, recessBottom, recessLeft, recessRight);
+
+    // ==========================================
+// ВНУТРЕННЯЯ ДЕКОРАТИВНАЯ ПОДСВЕТКА НИШИ
+// БЕЗ ДОПОЛНИТЕЛЬНЫХ ИСТОЧНИКОВ СВЕТА
+// ==========================================
+
+const lightStripMaterial =
+  new THREE.MeshStandardMaterial({
+    color: 0xf7fbff,
+    emissive: 0xf7fbff,
+    emissiveIntensity: 2.2,
+    roughness: 0.28,
+    metalness: 0.0,
+    toneMapped: false,
+  });
+
+// Размеры тонких вертикальных световых полос.
+const stripWidth = 0.045;
+const stripHeight = height - 0.82;
+const stripDepth = 0.03;
+
+// Полосы ставим чуть внутри проёма,
+// чтобы они не сливались с рамкой.
+const stripInsetX = width / 2 - 0.30;
+const stripY = 0.02;
+const stripZ = -0.10;
+
+const leftLightStrip =
+  new THREE.Mesh(
+    new THREE.BoxGeometry(
+      stripWidth,
+      stripHeight,
+      stripDepth,
+    ),
+    lightStripMaterial,
+  );
+
+leftLightStrip.position.set(
+  -stripInsetX,
+  stripY,
+  stripZ,
+);
+
+leftLightStrip.name =
+  "Room1_ShelfModule_LeftLightStrip";
+
+const rightLightStrip =
+  leftLightStrip.clone();
+
+rightLightStrip.position.set(
+  stripInsetX,
+  stripY,
+  stripZ,
+);
+
+rightLightStrip.name =
+  "Room1_ShelfModule_RightLightStrip";
+
+// Верхняя горизонтальная полоса
+const topLightStrip =
+  new THREE.Mesh(
+    new THREE.BoxGeometry(
+      width - 0.82,
+      0.045,
+      0.03,
+    ),
+    lightStripMaterial,
+  );
+
+topLightStrip.position.set(
+  0,
+  height / 2 - 0.30,
+  stripZ,
+);
+
+topLightStrip.name =
+  "Room1_ShelfModule_TopLightStrip";
+
+root.add(
+  leftLightStrip,
+  rightLightStrip,
+  topLightStrip,
+);
+
+// ==========================================
+// МЯГКАЯ ЗЕЛЁНАЯ ПОДСВЕТКА НИШИ
+// РЕАЛЬНЫЕ ИСТОЧНИКИ СВЕТА, НО БЕЗ ТЕНЕЙ
+// ==========================================
+
+const nicheGlowColor = 0x98ffb8;
+
+// Левый источник
+const leftNicheLight =
+  new THREE.PointLight(
+    nicheGlowColor,
+    0.38,
+    4.6,
+    1.15,
+  );
+
+leftNicheLight.position.set(
+  -width / 2 + 0.52,
+  0.20,
+  -recessDepth / 2 + 0.18,
+);
+
+leftNicheLight.castShadow = false;
+leftNicheLight.name =
+  "Room1_ShelfModule_LeftNicheLight";
+
+// Правый источник
+const rightNicheLight =
+  new THREE.PointLight(
+    nicheGlowColor,
+    0.38,
+    4.6,
+    1.15,
+  );
+
+rightNicheLight.position.set(
+  width / 2 - 0.52,
+  0.20,
+  -recessDepth / 2 + 0.18,
+);
+
+rightNicheLight.castShadow = false;
+rightNicheLight.name =
+  "Room1_ShelfModule_RightNicheLight";
+
+root.add(
+  leftNicheLight,
+  rightNicheLight,
+);
+
+    // ==========================================
+    // ТОНКАЯ ТЁМНАЯ ОКАНТОВКА НА ФАСАДЕ
+    // ==========================================
+
+    const trimMaterial = new THREE.MeshStandardMaterial({
+      color: 0x343b3f,
+      roughness: 0.42,
+      metalness: 0.22,
+      side: THREE.DoubleSide,
+    });
+
+    // Рамка немного меньше самого проёма.
+    const trimInset = 0.12;
+
+    // Очень тонкая линия, как на референсе.
+    const trimThickness = 0.07;
+
+    // Хорошо заметное скругление углов.
+    const outerRadius = 0.3;
+
+    const trimWidth = width - trimInset * 2;
+
+    const trimHeight = height - trimInset * 2;
+
+    const innerWidth = trimWidth - trimThickness * 2;
+
+    const innerHeight = trimHeight - trimThickness * 2;
+
+    const innerRadius = Math.max(0.04, outerRadius - trimThickness);
+
+    // ------------------------------------------
+    // ВНЕШНИЙ СКРУГЛЁННЫЙ КОНТУР
+    // ------------------------------------------
+
+    const trimShape = new THREE.Shape();
+
+    const halfW = trimWidth / 2;
+    const halfH = trimHeight / 2;
+
+    trimShape.moveTo(-halfW + outerRadius, -halfH);
+
+    trimShape.lineTo(halfW - outerRadius, -halfH);
+
+    trimShape.quadraticCurveTo(halfW, -halfH, halfW, -halfH + outerRadius);
+
+    trimShape.lineTo(halfW, halfH - outerRadius);
+
+    trimShape.quadraticCurveTo(halfW, halfH, halfW - outerRadius, halfH);
+
+    trimShape.lineTo(-halfW + outerRadius, halfH);
+
+    trimShape.quadraticCurveTo(-halfW, halfH, -halfW, halfH - outerRadius);
+
+    trimShape.lineTo(-halfW, -halfH + outerRadius);
+
+    trimShape.quadraticCurveTo(-halfW, -halfH, -halfW + outerRadius, -halfH);
+
+    // ------------------------------------------
+    // ВНУТРЕННЕЕ СКРУГЛЁННОЕ ОТВЕРСТИЕ
+    // ------------------------------------------
+
+    const trimHole = new THREE.Path();
+
+    const innerHalfW = innerWidth / 2;
+
+    const innerHalfH = innerHeight / 2;
+
+    // Для отверстия идём в обратную сторону.
+    trimHole.moveTo(-innerHalfW + innerRadius, -innerHalfH);
+
+    trimHole.quadraticCurveTo(
+      -innerHalfW,
+      -innerHalfH,
+      -innerHalfW,
+      -innerHalfH + innerRadius,
+    );
+
+    trimHole.lineTo(-innerHalfW, innerHalfH - innerRadius);
+
+    trimHole.quadraticCurveTo(
+      -innerHalfW,
+      innerHalfH,
+      -innerHalfW + innerRadius,
+      innerHalfH,
+    );
+
+    trimHole.lineTo(innerHalfW - innerRadius, innerHalfH);
+
+    trimHole.quadraticCurveTo(
+      innerHalfW,
+      innerHalfH,
+      innerHalfW,
+      innerHalfH - innerRadius,
+    );
+
+    trimHole.lineTo(innerHalfW, -innerHalfH + innerRadius);
+
+    trimHole.quadraticCurveTo(
+      innerHalfW,
+      -innerHalfH,
+      innerHalfW - innerRadius,
+      -innerHalfH,
+    );
+
+    trimHole.lineTo(-innerHalfW + innerRadius, -innerHalfH);
+
+    trimShape.holes.push(trimHole);
+
+    const trimGeometry = new THREE.ShapeGeometry(trimShape, 12);
+
+    const trim = new THREE.Mesh(trimGeometry, trimMaterial);
+
+    // КЛЮЧЕВОЙ МОМЕНТ:
+    // рамка находится ПЕРЕД нишей,
+    // а не внутри неё.
+    trim.position.z = 0.035;
+
+    trim.name = "Room1_ShelfModule_DarkTrim";
+
+    root.add(trim);
+
+    // ==========================================
+    // БОКОВЫЕ ДЕРЖАТЕЛИ / НАПРАВЛЯЮЩИЕ ПОЛКИ
+    // ==========================================
+
+  const holderBaseMaterial =
+  new THREE.MeshPhysicalMaterial({
+    color: 0xc7cfd4,
+    roughness: 0.18,
+    metalness: 0.62,
+    clearcoat: 0.55,
+    clearcoatRoughness: 0.20,
+  });
+
+const holderRailMaterial =
+  new THREE.MeshPhysicalMaterial({
+    color: 0xe3e8eb,
+    roughness: 0.10,
+    metalness: 0.72,
+    clearcoat: 0.75,
+    clearcoatRoughness: 0.12,
+  });
+
+    // Держатели располагаются ближе
+    // к нижней части ниши.
+    const holderY = -height / 2 + 0.78;
+
+    // Почти у боковых стенок.
+    const holderX = width / 2 - 0.42;
+
+    // ------------------------------------------
+    // ОДИН ДЕРЖАТЕЛЬ
+    // ------------------------------------------
+
+    const createHolder = (side) => {
+      const holder = new THREE.Group();
+
+      // Вертикальное крепление
+      // на задней стенке ниши.
+      const mount = new THREE.Mesh(
+        new RoundedBoxGeometry(0.46, 0.9, 0.28, 4, 0.05),
+        holderBaseMaterial,
+      );
+
+      mount.position.set(0, 0.06, -recessDepth + 0.14);
+
+      // Продольная направляющая,
+      // которая идёт от задней стенки
+      // в сторону полки.
+      const railDepth = 1.35;
+
+      const rail = new THREE.Mesh(
+        new RoundedBoxGeometry(0.44, 0.3, railDepth, 4, 0.05),
+        holderRailMaterial,
+      );
+
+      rail.position.set(
+        0,
+        -0.12,
+
+        -recessDepth + railDepth / 2 + 0.14,
+      );
+
+      // Небольшой передний упор.
+      const frontStop = new THREE.Mesh(
+        new RoundedBoxGeometry(0.46, 0.38, 0.28, 4, 0.05),
+        holderBaseMaterial,
+      );
+
+      frontStop.position.set(-side * 0.04, -0.07, -0.66);
+
+      holder.add(mount, rail, frontStop);
+
+holder.position.set(
+  side * holderX,
+  holderY,
+  0,
+);
+
+      return holder;
+    };
+
+    // Левая и правая стороны.
+    const leftHolder = createHolder(-1);
+
+    const rightHolder = createHolder(1);
+
+   // ==========================================
+// ЕДИНЫЙ МЕХАНИЗМ КРОНШТЕЙНОВ
+// ==========================================
+
+const holderAssembly = new THREE.Group();
+
+holderAssembly.name =
+  "Room1_ShelfHolderAssembly";
+
+holderAssembly.add(
+  leftHolder,
+  rightHolder,
+);
+
+// Вся конструкция выдвинута
+// в сторону полки.
+holderAssembly.position.z = 0.55;
+
+root.add(holderAssembly);
+
+// Сохраняем ссылку на подвижную
+// конструкцию кронштейнов.
+root.userData.holderAssembly =
+  holderAssembly;
+
+// Запоминаем положение полностью
+// выдвинутого механизма.
+holderAssembly.userData.extendedZ =
+  holderAssembly.position.z;
+
+// ==========================================
+// НАЧАЛЬНОЕ ПОЛОЖЕНИЕ МЕХАНИЗМА
+// ==========================================
+
+// Полный ход первой полки Stage 3:
+// глубина полки 3.8 + скрытый отступ 0.08.
+const holderHiddenTravel = 3.88;
+
+// Сохраняем полностью выдвинутое положение,
+// но начинаем игру со спрятанным механизмом.
+holderAssembly.position.z =
+  holderAssembly.userData.extendedZ -
+  holderHiddenTravel;
+
+    // ==========================================
+    // ЗАДНЯЯ ПОПЕРЕЧНАЯ ПЕРЕКЛАДИНА
+    // ==========================================
+
+    const crossbar = new THREE.Mesh(
+      new RoundedBoxGeometry(holderX * 2, 0.24, 0.52, 4, 0.05),
+      holderRailMaterial,
+    );
+
+    crossbar.position.set(0, holderY - 0.12, -recessDepth + 0.3);
+
+ crossbar.name =
+  "Room1_ShelfModule_Crossbar";
+
+holderAssembly.add(crossbar);
+
+    // ==========================================
+    // РАЗМЕЩЕНИЕ НА СТЕНЕ
+    // ==========================================
+
+    if (wall === "left") {
+      root.position.set(
+        -14.89,
+
+        topY + height / 2 - 0.80,
+
+        along,
+      );
+
+      root.rotation.y = Math.PI / 2;
+    } else {
+      console.warn(`[ROOM 1] Unsupported shelf module wall: ${wall}`);
+
+      return null;
+    }
+
+    root.userData.skipWallMaterialUpdate = true;
+
+this.currentRoomGroup.add(root);
+
+// Временная связь тестового модуля
+// с первой полкой Stage 3.
+if (wall === "left" && along === 27.0) {
+  this.room1Stage3TestModule = root;
+}
+
+return root;
   }
 
   ensureRoom1TutorialGroup() {
@@ -1352,18 +2190,18 @@ if (obj.rubberUntilSettled) {
     this.room1TutorialMarkers = [];
     this.room1TutorialPlatforms = [];
 
-   this.room1TutorialStage3Shelves = [];
-this.room1TutorialStage3FinishShelf = null;
+    this.room1TutorialStage3Shelves = [];
+    this.room1TutorialStage3FinishShelf = null;
 
-this.room1TutorialStage4Borders = [];
-this.room1TutorialStage4Zones = [];
-this.room1TutorialStage4Cubes = [];
-this.room1TutorialStage5Shelves = [];
+    this.room1TutorialStage4Borders = [];
+    this.room1TutorialStage4Zones = [];
+    this.room1TutorialStage4Cubes = [];
+    this.room1TutorialStage5Shelves = [];
 
-this.room1TutorialStage4TestPlatform = null;
-this.room1TutorialStage4TestCube = null;
+    this.room1TutorialStage4TestPlatform = null;
+    this.room1TutorialStage4TestCube = null;
 
-this.room1TutorialGoal = null;
+    this.room1TutorialGoal = null;
   }
 
   createRoom1TutorialMarker({
@@ -1519,31 +2357,29 @@ this.room1TutorialGoal = null;
     return platform;
   }
 
-showRoom1TutorialStage4Goal() {
-  const oldGoal =
-    this.room1TutorialGoal;
+  showRoom1TutorialStage4Goal() {
+    const oldGoal = this.room1TutorialGoal;
 
-  if (oldGoal) {
-    oldGoal.visible = false;
-    oldGoal.userData.active = false;
-  }
+    if (oldGoal) {
+      oldGoal.visible = false;
+      oldGoal.userData.active = false;
+    }
 
-  const goal =
-    this.createRoom1TutorialMarker({
+    const goal = this.createRoom1TutorialMarker({
       x: 0,
       z: 30,
       surfaceY: this.floorY,
       type: "goal",
     });
 
-  goal.visible = true;
-  goal.userData.active = true;
-  goal.userData.collected = false;
+    goal.visible = true;
+    goal.userData.active = true;
+    goal.userData.collected = false;
 
-  this.room1TutorialGoal = goal;
+    this.room1TutorialGoal = goal;
 
-  return goal;
-}
+    return goal;
+  }
 
   setRoom1TutorialPlatformProgress(platform, progress) {
     if (!platform?.mesh || !platform?.body) {
@@ -1560,6 +2396,33 @@ showRoom1TutorialStage4Goal() {
 
     // Визуал.
     platform.mesh.position.copy(position);
+
+    // ==========================================
+// СИНХРОННОЕ ДВИЖЕНИЕ КРОНШТЕЙНОВ
+// ==========================================
+
+// ==========================================
+// ПОЛКА И КРОНШТЕЙНЫ ДВИГАЮТСЯ ВМЕСТЕ
+// ==========================================
+
+if (platform.holderAssembly) {
+  const assembly = platform.holderAssembly;
+
+  // Реальное расстояние выдвижения полки.
+  const travelDistance =
+    platform.startPosition.distanceTo(
+      platform.targetPosition,
+    );
+
+  const extendedZ =
+    assembly.userData.extendedZ;
+
+  // При t = 0 механизм полностью за стеной.
+  // При t = 1 механизм выдвинут вместе с полкой.
+  assembly.position.z =
+    extendedZ -
+    travelDistance * (1 - t);
+}
 
     // Физика.
     platform.body.position.set(position.x, position.y, position.z);
@@ -1597,6 +2460,26 @@ showRoom1TutorialStage4Goal() {
           roughness: 0.4,
           metalness: 0.0,
         });
+
+    material.color.setHex(0xffffff);
+
+    material.map = shelfColorTex;
+
+    material.normalMap = shelfNormalTex;
+
+    material.roughnessMap = shelfRoughTex;
+
+    // Вся поверхность является металлом.
+    // Белая Metalness-карта дала бы ровно тот же результат.
+    material.metalness = 0.18;
+
+    // Roughness-карта сама определяет,
+    // где металл матовее или глаже.
+    material.roughness = 0.85;
+
+    material.normalScale = new THREE.Vector2(0.35, 0.35);
+
+    material.needsUpdate = true;
 
     let sizeX;
     let sizeZ;
@@ -1654,7 +2537,7 @@ showRoom1TutorialStage4Goal() {
     const centerY = topY - thickness / 2;
 
     const mesh = new THREE.Mesh(
-      new THREE.BoxGeometry(sizeX, thickness, sizeZ),
+      new RoundedBoxGeometry(sizeX, thickness, sizeZ, 2, 0.05),
       material,
     );
 
@@ -1693,6 +2576,14 @@ showRoom1TutorialStage4Goal() {
       mesh,
       body,
 
+        // Механизм выдвижения для
+  // первой тестовой полки.
+  holderAssembly:
+    wall === "left" && along === 27.0
+      ? this.room1Stage3TestModule
+          ?.userData.holderAssembly ?? null
+      : null,
+
       startPosition: new THREE.Vector3(startX, centerY, startZ),
 
       targetPosition: new THREE.Vector3(targetX, centerY, targetZ),
@@ -1707,10 +2598,17 @@ showRoom1TutorialStage4Goal() {
       extended: false,
     };
 
-    this.room1TutorialPlatforms.push(shelf);
-    this.room1TutorialStage3Shelves.push(shelf);
+   this.room1TutorialPlatforms.push(shelf);
+this.room1TutorialStage3Shelves.push(shelf);
 
-    return shelf;
+// Сразу устанавливаем исходное положение
+// полки и её кронштейнов.
+this.setRoom1TutorialPlatformProgress(
+  shelf,
+  0,
+);
+
+return shelf;
   }
 
   createRoom1TutorialStage4Border() {
@@ -1853,288 +2751,231 @@ showRoom1TutorialStage4Goal() {
   }
 
   createRoom1TutorialStage5Shelf({
-  name,
-  x,
-  topY,
+    name,
+    x,
+    topY,
 
-  width = 4.8,
-  depth = 3.6,
-  thickness = 0.65,
-}) {
-  const material = this.sharedTileMaterial
-    ? this.sharedTileMaterial.clone()
-    : new THREE.MeshStandardMaterial({
-        color: 0xffffff,
-        roughness: 0.4,
-        metalness: 0.0,
-      });
+    width = 4.8,
+    depth = 3.6,
+    thickness = 0.65,
+  }) {
+    const material = this.sharedTileMaterial
+      ? this.sharedTileMaterial.clone()
+      : new THREE.MeshStandardMaterial({
+          color: 0xffffff,
+          roughness: 0.4,
+          metalness: 0.0,
+        });
 
-  // Дальняя стена Room 1 находится на z = 45.
-  // Полка выступает из неё внутрь комнаты.
- const hiddenInset = 0.08;
+    material.color.setHex(0xffffff);
 
-const startZ =
-  45 + depth / 2 + hiddenInset;
+    material.map = shelfColorTex;
 
-const targetZ =
-  45 - depth / 2;
+    material.normalMap = shelfNormalTex;
 
-const centerY =
-  topY - thickness / 2;
+    material.roughnessMap = shelfRoughTex;
 
-  const mesh =
-    new THREE.Mesh(
-      new THREE.BoxGeometry(
-        width,
-        thickness,
-        depth,
-      ),
+    // Вся поверхность является металлом.
+    // Белая Metalness-карта дала бы ровно тот же результат.
+    material.metalness = 0.18;
+
+    // Roughness-карта сама определяет,
+    // где металл матовее или глаже.
+    material.roughness = 0.85;
+
+    material.normalScale = new THREE.Vector2(0.35, 0.35);
+
+    material.needsUpdate = true;
+
+    // Дальняя стена Room 1 находится на z = 45.
+    // Полка выступает из неё внутрь комнаты.
+    const hiddenInset = 0.08;
+
+    const startZ = 45 + depth / 2 + hiddenInset;
+
+    const targetZ = 45 - depth / 2;
+
+    const centerY = topY - thickness / 2;
+
+    const mesh = new THREE.Mesh(
+      new RoundedBoxGeometry(width, thickness, depth, 2, 0.07),
       material,
     );
 
-  mesh.name =
-    `Room1_Stage5Shelf_${name}`;
+    mesh.name = `Room1_Stage5Shelf_${name}`;
 
-mesh.position.set(
-  x,
-  centerY,
-  startZ,
-);
+    mesh.position.set(x, centerY, startZ);
 
-  mesh.castShadow = true;
-  mesh.receiveShadow = true;
+    mesh.castShadow = true;
+    mesh.receiveShadow = true;
 
-  mesh.userData.skipWallMaterialUpdate =
-    true;
+    mesh.userData.skipWallMaterialUpdate = true;
 
-  this.ensureRoom1TutorialGroup()
-    .add(mesh);
+    this.ensureRoom1TutorialGroup().add(mesh);
 
-  // ==========================================
-  // ФИЗИКА
-  // ==========================================
+    // ==========================================
+    // ФИЗИКА
+    // ==========================================
 
-  const body =
-    new CANNON.Body({
+    const body = new CANNON.Body({
       mass: 0,
       material: this.matTutorialShelf,
     });
 
-  body.addShape(
-    new CANNON.Box(
-      new CANNON.Vec3(
-        width / 2,
-        thickness / 2,
-        depth / 2,
-      ),
-    ),
-  );
+    body.addShape(
+      new CANNON.Box(new CANNON.Vec3(width / 2, thickness / 2, depth / 2)),
+    );
 
-body.position.set(
-  x,
-  centerY,
-  startZ,
-);
+    body.position.set(x, centerY, startZ);
 
-  this.world.addBody(body);
+    this.world.addBody(body);
 
-  this.room1TutorialBodies.push(body);
+    this.room1TutorialBodies.push(body);
 
-const shelf = {
-  name,
-  mesh,
-  body,
+    const shelf = {
+      name,
+      mesh,
+      body,
 
-  startPosition:
-    new THREE.Vector3(
-      x,
-      centerY,
-      startZ,
-    ),
+      startPosition: new THREE.Vector3(x, centerY, startZ),
 
-  targetPosition:
-    new THREE.Vector3(
-      x,
-      centerY,
-      targetZ,
-    ),
+      targetPosition: new THREE.Vector3(x, centerY, targetZ),
 
-  topOffsetY:
-    thickness / 2,
+      topOffsetY: thickness / 2,
 
-  marker: null,
+      marker: null,
 
-  kind: "stage5Shelf",
-};
-  this.room1TutorialStage5Shelves.push(
-    shelf,
-  );
+      kind: "stage5Shelf",
+    };
+    this.room1TutorialStage5Shelves.push(shelf);
 
-  return shelf;
-}
+    return shelf;
+  }
 
-createRoom1TutorialStage5Shelves() {
-  // Защита от повторного создания.
-  if (
-    this.room1TutorialStage5Shelves
-      ?.length > 0
-  ) {
+  createRoom1TutorialStage5Shelves() {
+    // Защита от повторного создания.
+    if (this.room1TutorialStage5Shelves?.length > 0) {
+      return this.room1TutorialStage5Shelves;
+    }
+
+    const lowerTopY = this.floorY + 5.0;
+
+    const upperTopY = this.floorY + 8.0;
+
+    const lowerLeft = this.createRoom1TutorialStage5Shelf({
+      name: "LowerLeft",
+
+      x: -8.25,
+      topY: lowerTopY,
+
+      width: 6.5,
+      depth: 4.0,
+    });
+
+    const lowerRight = this.createRoom1TutorialStage5Shelf({
+      name: "LowerRight",
+
+      x: 8.25,
+      topY: lowerTopY,
+
+      width: 6.5,
+      depth: 4.0,
+    });
+
+    const upperCenter = this.createRoom1TutorialStage5Shelf({
+      name: "UpperCenter",
+
+      x: 0,
+      topY: upperTopY,
+
+      width: 10.0,
+      depth: 4.0,
+    });
+
+    // ==========================================
+    // ЭТАП 5 — МАРКЕРЫ НА ПОЛКАХ
+    // ==========================================
+
+    // Левая нижняя полка.
+    const lowerLeftMarker = this.createRoom1TutorialMarker({
+      x: lowerLeft.targetPosition.x,
+      z: lowerLeft.targetPosition.z,
+
+      surfaceY: lowerLeft.targetPosition.y + lowerLeft.topOffsetY,
+
+      type: "collect",
+    });
+
+    lowerLeftMarker.visible = true;
+    lowerLeftMarker.userData.active = true;
+    lowerLeftMarker.userData.collected = false;
+
+    lowerLeftMarker.userData.stage5Role = "lowerLeft";
+
+    lowerLeft.marker = lowerLeftMarker;
+
+    this.room1TutorialMarkers.push(lowerLeftMarker);
+
+    this.setRoom1TutorialPlatformProgress(lowerLeft, 0);
+
+    // Правая нижняя полка.
+    const lowerRightMarker = this.createRoom1TutorialMarker({
+      x: lowerRight.targetPosition.x,
+      z: lowerRight.targetPosition.z,
+
+      surfaceY: lowerRight.targetPosition.y + lowerRight.topOffsetY,
+
+      type: "collect",
+    });
+
+    lowerRightMarker.visible = true;
+    lowerRightMarker.userData.active = true;
+    lowerRightMarker.userData.collected = false;
+
+    lowerRightMarker.userData.stage5Role = "lowerRight";
+
+    lowerRight.marker = lowerRightMarker;
+
+    this.room1TutorialMarkers.push(lowerRightMarker);
+
+    this.setRoom1TutorialPlatformProgress(lowerRight, 0);
+
+    // Верхняя центральная полка.
+    const upperMarker = this.createRoom1TutorialMarker({
+      x: upperCenter.targetPosition.x,
+      z: upperCenter.targetPosition.z,
+
+      surfaceY: upperCenter.targetPosition.y + upperCenter.topOffsetY,
+
+      type: "collect",
+    });
+
+    // Пока верхний маркер закрыт.
+    upperMarker.visible = false;
+    upperMarker.userData.active = false;
+    upperMarker.userData.collected = false;
+
+    upperMarker.userData.stage5Role = "upper";
+
+    upperCenter.marker = upperMarker;
+
+    this.room1TutorialMarkers.push(upperMarker);
+
+    this.setRoom1TutorialPlatformProgress(upperCenter, 0);
+
     return this.room1TutorialStage5Shelves;
   }
 
-  const lowerTopY =
-    this.floorY + 5.0;
+  createRoom1TutorialStage4TestPlatform({
+    corner = "backRight",
 
-  const upperTopY =
-    this.floorY + 8.0;
+    zoneId = "red",
+    zoneColor = 0xf0a08c,
+    zoneEmissive = 0x8a3b22,
 
-const lowerLeft =
-  this.createRoom1TutorialStage5Shelf({
-    name: "LowerLeft",
-
-    x: -8.25,
-    topY: lowerTopY,
-
-    width: 6.5,
-    depth: 4.0,
-  });
-
-const lowerRight =
-  this.createRoom1TutorialStage5Shelf({
-    name: "LowerRight",
-
-    x: 8.25,
-    topY: lowerTopY,
-
-    width: 6.5,
-    depth: 4.0,
-  });
-
-const upperCenter =
-  this.createRoom1TutorialStage5Shelf({
-    name: "UpperCenter",
-
-    x: 0,
-    topY: upperTopY,
-
-    width: 10.0,
-    depth: 4.0,
-  });
-
-// ==========================================
-// ЭТАП 5 — МАРКЕРЫ НА ПОЛКАХ
-// ==========================================
-
-// Левая нижняя полка.
-const lowerLeftMarker =
-  this.createRoom1TutorialMarker({
-    x: lowerLeft.targetPosition.x,
-    z: lowerLeft.targetPosition.z,
-
-    surfaceY:
-      lowerLeft.targetPosition.y +
-      lowerLeft.topOffsetY,
-
-    type: "collect",
-  });
-
-lowerLeftMarker.visible = true;
-lowerLeftMarker.userData.active = true;
-lowerLeftMarker.userData.collected = false;
-
-lowerLeftMarker.userData.stage5Role =
-  "lowerLeft";
-
-lowerLeft.marker =
-  lowerLeftMarker;
-
-this.room1TutorialMarkers.push(
-  lowerLeftMarker,
-);
-
-this.setRoom1TutorialPlatformProgress(
-  lowerLeft,
-  0,
-);
-
-// Правая нижняя полка.
-const lowerRightMarker =
-  this.createRoom1TutorialMarker({
-    x: lowerRight.targetPosition.x,
-    z: lowerRight.targetPosition.z,
-
-    surfaceY:
-      lowerRight.targetPosition.y +
-      lowerRight.topOffsetY,
-
-    type: "collect",
-  });
-
-lowerRightMarker.visible = true;
-lowerRightMarker.userData.active = true;
-lowerRightMarker.userData.collected = false;
-
-lowerRightMarker.userData.stage5Role =
-  "lowerRight";
-
-lowerRight.marker =
-  lowerRightMarker;
-
-this.room1TutorialMarkers.push(
-  lowerRightMarker,
-);
-
-this.setRoom1TutorialPlatformProgress(
-  lowerRight,
-  0,
-);
-
-// Верхняя центральная полка.
-const upperMarker =
-  this.createRoom1TutorialMarker({
-    x: upperCenter.targetPosition.x,
-    z: upperCenter.targetPosition.z,
-
-    surfaceY:
-      upperCenter.targetPosition.y +
-      upperCenter.topOffsetY,
-
-    type: "collect",
-  });
-
-// Пока верхний маркер закрыт.
-upperMarker.visible = false;
-upperMarker.userData.active = false;
-upperMarker.userData.collected = false;
-
-upperMarker.userData.stage5Role =
-  "upper";
-
-upperCenter.marker =
-  upperMarker;
-
-this.room1TutorialMarkers.push(
-  upperMarker,
-);
-
-this.setRoom1TutorialPlatformProgress(
-  upperCenter,
-  0,
-);
-
-  return this.room1TutorialStage5Shelves;
-}
-
-createRoom1TutorialStage4TestPlatform({
-  corner = "backRight",
-
-  zoneId = "red",
-  zoneColor = 0xf0a08c,
-  zoneEmissive = 0x8a3b22,
-
-  cubeId = "blue",
-  cubeColor = 0x6f98d8,
-} = {}) {
+    cubeId = "blue",
+    cubeColor = 0x6f98d8,
+  } = {}) {
     const zoneSize = 4.2;
     const cubeSize = 3.5;
 
@@ -2144,28 +2985,26 @@ createRoom1TutorialStage4TestPlatform({
 
     const innerBackZ = 45 - borderWidth;
 
-  const innerLeftX =
-  -15 + borderWidth;
+    const innerLeftX = -15 + borderWidth;
 
-const innerFrontZ =
-  15 + borderWidth;
+    const innerFrontZ = 15 + borderWidth;
 
-let x;
-let z;
+    let x;
+    let z;
 
-if (corner === "backRight") {
-  x = innerRightX - zoneSize / 2;
-  z = innerBackZ - zoneSize / 2;
-} else if (corner === "backLeft") {
-  x = innerLeftX + zoneSize / 2;
-  z = innerBackZ - zoneSize / 2;
-} else if (corner === "frontRight") {
-  x = innerRightX - zoneSize / 2;
-  z = innerFrontZ + zoneSize / 2;
-} else {
-  x = innerLeftX + zoneSize / 2;
-  z = innerFrontZ + zoneSize / 2;
-}
+    if (corner === "backRight") {
+      x = innerRightX - zoneSize / 2;
+      z = innerBackZ - zoneSize / 2;
+    } else if (corner === "backLeft") {
+      x = innerLeftX + zoneSize / 2;
+      z = innerBackZ - zoneSize / 2;
+    } else if (corner === "frontRight") {
+      x = innerRightX - zoneSize / 2;
+      z = innerFrontZ + zoneSize / 2;
+    } else {
+      x = innerLeftX + zoneSize / 2;
+      z = innerFrontZ + zoneSize / 2;
+    }
 
     // ==========================================
     // КРАСНАЯ ЦВЕТНАЯ ЗОНА
@@ -2174,8 +3013,8 @@ if (corner === "backRight") {
     // ==========================================
 
     const zoneMaterial = new THREE.MeshStandardMaterial({
-     color: zoneColor,
-emissive: zoneEmissive,
+      color: zoneColor,
+      emissive: zoneEmissive,
       emissiveIntensity: 0.08,
 
       roughness: 0.65,
@@ -2204,23 +3043,20 @@ emissive: zoneEmissive,
 
     this.ensureRoom1TutorialGroup().add(zoneMesh);
 
-const zone = {
-  id: zoneId,
+    const zone = {
+      id: zoneId,
 
-  mesh: zoneMesh,
-  material: zoneMaterial,
+      mesh: zoneMesh,
+      material: zoneMaterial,
 
-  size: zoneSize,
+      size: zoneSize,
 
-  occupiedByCorrectCube: false,
-};
+      occupiedByCorrectCube: false,
+    };
 
-this.room1TutorialStage4TestPlatform =
-  zone;
+    this.room1TutorialStage4TestPlatform = zone;
 
-this.room1TutorialStage4Zones.push(
-  zone,
-);
+    this.room1TutorialStage4Zones.push(zone);
 
     // ==========================================
     // СИНИЙ ТЕСТОВЫЙ КУБ
@@ -2232,35 +3068,52 @@ this.room1TutorialStage4Zones.push(
 
     // Точка падения немного смещена
     // от бордюра внутрь комнаты.
-let cubeX = x;
-let cubeZ = z;
+    let cubeX = x;
+    let cubeZ = z;
 
-if (corner === "backRight") {
-  cubeX -= dropOffset;
-  cubeZ -= dropOffset;
-} else if (corner === "backLeft") {
-  cubeX += dropOffset;
-  cubeZ -= dropOffset;
-} else if (corner === "frontRight") {
-  cubeX -= dropOffset;
-  cubeZ += dropOffset;
-} else {
-  cubeX += dropOffset;
-  cubeZ += dropOffset;
-}
+    if (corner === "backRight") {
+      cubeX -= dropOffset;
+      cubeZ -= dropOffset;
+    } else if (corner === "backLeft") {
+      cubeX += dropOffset;
+      cubeZ -= dropOffset;
+    } else if (corner === "frontRight") {
+      cubeX -= dropOffset;
+      cubeZ += dropOffset;
+    } else {
+      cubeX += dropOffset;
+      cubeZ += dropOffset;
+    }
 
     // Стартуем чуть ниже потолка,
     // чтобы куб не пересекал его геометрически.
     const cubeStartY = this.ceilingY - cubeSize * 0.75;
 
     const cubeMaterial = new THREE.MeshStandardMaterial({
-     color: cubeColor,
-      roughness: 0.68,
+      color: cubeColor,
+
+      map: rubberBaseTex,
+      normalMap: rubberNormalTex,
+
+      roughness: 0.9,
       metalness: 0.0,
+
+      normalScale: new THREE.Vector2(0.18, 0.18),
     });
 
     const cubeMesh = new THREE.Mesh(
-      new THREE.BoxGeometry(cubeSize, cubeSize, cubeSize),
+      new RoundedBoxGeometry(
+        cubeSize,
+        cubeSize,
+        cubeSize,
+
+        // Количество сегментов скругления.
+        // 3 достаточно для такого небольшого bevel.
+        3,
+
+        // Радиус скругления.
+        0.12,
+      ),
       cubeMaterial,
     );
 
@@ -2285,28 +3138,20 @@ if (corner === "backRight") {
 
     this.ensureRoom1TutorialGroup().add(cubeMesh);
 
-const cube = {
-  id: cubeId,
+    const cube = {
+      id: cubeId,
 
-  mesh: cubeMesh,
-  body: null,
+      mesh: cubeMesh,
+      body: null,
 
-  activated: false,
+      activated: false,
 
-  startPosition:
-    new THREE.Vector3(
-      cubeX,
-      cubeStartY,
-      cubeZ,
-    ),
-};
+      startPosition: new THREE.Vector3(cubeX, cubeStartY, cubeZ),
+    };
 
-this.room1TutorialStage4TestCube =
-  cube;
+    this.room1TutorialStage4TestCube = cube;
 
-this.room1TutorialStage4Cubes.push(
-  cube,
-);
+    this.room1TutorialStage4Cubes.push(cube);
   }
 
   buildRoom1TutorialStep(step) {
@@ -2498,49 +3343,49 @@ this.room1TutorialStage4Cubes.push(
       // Бордюр этапа 4 уже существует,
       // но пока полностью спрятан под полом.
       this.createRoom1TutorialStage4Border();
- this.createRoom1TutorialStage4TestPlatform({
-  corner: "backRight",
+      this.createRoom1TutorialStage4TestPlatform({
+        corner: "backRight",
 
-  zoneId: "red",
-  zoneColor: 0xf0a08c,
-  zoneEmissive: 0x8a3b22,
+        zoneId: "red",
+        zoneColor: 0xf0a08c,
+        zoneEmissive: 0x8a3b22,
 
-  cubeId: "blue",
-  cubeColor: 0x6f98d8,
-});
+        cubeId: "blue",
+        cubeColor: 0x6f98d8,
+      });
 
-this.createRoom1TutorialStage4TestPlatform({
-  corner: "backLeft",
+      this.createRoom1TutorialStage4TestPlatform({
+        corner: "backLeft",
 
-  zoneId: "blue",
-  zoneColor: 0x9fc5f8,
-  zoneEmissive: 0x355f9e,
+        zoneId: "blue",
+        zoneColor: 0x9fc5f8,
+        zoneEmissive: 0x355f9e,
 
-  cubeId: "green",
-  cubeColor: 0x8fd19e,
-});
+        cubeId: "green",
+        cubeColor: 0x8fd19e,
+      });
 
-this.createRoom1TutorialStage4TestPlatform({
-  corner: "frontRight",
+      this.createRoom1TutorialStage4TestPlatform({
+        corner: "frontRight",
 
-  zoneId: "green",
-  zoneColor: 0xa8d5a2,
-  zoneEmissive: 0x3f7f45,
+        zoneId: "green",
+        zoneColor: 0xa8d5a2,
+        zoneEmissive: 0x3f7f45,
 
-  cubeId: "yellow",
-  cubeColor: 0xf2cf6b,
-});
+        cubeId: "yellow",
+        cubeColor: 0xf2cf6b,
+      });
 
-this.createRoom1TutorialStage4TestPlatform({
-  corner: "frontLeft",
+      this.createRoom1TutorialStage4TestPlatform({
+        corner: "frontLeft",
 
-  zoneId: "yellow",
-  zoneColor: 0xf3d77a,
-  zoneEmissive: 0x8a6a20,
+        zoneId: "yellow",
+        zoneColor: 0xf3d77a,
+        zoneEmissive: 0x8a6a20,
 
-  cubeId: "red",
-  cubeColor: 0xe98678,
-});
+        cubeId: "red",
+        cubeColor: 0xe98678,
+      });
       return;
     }
 
@@ -2562,124 +3407,75 @@ this.createRoom1TutorialStage4TestPlatform({
     this.room1TutorialGoal = goal;
   }
 
- setRoom1TutorialStage4TestPlatformProgress(
-  progress,
-) {
-  const t =
-    THREE.MathUtils.clamp(
-      progress,
-      0,
-      1,
-    );
+  setRoom1TutorialStage4TestPlatformProgress(progress) {
+    const t = THREE.MathUtils.clamp(progress, 0, 1);
 
-  const zones =
-    this.room1TutorialStage4Zones || [];
+    const zones = this.room1TutorialStage4Zones || [];
 
-  for (const zone of zones) {
-    if (!zone?.material) continue;
+    for (const zone of zones) {
+      if (!zone?.material) continue;
 
-    zone.material.opacity =
-      THREE.MathUtils.lerp(
-        0.0,
-        0.78,
-        t,
-      );
-  }
-}
-
-updateRoom1TutorialStage4Zones() {
-  const zones =
-    this.room1TutorialStage4Zones || [];
-
-  const cubes =
-    this.room1TutorialStage4Cubes || [];
-
-  for (const zone of zones) {
-    if (
-      !zone?.mesh ||
-      !zone?.material
-    ) {
-      continue;
+      zone.material.opacity = THREE.MathUtils.lerp(0.0, 0.78, t);
     }
+  }
 
-    const matchingCube =
-      cubes.find(
-        (cube) =>
-          cube?.id === zone.id &&
-          cube?.body,
+  updateRoom1TutorialStage4Zones() {
+    const zones = this.room1TutorialStage4Zones || [];
+
+    const cubes = this.room1TutorialStage4Cubes || [];
+
+    for (const zone of zones) {
+      if (!zone?.mesh || !zone?.material) {
+        continue;
+      }
+
+      const matchingCube = cubes.find(
+        (cube) => cube?.id === zone.id && cube?.body,
       );
 
-    let isCorrect = false;
+      let isCorrect = false;
 
-    if (matchingCube) {
-      const halfSize =
-        (zone.size ?? 4.2) / 2;
+      if (matchingCube) {
+        const halfSize = (zone.size ?? 4.2) / 2;
 
-      const dx =
-        matchingCube.body.position.x -
-        zone.mesh.position.x;
+        const dx = matchingCube.body.position.x - zone.mesh.position.x;
 
-      const dz =
-        matchingCube.body.position.z -
-        zone.mesh.position.z;
+        const dz = matchingCube.body.position.z - zone.mesh.position.z;
 
-      isCorrect =
-        Math.abs(dx) <= halfSize &&
-        Math.abs(dz) <= halfSize;
+        isCorrect = Math.abs(dx) <= halfSize && Math.abs(dz) <= halfSize;
+      }
+
+      zone.occupiedByCorrectCube = isCorrect;
+
+      if (isCorrect) {
+        const pulse = 0.5 + Math.sin(performance.now() * 0.004) * 0.5;
+
+        zone.material.emissiveIntensity = 0.45 + pulse * 0.35;
+
+        zone.material.opacity = 0.88 + pulse * 0.08;
+
+        const scale = 1.0 + pulse * 0.035;
+
+        zone.mesh.scale.set(scale, scale, 1);
+      } else {
+        zone.material.emissiveIntensity = 0.08;
+
+        zone.material.opacity = 0.78;
+
+        zone.mesh.scale.set(1, 1, 1);
+      }
     }
-
-    zone.occupiedByCorrectCube =
-      isCorrect;
-
-   if (isCorrect) {
-  const pulse =
-    0.5 +
-    Math.sin(performance.now() * 0.004) * 0.5;
-
-  zone.material.emissiveIntensity =
-    0.45 + pulse * 0.35;
-
-  zone.material.opacity =
-    0.88 + pulse * 0.08;
-
-  const scale =
-    1.0 + pulse * 0.035;
-
-  zone.mesh.scale.set(
-    scale,
-    scale,
-    1,
-  );
-} else {
-  zone.material.emissiveIntensity =
-    0.08;
-
-  zone.material.opacity =
-    0.78;
-
-  zone.mesh.scale.set(
-    1,
-    1,
-    1,
-  );
-}
   }
-}
 
-activateRoom1TutorialStage4TestCube() {
-  const cubes =
-    this.room1TutorialStage4Cubes || [];
+  activateRoom1TutorialStage4TestCube() {
+    const cubes = this.room1TutorialStage4Cubes || [];
 
-  for (const cube of cubes) {
-    this.activateRoom1TutorialStage4Cube(
-      cube,
-    );
+    for (const cube of cubes) {
+      this.activateRoom1TutorialStage4Cube(cube);
+    }
   }
-}
 
   activateRoom1TutorialStage4Cube(cube) {
- 
-
     if (!cube?.mesh || cube.activated) {
       return;
     }
@@ -2689,7 +3485,6 @@ activateRoom1TutorialStage4TestCube() {
     const mesh = cube.mesh;
 
     mesh.visible = true;
-    
 
     // Размер берём прямо из геометрии.
     mesh.geometry.computeBoundingBox();
@@ -2752,8 +3547,8 @@ activateRoom1TutorialStage4TestCube() {
 
     body.angularFactor = new CANNON.Vec3(1, 1, 1);
 
-   body.linearDamping = 0.08;
-body.angularDamping = 0.10;
+    body.linearDamping = 0.08;
+    body.angularDamping = 0.1;
 
     body.sleepSpeedLimit = 0.03;
     body.sleepTimeLimit = 0.8;
@@ -2781,133 +3576,98 @@ body.angularDamping = 0.10;
       body.wakeUp();
     });
 
-    body.userData =
-  body.userData || {};
+    body.userData = body.userData || {};
 
-body.userData.lastCubeImpactSoundTime =
-  -Infinity;
+    body.userData.lastCubeImpactSoundTime = -Infinity;
 
-  body.userData.allowDropImpactSound =
-  true;
+    body.userData.allowDropImpactSound = true;
 
-body.addEventListener(
-  "collide",
-  (event) => {
-    if (
-  body.userData
-    ?.allowDropImpactSound !== true
-) {
-  return;
-}
-   const otherBody =
-  event.body;
+    body.addEventListener("collide", (event) => {
+      if (body.userData?.allowDropImpactSound !== true) {
+        return;
+      }
+      const otherBody = event.body;
 
-const contact =
-  event.contact;
+      const contact = event.contact;
 
-if (
-  !otherBody ||
-  !contact
-) {
-  return;
-}
+      if (!otherBody || !contact) {
+        return;
+      }
 
-// ==========================================
-// ЗВУК ТОЛЬКО ПРИ УДАРЕ О ПОВЕРХНОСТЬ СНИЗУ
-// ==========================================
-//
-// Cannon хранит normal от bi к bj.
-//
-// Если куб = bi:
-// пол находится ниже него,
-// поэтому normal.y будет отрицательной.
-//
-// Если куб = bj:
-// normal идёт от пола к кубу,
-// поэтому normal.y будет положительной.
+      // ==========================================
+      // ЗВУК ТОЛЬКО ПРИ УДАРЕ О ПОВЕРХНОСТЬ СНИЗУ
+      // ==========================================
+      //
+      // Cannon хранит normal от bi к bj.
+      //
+      // Если куб = bi:
+      // пол находится ниже него,
+      // поэтому normal.y будет отрицательной.
+      //
+      // Если куб = bj:
+      // normal идёт от пола к кубу,
+      // поэтому normal.y будет положительной.
 
-let isSurfaceBelowCube = false;
+      let isSurfaceBelowCube = false;
 
-if (contact.bi === body) {
-  isSurfaceBelowCube =
-    contact.ni.y < -0.65;
-} else if (contact.bj === body) {
-  isSurfaceBelowCube =
-    contact.ni.y > 0.65;
-}
+      if (contact.bi === body) {
+        isSurfaceBelowCube = contact.ni.y < -0.65;
+      } else if (contact.bj === body) {
+        isSurfaceBelowCube = contact.ni.y > 0.65;
+      }
 
-if (!isSurfaceBelowCube) {
-  return;
-}
+      if (!isSurfaceBelowCube) {
+        return;
+      }
 
-let impactSpeed = 0;
+      let impactSpeed = 0;
 
-    if (
-      event.contact &&
-      typeof event.contact
-        .getImpactVelocityAlongNormal ===
-        "function"
-    ) {
-      impactSpeed =
-        Math.abs(
-          event.contact
-            .getImpactVelocityAlongNormal(),
-        );
-    } else {
-      impactSpeed =
-        Math.abs(
-          body.velocity.y,
-        );
-    }
+      if (
+        event.contact &&
+        typeof event.contact.getImpactVelocityAlongNormal === "function"
+      ) {
+        impactSpeed = Math.abs(event.contact.getImpactVelocityAlongNormal());
+      } else {
+        impactSpeed = Math.abs(body.velocity.y);
+      }
 
-    // Слишком слабые касания
-    // не озвучиваем.
-    if (impactSpeed < 1.1) {
-      return;
-    }
+      // Слишком слабые касания
+      // не озвучиваем.
+      if (impactSpeed < 1.1) {
+        return;
+      }
 
-    const now =
-      performance.now();
+      const now = performance.now();
 
-    // Защита от дребезга:
-    // несколько collision-событий
-    // почти одновременно считаем
-    // одним ударом.
-    if (
-      now -
-        body.userData
-          .lastCubeImpactSoundTime <
-      90
-    ) {
-      return;
-    }
+      // Защита от дребезга:
+      // несколько collision-событий
+      // почти одновременно считаем
+      // одним ударом.
+      if (now - body.userData.lastCubeImpactSoundTime < 90) {
+        return;
+      }
 
-    body.userData
-      .lastCubeImpactSoundTime =
-      now;
+      body.userData.lastCubeImpactSoundTime = now;
 
-    audioManager?.playCubeImpact(
-      impactSpeed,
-    );
-  },
-);
+      audioManager?.playCubeImpact(impactSpeed);
+    });
 
     this.room1TutorialBodies.push(body);
 
     cube.body = body;
 
 this.pushableObjects.push({
-  mesh,
-  body,
+      mesh,
+      body,
 
-  slideResistance: 10.0,
-  impactTurnSensitivity: 0.7,
+      slideResistance: 22.0,
+      impactTurnSensitivity: 0.4,
 
-  slideSound: true,
+      slideSound: true,
 
-  rubberUntilSettled: true,
-  settleTimer: 0,
-});
+      rubberUntilSettled: true,
+      settleTimer: 0,
+    });
 
     body.wakeUp();
 
@@ -4346,7 +5106,7 @@ this.pushableObjects.push({
       texture.offset.set(mirrorX ? 1 : 0, 0);
 
       texture.anisotropy = 4;
-      texture.needsUpdate = true;
+      
 
       return texture;
     };

@@ -171,7 +171,7 @@ export class InputManager {
 
         // === ПРОВЕРКА НА ИГРОКА ===
         // Если у тела масса 20 (как у шара-игрока), запрещаем захват!
-        if (body && body.mass === 20) return;
+       if (body && body.mass === CONFIG.PLAYER.MASS) return;
 
         if (body && body.pointToLocalFrame) {
           this.isDragging = true;

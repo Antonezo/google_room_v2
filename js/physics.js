@@ -35,11 +35,11 @@ this.world.addContactMaterial(
     this.matTutorialShelf,
     this.matHeavy,
     {
-      friction: 1.35,
-      restitution: 0.05,
+      friction: 3.2,
+      restitution: 0.0,
 
-      contactEquationStiffness: 5e7,
-      contactEquationRelaxation: 4,
+      contactEquationStiffness: 8e7,
+      contactEquationRelaxation: 3,
     },
   ),
 );
@@ -58,14 +58,12 @@ this.world.addContactMaterial(
     );
 
     // === ПРАВИЛА СТОЛКНОВЕНИЯ: ТЯЖЕЛЫЙ ШАР + КОРОБКА ===
-    this.world.addContactMaterial(
+   this.world.addContactMaterial(
       new CANNON.ContactMaterial(this.matBox, this.matHeavy, {
-        // Низкое трение, чтобы шар толкал блок,
-        // а не пытался "закатываться" по его ребру.
         friction: 0.02,
         restitution: 0.0,
-        contactEquationStiffness: 1e8,
-        contactEquationRelaxation: 3,
+        contactEquationStiffness: 4e7,
+        contactEquationRelaxation: 4,
       }),
     );
 
@@ -107,7 +105,7 @@ this.world.addContactMaterial(
     this.world.addContactMaterial(
       new CANNON.ContactMaterial(this.matStandard, this.matHeavy, {
         friction: 1.2,
-        restitution: 0.15, // <--- СНИЗИЛИ ДО МИНИМУМА (было 0.35)
+        restitution: 0, // <--- СНИЗИЛИ ДО МИНИМУМА (было 0.35)
         contactEquationStiffness: 5e7,
         contactEquationRelaxation: 4,
       }),
@@ -117,7 +115,7 @@ this.world.addContactMaterial(
     this.world.addContactMaterial(
       new CANNON.ContactMaterial(this.matSlippery, this.matHeavy, {
         friction: 0.0, // Идеально скользко! Никакого эффекта "шины".
-        restitution: 0.15, // Отскок такой же глухой, как у пола
+        restitution: 0, // Отскок такой же глухой, как у пола
         contactEquationStiffness: 5e7,
         contactEquationRelaxation: 4,
       }),
@@ -206,12 +204,13 @@ installDirectionalBoxFriction() {
     // ВЫБИРАЕМ КОЭФФИЦИЕНТ ТРЕНИЯ
     // ==========================================
 
-    const UPWARD_SURFACE_THRESHOLD = 0.93;
+   // Считаем «верхом» всё, что смотрит вверх хотя бы под 45° (чтобы не соскальзывать с краёв и при наклоне куба)
+    const UPWARD_SURFACE_THRESHOLD = 0.7;
 
-    // Такое же нормальное сцепление, как у пола.
-    const TOP_FRICTION = 0.75;
+    // Высокое сцепление сверху, компенсирующее малый вес кубика
+    const TOP_FRICTION = 3.5;
 
-    // Почти скользкая боковая грань.
+    // Почти скользкая боковая грань, чтобы шар не лез по стенке куба
     const SIDE_FRICTION = 0.02;
 
     const friction =

@@ -84,6 +84,7 @@ html.menu-glass-ready.ui-ready .startup-cover {
     border-radius: 50%;
 
     animation: startupSpin 0.8s linear infinite;
+    will-change: transform;
 
     box-shadow: 0 0 14px rgba(70, 220, 255, 0.22);
   }
@@ -109,6 +110,36 @@ html.menu-glass-ready.ui-ready .startup-cover {
       <div class="startup-spinner"></div>
       <div class="startup-label">INITIALIZING</div>
     </div>
+    <div id="sector-transfer-overlay" class="sector-transfer-overlay" aria-hidden="true">
+  <div class="sector-transfer-inner">
+    <div
+      id="sector-transfer-target"
+      class="sector-transfer-level sector-transfer-level-target"
+    >
+      2
+    </div>
+
+    <div class="sector-transfer-arrow" aria-hidden="true">
+      <div class="sector-transfer-arrow-head"></div>
+      <div class="sector-transfer-arrow-body"></div>
+
+      <div class="sector-transfer-dots">
+        <span></span>
+        <span></span>
+        <span></span>
+        <span></span>
+        <span></span>
+      </div>
+    </div>
+
+    <div
+      id="sector-transfer-source"
+      class="sector-transfer-level sector-transfer-level-source"
+    >
+      1
+    </div>
+  </div>
+</div>
     <div id="game-monitor">
       <div id="canvas-container"></div>
     </div>
@@ -148,14 +179,18 @@ html.menu-glass-ready.ui-ready .startup-cover {
               class="game-preparation-status"
               id="game-preparation-status"
             >
-              <div class="preparation-header">
-                <span class="preparation-title" id="preparation-title">
-                  SYSTEM PREPARATION
-                </span>
-                <span class="preparation-percent" id="preparation-percent"
-                  >0%</span
-                >
-              </div>
+           
+<div class="preparation-header">
+  <div class="preparation-heading">
+    <span class="preparation-spinner" aria-hidden="true"></span>
+    <span class="preparation-title" id="preparation-title">
+      SYSTEM PREPARATION
+    </span>
+  </div>
+  <span class="preparation-percent" id="preparation-percent"
+    >0%</span>
+</div>
+
               <div class="preparation-progress-track">
                 <div
                   class="preparation-progress-fill"

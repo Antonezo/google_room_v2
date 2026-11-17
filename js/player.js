@@ -42,12 +42,18 @@ export class PlayerController {
     // ДОБАВИЛИ КЕШ ТАЙМЕРОВ ДЛЯ ПЛАТФОРМ
     this.platformTimers = new Map();
 
-    this.keys = { w: false, a: false, s: false, d: false, space: false };
-    this.initInput();
+   this.keys = { w: false, a: false, s: false, d: false, space: false };
+this.jumpRequested = false;
+this.jumpBufferTimer = 0;
+this.initInput();
     this.isLocked = false; // Блокировка управления (например, во время кат-сцены)
 
     this.isGrounded = false;
     this.coyoteTimer = 0;
+    this.jumpCooldown = 0;
+this._rayFrom = new CANNON.Vec3();
+this._rayTo = new CANNON.Vec3();
+this._rayResult = new CANNON.RaycastResult();
     this.hasGroundContact = false;
 
     this.radius = CONFIG.PLAYER.RADIUS || 1.5;
@@ -67,11 +73,28 @@ export class PlayerController {
     window.addEventListener("keydown", (e) => {
       if (document.activeElement.tagName === "INPUT") return;
       const key = e.code.replace("Key", "").toLowerCase();
-      if (this.keys.hasOwnProperty(key)) this.keys[key] = true;
-      if (e.code === "Space") {
-        e.preventDefault();
-        this.keys.space = true;
-      }
+   
+if (key !== "space" && this.keys.hasOwnProperty(key)) {
+  this.keys[key] = true;
+}
+
+
+if (e.code === "Space") {
+  e.preventDefault();
+  if (e.repeat) return;
+
+console.log("[SPACE KEYDOWN]", {
+    isTrusted: e.isTrusted,
+    time: performance.now().toFixed(0),
+    keys: { ...this.keys },
+  });
+
+  if (!this.keys.space && this.isGrounded && !this.isLocked) {
+    this.jumpRequested = true;
+  }
+
+  this.keys.space = true;
+}
     });
 
     window.addEventListener("keyup", (e) => {
@@ -85,100 +108,120 @@ export class PlayerController {
     });
   }
 
-  checkGround(dt) {
-    let actualGroundContact = false;
-    let platformsPlayerIsOn = new Set();
+ checkGround(dt) {
+  if (this.jumpCooldown > 0) {
+    this.jumpCooldown = Math.max(0, this.jumpCooldown - dt);
+  }
 
-    let bestGroundNormalY = -Infinity;
-    let bestGroundNormal = null;
+  let actualGroundContact = false;
+  let platformsPlayerIsOn = new Set();
+  let bestGroundNormalY = -Infinity;
+  let bestGroundNormal = null;
 
-    for (let i = 0; i < this.world.contacts.length; i++) {
-      let contact = this.world.contacts[i];
+  for (let i = 0; i < this.world.contacts.length; i++) {
+    const contact = this.world.contacts[i];
+    if (contact.bi === this.body || contact.bj === this.body) {
+      const sign = contact.bi === this.body ? -1 : 1;
+      const nx = contact.ni.x * sign;
+      const ny = contact.ni.y * sign;
+      const nz = contact.ni.z * sign;
 
-      if (contact.bi === this.body || contact.bj === this.body) {
-        // Cannon хранит ni в направлении от bi к bj.
-        // Нам нужна нормаль поверхности, всегда направленная вверх от пола к шару.
-        let nx;
-        let ny;
-        let nz;
-
-        if (contact.bi === this.body) {
-          nx = -contact.ni.x;
-          ny = -contact.ni.y;
-          nz = -contact.ni.z;
-        } else {
-          nx = contact.ni.x;
-          ny = contact.ni.y;
-          nz = contact.ni.z;
-        }
-
-        if (ny > 0.1 && ny > bestGroundNormalY) {
-          bestGroundNormalY = ny;
-          bestGroundNormal = { x: nx, y: ny, z: nz };
-        }
-
-        if (contact.bi === this.body && contact.ni.y < -0.1)
-          actualGroundContact = true;
-        if (contact.bj === this.body && contact.ni.y > 0.1)
-          actualGroundContact = true;
-
-        if (this.interactivePlatforms) {
-          this.interactivePlatforms.forEach((platform) => {
-            if (contact.bi === platform.body || contact.bj === platform.body) {
-              if (contact.bi === this.body && contact.ni.y < -0.5)
-                platformsPlayerIsOn.add(platform);
-              if (contact.bj === this.body && contact.ni.y > 0.5)
-                platformsPlayerIsOn.add(platform);
-            }
-          });
-        }
+   if (ny > 0.55 && ny > bestGroundNormalY) {
+        bestGroundNormalY = ny;
+        bestGroundNormal = { x: nx, y: ny, z: nz };
       }
-    }
 
-    if (bestGroundNormal) {
-      this.groundNormal.set(
-        bestGroundNormal.x,
-        bestGroundNormal.y,
-        bestGroundNormal.z,
-      );
+      if (ny > 0.55) {
+        actualGroundContact = true;
+      }
 
-      this.groundNormal.normalize();
-    } else {
-      this.groundNormal.set(0, 1, 0);
-    }
-
-    this.hasGroundContact = actualGroundContact;
-    if (actualGroundContact) {
-      this.coyoteTimer = 0.25;
-    } else {
-      this.coyoteTimer -= dt;
-    }
-
-    this.isGrounded = this.coyoteTimer > 0;
-
-    // МАГИЯ УМНЫХ КОРОБОК С ЗАЩИТОЙ ОТ ДРЕБЕЗГА
-    if (this.interactivePlatforms) {
-      this.interactivePlatforms.forEach((platform) => {
-        if (platformsPlayerIsOn.has(platform)) {
-          // Игрок на платформе — даем ей 200мс "доверия"
-          this.platformTimers.set(platform, 0.2);
-          platform.onPlayerLanded();
-        } else {
-          // Игрок потерял контакт. Уменьшаем таймер.
-          let timeLeft = this.platformTimers.get(platform) || 0;
-          timeLeft -= dt;
-          this.platformTimers.set(platform, timeLeft);
-
-          // Отпускаем платформу ТОЛЬКО если 200мс реально прошло
-          if (timeLeft <= 0) {
-            platform.onPlayerLeft();
+      if (this.interactivePlatforms) {
+        this.interactivePlatforms.forEach((platform) => {
+          if ((contact.bi === platform.body || contact.bj === platform.body) && ny > 0.5) {
+            platformsPlayerIsOn.add(platform);
           }
-        }
-      });
+        });
+      }
     }
   }
 
+  if (!actualGroundContact && this.jumpCooldown <= 0) {
+    this._rayFrom.copy(this.body.position);
+    this._rayTo.set(
+      this.body.position.x,
+      this.body.position.y - (this.radius + 0.18),
+      this.body.position.z
+    );
+    this._rayResult.reset();
+
+    this.world.raycastClosest(
+      this._rayFrom,
+      this._rayTo,
+      {
+        collisionFilterMask: CONFIG.PHYSICS.GROUPS.SCENE | CONFIG.PHYSICS.GROUPS.OBJECTS,
+        skipBackfaces: true,
+      },
+      this._rayResult
+    );
+
+    if (this._rayResult.hasHit && this._rayResult.body !== this.body && this._rayResult.hitNormalWorld.y > 0.35) {
+      actualGroundContact = true;
+      if (!bestGroundNormal) {
+        bestGroundNormal = {
+          x: this._rayResult.hitNormalWorld.x,
+          y: this._rayResult.hitNormalWorld.y,
+          z: this._rayResult.hitNormalWorld.z,
+        };
+      }
+    }
+  }
+
+  if (bestGroundNormal) {
+    this.groundNormal.set(bestGroundNormal.x, bestGroundNormal.y, bestGroundNormal.z);
+    this.groundNormal.normalize();
+  } else {
+    this.groundNormal.set(0, 1, 0);
+  }
+
+  if (this.jumpCooldown > 0) {
+    this.hasGroundContact = false;
+    this.coyoteTimer = 0;
+    this.isGrounded = false;
+  } else {
+    this.hasGroundContact = actualGroundContact;
+    if (actualGroundContact) {
+      this.coyoteTimer = 0.15;
+    } else {
+      this.coyoteTimer = Math.max(0, this.coyoteTimer - dt);
+    }
+    this.isGrounded = this.coyoteTimer > 0;
+  }
+
+  if (this.interactivePlatforms) {
+    this.interactivePlatforms.forEach((platform) => {
+      if (platformsPlayerIsOn.has(platform)) {
+        this.platformTimers.set(platform, 0.2);
+        platform.onPlayerLanded();
+      } else {
+        let timeLeft = (this.platformTimers.get(platform) || 0) - dt;
+        this.platformTimers.set(platform, timeLeft);
+        if (timeLeft <= 0) platform.onPlayerLeft();
+      }
+    });
+  }
+}
+
   update(dt) {
+
+    if (this._jumpTraceFrames > 0) {
+      console.log("[JUMP AFTER]", {
+        frame: 7 - this._jumpTraceFrames,
+        y: this.body.position.y.toFixed(3),
+        vy: this.body.velocity.y.toFixed(3)
+      });
+      this._jumpTraceFrames--;
+    }
+
     this.mesh.position.copy(this.body.interpolatedPosition);
     this.mesh.quaternion.copy(this.body.interpolatedQuaternion);
 
@@ -192,10 +235,40 @@ export class PlayerController {
       inputX = 0;
       inputZ = 0;
       this.keys.space = false;
+      this.jumpRequested = false;
+      this.jumpBufferTimer = 0;
     }
 
-    const hasMoveInput = inputX !== 0 || inputZ !== 0;
-    const wantsJump = this.keys.space && this.isGrounded;
+ 
+const hasMoveInput = inputX !== 0 || inputZ !== 0;
+
+const wantsJump = this.jumpRequested && this.isGrounded;
+this.jumpRequested = false;
+
+
+
+    // ==========================================
+    // ДИАГНОСТИКА НЕУДАЧНЫХ ПРЫЖКОВ
+    // ==========================================
+
+    if (this.keys.space && !this._debugSpaceWasDown) {
+      const horizontalSpeed = Math.hypot(
+        this.body.velocity.x,
+        this.body.velocity.z
+      );
+
+      console.log("[JUMP CHECK]", {
+        accepted: wantsJump,
+        grounded: this.isGrounded,
+        contact: this.hasGroundContact,
+        coyote: this.coyoteTimer.toFixed(3),
+        speed: horizontalSpeed.toFixed(2),
+        verticalSpeed: this.body.velocity.y.toFixed(2)
+      });
+    }
+
+    this._debugSpaceWasDown = this.keys.space;
+
 
     // ==========================================
     // ПАРАМЕТРЫ ТЕКУЩЕГО СКЛОНА
@@ -451,7 +524,7 @@ export class PlayerController {
 
       // Жёсткий лимит горизонтальной скорости в воздухе.
       // Вертикальную скорость не трогаем, чтобы прыжок остался нормальным.
-      const maxAirHorizontalSpeed = 7.0;
+      const maxAirHorizontalSpeed = 13.5;
       const horizontalSpeed = Math.hypot(
         this.body.velocity.x,
         this.body.velocity.z,
@@ -469,7 +542,12 @@ export class PlayerController {
 
       // При прыжке с разбега даём чуть больше вертикали,
       // чтобы шар не цеплялся за край ступеньки.
-      this.body.velocity.y = hasMoveInput ? 12.2 : 11.2;
+      this.body.velocity.y = hasMoveInput ? 14.5 : 13.5;
+      this._jumpTraceFrames = 6;
+      this.jumpCooldown = 0.18;
+this.isGrounded = false;
+this.hasGroundContact = false;
+this.coyoteTimer = 0;
 
       const horizontalTakeoffSpeed = Math.hypot(
         this.body.velocity.x,

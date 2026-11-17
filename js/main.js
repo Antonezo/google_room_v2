@@ -892,10 +892,13 @@ stage5ShelvesAnimation: {
       const composerRenderTarget =
         this.composer?.readBuffer || this.composer?.renderTarget1 || null;
 
-      try {
-        if (composerRenderTarget) {
-          this.renderer.setRenderTarget(composerRenderTarget);
-        }
+    
+const shaderStart = performance.now();
+
+try {
+  if (composerRenderTarget) {
+    this.renderer.setRenderTarget(composerRenderTarget);
+  }
 
         if (typeof this.renderer.compileAsync === "function") {
           await this.renderer.compileAsync(this.scene, this.camera);
@@ -910,12 +913,23 @@ stage5ShelvesAnimation: {
         this.renderer.setRenderTarget(previousRenderTarget);
       }
 
-      // После правильного compileAsync проход composer уже не должен
-      // создавать новые варианты программ.
-      this.renderer.info.reset();
-      this.composer.render();
+      console.log(
+  `[GPU DIAG] Компиляция шейдеров: ${(performance.now() - shaderStart).toFixed(1)} ms`
+);
 
-      await nextFrame();
+   
+this.renderer.info.reset();
+
+const renderStart = performance.now();
+
+this.composer.render();
+
+console.log(
+  `[GPU DIAG] Подготовительный рендер: ${(performance.now() - renderStart).toFixed(1)} ms`
+);
+
+await nextFrame();
+
     };
 
     const runStage = async (label, percentBefore, percentAfter, task) => {
@@ -1403,75 +1417,119 @@ stage5ShelvesAnimation: {
   }
 
   resetRoom1Tutorial() {
-    // ==========================================
-    // ВРЕМЕННЫЙ DEBUG:
-    // сразу готовим конец этапа 3
-    // ==========================================
+  // ==========================================
+  // ОБУЧЕНИЕ ROOM 1 — СТАРТ С ЭТАПА 1
+  // ==========================================
 
-    this.room1Tutorial.step = 3;
-    this.room1Tutorial.state = "goal";
+  this.room1Tutorial.step = 1;
+  this.room1Tutorial.state = "collecting";
 
-    this.room1Tutorial.collected = 4;
-    this.room1Tutorial.targetCount = 4;
+  this.room1Tutorial.collected = 0;
+  this.room1Tutorial.targetCount = 0;
 
-    this.room1Tutorial.transitionTimer = 0;
-    this.room1Tutorial.stage4Solved = false;
+  this.room1Tutorial.transitionTimer = 0;
+  this.room1Tutorial.stage4Solved = false;
 
-    this.room1Tutorial.stage3CurrentShelfIndex = 3;
-    this.room1Tutorial.stage3PendingShelfIndex = -1;
+  this.room1Tutorial.stage3CurrentShelfIndex = 0;
+  this.room1Tutorial.stage3PendingShelfIndex = -1;
 
-    this.room1Tutorial.platformAnimation.active = false;
-    this.room1Tutorial.platformAnimation.time = 0;
-    this.room1Tutorial.platformAnimation.platforms = [];
-    this.room1Tutorial.platformAnimation.completionAction = null;
+  // Сбрасываем анимации.
+  const animation =
+    this.room1Tutorial.platformAnimation;
 
-    if (!this.levelBuilder) {
-      return;
-    }
+  animation.active = false;
+  animation.time = 0;
+  animation.direction = "forward";
+  animation.platforms = [];
+  animation.completionAction = null;
 
-    // Строим сразу этап 3.
-    this.levelBuilder.buildRoom1TutorialStep(3);
+  this.room1Tutorial.stage4Transition.time = 0;
+  this.room1Tutorial.stage5Transition.time = 0;
+  this.room1Tutorial.stage5ShelvesAnimation.time = 0;
 
-    // ==========================================
-    // СРАЗУ ВЫДВИГАЕМ ВСЕ ПОЛКИ
-    // ==========================================
+  if (!this.levelBuilder) {
+    return;
+  }
 
-    const shelves = this.levelBuilder.room1TutorialStage3Shelves || [];
-
-    for (const shelf of shelves) {
-      this.levelBuilder.setRoom1TutorialPlatformProgress(shelf, 1);
-    }
 
     // ==========================================
-    // СИНИЕ МАРКЕРЫ СЧИТАЕМ УЖЕ СОБРАННЫМИ
+    // ВРЕМЕННЫЙ ТЕСТОВЫЙ ЗАПУСК С ЭТАПА 5
     // ==========================================
 
-    const markers = this.levelBuilder.room1TutorialMarkers || [];
+    const TEST_START_AT_STAGE_5 = true;
 
-    for (const marker of markers) {
-      marker.visible = false;
-      marker.userData.active = false;
-      marker.userData.collected = true;
-    }
+    if (TEST_START_AT_STAGE_5) {
+      const builder = this.levelBuilder;
 
-    // ==========================================
-    // ЗЕЛЁНЫЙ ФИНИШ УЖЕ АКТИВЕН
-    // ==========================================
+      // Этап 3 создаёт исходные объекты
+      // четвёртого этапа, включая четыре куба.
+      builder.buildRoom1TutorialStep(3);
 
-    const goal = this.levelBuilder.room1TutorialGoal;
+      // Активируем физику кубов.
+      builder.activateRoom1TutorialStage4TestCube();
 
-    if (goal) {
-      goal.visible = true;
-      goal.userData.active = true;
-      goal.userData.collected = false;
+      // Сразу размещаем кубы на полу,
+      // без анимации падения с потолка.
+      for (const cube of builder.room1TutorialStage4Cubes) {
+        if (!cube.body) continue;
+
+        cube.mesh.geometry.computeBoundingBox();
+        const bounds = cube.mesh.geometry.boundingBox;
+        const halfHeight = (bounds.max.y - bounds.min.y) / 2;
+
+        const x = cube.startPosition.x;
+        const z = cube.startPosition.z;
+        const y = builder.floorY + halfHeight + 0.05;
+
+        cube.body.position.set(x, y, z);
+        cube.body.quaternion.set(0, 0, 0, 1);
+        cube.body.velocity.set(0, 0, 0);
+        cube.body.angularVelocity.set(0, 0, 0);
+        cube.body.aabbNeedsUpdate = true;
+        cube.body.wakeUp();
+
+        cube.mesh.position.set(x, y, z);
+        cube.mesh.quaternion.set(0, 0, 0, 1);
+      }
+
+      // Не показываем цветные зоны этапа 4.
+      builder.setRoom1TutorialStage4TestPlatformProgress(0);
+
+      // Создаём полки пятого этапа.
+      builder.createRoom1TutorialStage5Shelves();
+
+      // Две нижние полки сразу выдвинуты.
+      // Верхняя остаётся спрятанной.
+      for (const shelf of builder.room1TutorialStage5Shelves) {
+        const isLower =
+          shelf.name === "LowerLeft" ||
+          shelf.name === "LowerRight";
+
+        builder.setRoom1TutorialPlatformProgress(
+          shelf,
+          isLower ? 1 : 0
+        );
+      }
+
+      this.room1Tutorial.step = 5;
+      this.room1Tutorial.state = "collecting";
+      this.room1Tutorial.targetCount =
+        builder.room1TutorialMarkers.filter(
+          marker => marker.userData.stage5Role
+        ).length;
+
+      console.log("[TEST] Room 1 started directly at Stage 5.");
+    } else {
+      this.startRoom1TutorialStep(1);
     }
 
     if (this.playerController) {
       this.playerController.isLocked = false;
     }
 
-    console.log("[ROOM 1 DEBUG] Stage 3 ready for Stage 4 test.");
-  }
+
+  console.log("[ROOM 1] Tutorial reset to Stage 1.");
+}
 
   // ==========================================
   // ОБЩИЙ ЗАПУСК АНИМАЦИИ ПЛАТФОРМ ROOM 1
@@ -2735,12 +2793,50 @@ if (
     playerRef.body.velocity.set(0, 0, 0);
     playerRef.body.angularVelocity.set(0, 0, 0);
 
-    this.fadeScreen.style.opacity = "1";
+   this.fadeScreen.style.opacity = "1";
 
-    setTimeout(() => {
+setTimeout(() => {
+
+setTimeout(async () => {
+  // Начинается настоящая подготовка следующего сектора.
+  const overlay = document.getElementById("sector-transfer-overlay");
+
+  if (overlay) {
+    const source = document.getElementById("sector-transfer-source");
+    const target = document.getElementById("sector-transfer-target");
+
+    if (source) source.textContent = this.currentLevelId;
+    if (target) target.textContent = nextLevelId;
+
+    overlay.classList.add("is-visible");
+    overlay.setAttribute("aria-hidden", "false");
+  }
+
+  // Даём браузеру отрисовать стрелку перед тяжёлой работой.
+  await new Promise((resolve) => {
+    requestAnimationFrame(() => {
+      requestAnimationFrame(resolve);
+    });
+  });
+  
+  // ДИАГНОСТИКА: ждём первый рендер новой комнаты.
+this.roomFirstRenderStart = performance.now();
+this.roomFirstRenderPending = nextLevelId;
+
       // В темноте строим следующий уровень.
+      const roomBuildStart = performance.now();
+
       this.levelBuilder.buildRoom(nextLevelId);
+
+      console.log(
+        `[ROOM LOAD] Построение Room ${nextLevelId}: ${Math.round(
+          performance.now() - roomBuildStart
+        )} ms`
+      );
+
       this.loadLevel(nextLevelId);
+
+
 
       // Сбрасываем лифт и ставим игрока в стартовую позицию нового уровня.
       this.resetElevatorForLevel(nextLevelId);
@@ -2780,11 +2876,17 @@ if (
       }
       this.elevatorPhase = "opening_doors";
 
-      requestAnimationFrame(() => {
-        requestAnimationFrame(() => {
-          this.fadeScreen.style.opacity = "0";
-        });
-      });
+  requestAnimationFrame(() => {
+    const overlay = document.getElementById("sector-transfer-overlay");
+
+    if (overlay) {
+      overlay.classList.remove("is-visible");
+      overlay.setAttribute("aria-hidden", "true");
+    }
+
+    this.fadeScreen.style.opacity = "0";
+  });
+});
 
       setTimeout(() => {
         if (this.levelBuilder) {
@@ -2819,6 +2921,13 @@ if (
     if (this.fadeScreen) {
       this.fadeScreen.style.opacity = "0";
     }
+
+    const overlay = document.getElementById("sector-transfer-overlay");
+
+if (overlay) {
+  overlay.classList.remove("is-visible");
+  overlay.setAttribute("aria-hidden", "true");
+}
 
     if (this.playerController) {
       this.playerController.isLocked = false;
@@ -4264,9 +4373,33 @@ if (
     }
     // ========================================================
 
-    if (!this.isPreparingGame) {
-      this.composer.render();
-    }
+   
+if (!this.isPreparingGame) {
+  const measuringRoom = this.roomFirstRenderPending;
+
+  if (measuringRoom) {
+    const renderStart = performance.now();
+
+    this.composer.render();
+
+    const renderEnd = performance.now();
+
+    console.log(
+      `[ROOM RENDER] Room ${measuringRoom}: ` +
+      `первый вызов render() — ${(renderEnd - renderStart).toFixed(1)} ms`
+    );
+
+    console.log(
+      `[ROOM RENDER] От начала перестройки до первого render(): ` +
+      `${(renderEnd - this.roomFirstRenderStart).toFixed(1)} ms`
+    );
+
+    this.roomFirstRenderPending = null;
+  } else {
+    this.composer.render();
+  }
+}
+
   }
 
   updateEnvironment(dt, timeSec) {

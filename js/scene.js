@@ -14,6 +14,11 @@ export let heatTex, ventGridTex;
 export let plasticYellowBaseTex, plasticYellowNormalTex, plasticYellowRoughTex;
 export let plasticGreenBaseTex, plasticGreenNormalTex, plasticGreenRoughTex;
 
+// Резиновая поверхность кубов обучения Room 1.
+export let rubberBaseTex, rubberNormalTex, rubberRoughTex;
+// Поверхность выдвижных полок Room 1.
+export let shelfColorTex, shelfNormalTex, shelfRoughTex;
+
 export function loadGameAssets(onProgress, onComplete) {
   const manager = new THREE.LoadingManager();
 
@@ -92,6 +97,74 @@ export function loadGameAssets(onProgress, onComplete) {
     (t) => setupPlasticTexture(t),
   );
 
+  // ==========================================
+// ROOM 1 — РЕЗИНОВЫЕ КУБЫ
+// ==========================================
+
+const setupRubberTexture = (texture) => {
+  texture.wrapS = THREE.RepeatWrapping;
+  texture.wrapT = THREE.RepeatWrapping;
+
+  texture.repeat.set(0.5, 0.5);
+};
+
+rubberBaseTex = textureLoader.load(
+  "Image/Rubberized_Track_BaseColor.png",
+  (t) => {
+    setupRubberTexture(t);
+    t.colorSpace = THREE.SRGBColorSpace;
+  },
+);
+
+rubberNormalTex = textureLoader.load(
+  "Image/Rubberized_Track_Normal_GL.png",
+  (t) => setupRubberTexture(t),
+);
+
+rubberRoughTex = textureLoader.load(
+  "Image/Rubberized_Track_Roughness.png",
+  (t) => setupRubberTexture(t),
+);
+
+// ==========================================
+// ROOM 1 — ВЫДВИЖНЫЕ ПОЛКИ
+// ==========================================
+
+const setupShelfTexture = (
+  texture,
+  isColor = false,
+) => {
+  texture.wrapS = THREE.RepeatWrapping;
+  texture.wrapT = THREE.RepeatWrapping;
+
+  texture.repeat.set(1, 1);
+
+  if (isColor) {
+    texture.colorSpace =
+      THREE.SRGBColorSpace;
+  }
+};
+
+shelfColorTex = textureLoader.load(
+  "Image/Shelf_Color.png",
+  (t) =>
+    setupShelfTexture(
+      t,
+      true,
+    ),
+);
+
+shelfNormalTex = textureLoader.load(
+  "Image/Shelf_Normal_GL.png",
+  (t) =>
+    setupShelfTexture(t),
+);
+
+shelfRoughTex = textureLoader.load(
+  "Image/Shelf_Roughness.png",
+  (t) =>
+    setupShelfTexture(t),
+);
 
   heatTex = textureLoader.load("Image/heat.png");
 

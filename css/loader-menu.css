@@ -531,6 +531,40 @@ body.initial-main-view #view-main.menu-view.active {
   margin-bottom: 9px;
 }
 
+
+/* ==========================================
+   ВРАЩАЮЩИЙСЯ ИНДИКАТОР ПОДГОТОВКИ
+   ========================================== */
+
+.preparation-heading {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+
+.preparation-spinner {
+  display: inline-block;
+  width: 14px;
+  height: 14px;
+  flex-shrink: 0;
+  box-sizing: border-box;
+
+  border: 2px solid rgba(120, 220, 255, 0.18);
+  border-top-color: rgba(190, 245, 255, 0.95);
+  border-radius: 50%;
+
+  animation: preparationSpin 0.8s linear infinite;
+  will-change: transform;
+}
+
+@keyframes preparationSpin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+
 .preparation-title,
 .preparation-percent {
   font-family: "Orbitron", sans-serif;
@@ -3266,4 +3300,176 @@ will-change: left, top, width, height, opacity, transform;
 #loader-doors.pause-submenu-closing
   .start-menu-vignette {
   display: none;
+}
+
+/* ==========================================================================
+   ПЕРЕХОД МЕЖДУ СЕКТОРАМИ / ЛИФТАМИ
+   ========================================================================== */
+
+.sector-transfer-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: calc(var(--z-loader) + 20);
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  background: rgba(3, 8, 14, 0.92);
+
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+
+  transition:
+    opacity 0.3s ease,
+    visibility 0s linear 0.3s;
+}
+
+.sector-transfer-overlay.is-visible {
+  opacity: 1;
+  visibility: visible;
+
+  transition:
+    opacity 0.3s ease,
+    visibility 0s linear 0s;
+}
+
+.sector-transfer-inner {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 18px;
+}
+
+.sector-transfer-level {
+  width: 110px;
+  height: 96px;
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  box-sizing: border-box;
+  border: 1px solid rgba(190, 245, 255, 0.65);
+  background: rgba(12, 30, 48, 0.22);
+
+  color: rgba(240, 252, 255, 0.96);
+  font-family: "Orbitron", sans-serif;
+  font-size: 54px;
+  font-weight: 700;
+  line-height: 1;
+
+  text-shadow:
+    0 0 8px rgba(255, 255, 255, 0.25),
+    0 0 18px rgba(90, 220, 255, 0.22);
+
+  box-shadow:
+    inset 0 0 14px rgba(120, 220, 255, 0.08),
+    0 0 18px rgba(70, 220, 255, 0.06);
+}
+
+.sector-transfer-arrow {
+  position: relative;
+  width: 140px;
+  height: 150px;
+}
+
+.sector-transfer-arrow-head {
+  position: absolute;
+  top: 0;
+  left: 50%;
+  transform: translateX(-50%);
+
+  width: 0;
+  height: 0;
+
+  border-left: 50px solid transparent;
+  border-right: 50px solid transparent;
+  border-bottom: 56px solid rgba(210, 248, 255, 0.14);
+
+  filter: drop-shadow(0 0 10px rgba(90, 220, 255, 0.16));
+}
+
+.sector-transfer-arrow-body {
+  position: absolute;
+  left: 50%;
+  bottom: 0;
+  transform: translateX(-50%);
+
+  width: 44px;
+  height: 94px;
+
+  background: rgba(210, 248, 255, 0.14);
+
+  box-shadow:
+    0 0 12px rgba(90, 220, 255, 0.08),
+    inset 0 0 10px rgba(120, 220, 255, 0.05);
+}
+
+.sector-transfer-dots {
+  position: absolute;
+  left: 50%;
+  top: 0;
+  width: 44px;
+  height: 150px;
+  transform: translateX(-50%);
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.sector-transfer-dots span {
+  position: absolute;
+  left: 50%;
+  bottom: -14px;
+  transform: translateX(-50%);
+
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+
+  background: rgba(230, 250, 255, 0.95);
+  box-shadow: 0 0 10px rgba(120, 220, 255, 0.45);
+
+  opacity: 0;
+
+  animation: sectorTransferDot 1.4s linear infinite;
+  will-change: transform, opacity;
+}
+
+.sector-transfer-dots span:nth-child(1) {
+  animation-delay: 0s;
+}
+.sector-transfer-dots span:nth-child(2) {
+  animation-delay: 0.28s;
+}
+.sector-transfer-dots span:nth-child(3) {
+  animation-delay: 0.56s;
+}
+.sector-transfer-dots span:nth-child(4) {
+  animation-delay: 0.84s;
+}
+.sector-transfer-dots span:nth-child(5) {
+  animation-delay: 1.12s;
+}
+
+@keyframes sectorTransferDot {
+  0% {
+    transform: translateX(-50%) translateY(0);
+    opacity: 0;
+  }
+
+  12% {
+    opacity: 1;
+  }
+
+  70% {
+    opacity: 1;
+  }
+
+  100% {
+    transform: translateX(-50%) translateY(-132px);
+    opacity: 0;
+  }
 }

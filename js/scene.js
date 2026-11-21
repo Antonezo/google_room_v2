@@ -146,7 +146,7 @@ const setupShelfTexture = (
 };
 
 shelfColorTex = textureLoader.load(
-  "Image/Shelf_Color.png",
+  "Image/Shelf_Color.jpg",
   (t) =>
     setupShelfTexture(
       t,
@@ -161,7 +161,7 @@ shelfNormalTex = textureLoader.load(
 );
 
 shelfRoughTex = textureLoader.load(
-  "Image/Shelf_Roughness.png",
+  "Image/Shelf_Roughness.jpg",
   (t) =>
     setupShelfTexture(t),
 );
@@ -243,7 +243,7 @@ export class SceneManager {
       0.15,
     );
     this.composer.addPass(this.bloomPass);
-    this.bloomPass.enabled = false;
+    this.bloomPass.enabled = true;
 
     // 3. НАСТРОЙКА УПРАВЛЕНИЯ
     this.controls = new OrbitControls(this.camera, this.renderer.domElement);
@@ -781,9 +781,9 @@ this.ambientLight.intensity = 0.28;
     }
 
     this.renderer.toneMappingExposure = 1.5;
-    this.bloomPass.strength = 0.3;
-    this.bloomPass.threshold = 0.9;
-    this.bloomPass.radius = 0.2;
+  this.bloomPass.strength = 0.42;
+this.bloomPass.threshold = 1.4;
+this.bloomPass.radius = 0.5;
   }
 
   updateAtmosphere(

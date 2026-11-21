@@ -2,7 +2,7 @@ import * as CANNON from "cannon-es";
 import { CONFIG } from "./config.js";
 
 export class PhysicsManager {
-  constructor() {
+ constructor() {
     this.world = new CANNON.World({
       gravity: new CANNON.Vec3(0, CONFIG.WORLD.GRAVITY, 0),
     });
@@ -159,58 +159,28 @@ installDirectionalBoxFriction() {
       return created;
     }
 
-    // Нас интересует только:
-    //
-    // шар игрока (matHeavy)
-    //          ↕
-    // динамическая фигура (matBox)
-    const isHeavyBoxPair =
-      (bodyA.material === this.matHeavy &&
-        bodyB.material === this.matBox) ||
-      (bodyA.material === this.matBox &&
-        bodyB.material === this.matHeavy);
+  const otherMat =
+      bodyA.material === this.matHeavy ? bodyB.material :
+      bodyB.material === this.matHeavy ? bodyA.material : null;
 
-    if (!isHeavyBoxPair) {
+    const isDirectionalSurface =
+      otherMat === this.matBox ||
+      otherMat === this.matTutorialShelf ||
+      otherMat === this.matStandard;
+
+    if (!isDirectionalSurface) {
       return created;
     }
 
-    // ==========================================
-    // НОРМАЛЬ ПОВЕРХНОСТИ ФИГУРЫ В СТОРОНУ ШАРА
-    // ==========================================
-    //
-    // contactEquation.ni направлена от bodyA к bodyB.
-    //
-    // Нам нужно понять не порядок тел,
-    // а насколько поверхность matBox смотрит ВВЕРХ.
+    const surfaceNormalY =
+      bodyA.material === this.matHeavy
+        ? -contactEquation.ni.y
+        : contactEquation.ni.y;
 
-    let surfaceNormalY;
-
-    if (bodyA.material === this.matHeavy) {
-      // A = шар
-      // B = фигура
-      //
-      // ni идёт от шара к фигуре,
-      // значит нормаль фигуры в сторону шара противоположна.
-      surfaceNormalY = -contactEquation.ni.y;
-    } else {
-      // A = фигура
-      // B = шар
-      //
-      // ni уже идёт от фигуры к шару.
-      surfaceNormalY = contactEquation.ni.y;
-    }
-
-    // ==========================================
-    // ВЫБИРАЕМ КОЭФФИЦИЕНТ ТРЕНИЯ
-    // ==========================================
-
-   // Считаем «верхом» всё, что смотрит вверх хотя бы под 45° (чтобы не соскальзывать с краёв и при наклоне куба)
     const UPWARD_SURFACE_THRESHOLD = 0.7;
-
-    // Высокое сцепление сверху, компенсирующее малый вес кубика
-    const TOP_FRICTION = 3.5;
-
-    // Почти скользкая боковая грань, чтобы шар не лез по стенке куба
+    const TOP_FRICTION =
+      otherMat === this.matBox ? 3.5 :
+      otherMat === this.matTutorialShelf ? 3.2 : 1.2;
     const SIDE_FRICTION = 0.02;
 
     const friction =

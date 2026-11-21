@@ -80,14 +80,9 @@ if (key !== "space" && this.keys.hasOwnProperty(key)) {
 
 
 if (e.code === "Space") {
+  console.log("Пойман Space! Повторение:", e.repeat);
   e.preventDefault();
   if (e.repeat) return;
-
-console.log("[SPACE KEYDOWN]", {
-    isTrusted: e.isTrusted,
-    time: performance.now().toFixed(0),
-    keys: { ...this.keys },
-  });
 
   if (!this.keys.space && this.isGrounded && !this.isLocked) {
     this.jumpRequested = true;
@@ -97,11 +92,16 @@ console.log("[SPACE KEYDOWN]", {
 }
     });
 
-    window.addEventListener("keyup", (e) => {
-      const key = e.code.replace("Key", "").toLowerCase();
-      if (this.keys.hasOwnProperty(key)) this.keys[key] = false;
-      if (e.code === "Space") this.keys.space = false;
-    });
+  window.addEventListener("keyup", (e) => {
+  const key = e.code.replace("Key", "").toLowerCase();
+  if (this.keys.hasOwnProperty(key)) this.keys[key] = false;
+if (e.code === "Space") {
+  this.keys.space = false;
+  if (this.body.velocity.y > 0) {
+    this.body.velocity.y *= 0.6;
+  }
+}
+});
 
     window.addEventListener("blur", () => {
       for (let k in this.keys) this.keys[k] = false;
@@ -213,14 +213,6 @@ console.log("[SPACE KEYDOWN]", {
 
   update(dt) {
 
-    if (this._jumpTraceFrames > 0) {
-      console.log("[JUMP AFTER]", {
-        frame: 7 - this._jumpTraceFrames,
-        y: this.body.position.y.toFixed(3),
-        vy: this.body.velocity.y.toFixed(3)
-      });
-      this._jumpTraceFrames--;
-    }
 
     this.mesh.position.copy(this.body.interpolatedPosition);
     this.mesh.quaternion.copy(this.body.interpolatedQuaternion);
@@ -244,30 +236,6 @@ const hasMoveInput = inputX !== 0 || inputZ !== 0;
 
 const wantsJump = this.jumpRequested && this.isGrounded;
 this.jumpRequested = false;
-
-
-
-    // ==========================================
-    // ДИАГНОСТИКА НЕУДАЧНЫХ ПРЫЖКОВ
-    // ==========================================
-
-    if (this.keys.space && !this._debugSpaceWasDown) {
-      const horizontalSpeed = Math.hypot(
-        this.body.velocity.x,
-        this.body.velocity.z
-      );
-
-      console.log("[JUMP CHECK]", {
-        accepted: wantsJump,
-        grounded: this.isGrounded,
-        contact: this.hasGroundContact,
-        coyote: this.coyoteTimer.toFixed(3),
-        speed: horizontalSpeed.toFixed(2),
-        verticalSpeed: this.body.velocity.y.toFixed(2)
-      });
-    }
-
-    this._debugSpaceWasDown = this.keys.space;
 
 
     // ==========================================
@@ -524,7 +492,7 @@ this.jumpRequested = false;
 
       // Жёсткий лимит горизонтальной скорости в воздухе.
       // Вертикальную скорость не трогаем, чтобы прыжок остался нормальным.
-      const maxAirHorizontalSpeed = 13.5;
+const maxAirHorizontalSpeed = 10.2;
       const horizontalSpeed = Math.hypot(
         this.body.velocity.x,
         this.body.velocity.z,
@@ -537,30 +505,29 @@ this.jumpRequested = false;
       }
     }
 
-    if (wantsJump) {
+if (wantsJump) {
       this.body.wakeUp();
-
-      // При прыжке с разбега даём чуть больше вертикали,
-      // чтобы шар не цеплялся за край ступеньки.
-      this.body.velocity.y = hasMoveInput ? 14.5 : 13.5;
-      this._jumpTraceFrames = 6;
-      this.jumpCooldown = 0.18;
-this.isGrounded = false;
-this.hasGroundContact = false;
-this.coyoteTimer = 0;
 
       const horizontalTakeoffSpeed = Math.hypot(
         this.body.velocity.x,
         this.body.velocity.z,
       );
 
-      if (horizontalTakeoffSpeed > 0.01) {
-        const speedRatio = THREE.MathUtils.clamp(
-          horizontalTakeoffSpeed / 15.0,
-          0,
-          1,
-        );
+      const speedRatio = THREE.MathUtils.clamp(
+        horizontalTakeoffSpeed / 15.0,
+        0,
+        1,
+      );
 
+      // От 13.9 с места (для стандартных полок) до 13.7 с полного разбега
+      this.body.velocity.y = THREE.MathUtils.lerp(13.9, 14.7 , speedRatio);
+
+      this.jumpCooldown = 0.18;
+      this.isGrounded = false;
+      this.hasGroundContact = false;
+      this.coyoteTimer = 0;
+
+      if (horizontalTakeoffSpeed > 0.01) {
         const airSpinFactor = THREE.MathUtils.lerp(0.72, 0.38, speedRatio);
 
         this.body.angularVelocity.set(
@@ -568,6 +535,8 @@ this.coyoteTimer = 0;
           0,
           (-this.body.velocity.x / this.radius) * airSpinFactor,
         );
+      } else {
+        this.body.angularVelocity.set(0, 0, 0);
       }
 
       this.isGrounded = false;

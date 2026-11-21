@@ -96,11 +96,11 @@ export class GoogleRoomApp {
         duration: 1.0,
       },
 
-stage5ShelvesAnimation: {
-  time: 0,
-  shelfDuration: 0.75,
-  shelfDelay: 0.4,
-},
+      stage5ShelvesAnimation: {
+        time: 0,
+        shelfDuration: 1.4,
+        shelfDelay: 0.45,
+      },
 
       stage4Solved: false,
       maxImplementedStep: 3,
@@ -892,13 +892,12 @@ stage5ShelvesAnimation: {
       const composerRenderTarget =
         this.composer?.readBuffer || this.composer?.renderTarget1 || null;
 
-    
-const shaderStart = performance.now();
+      const shaderStart = performance.now();
 
-try {
-  if (composerRenderTarget) {
-    this.renderer.setRenderTarget(composerRenderTarget);
-  }
+      try {
+        if (composerRenderTarget) {
+          this.renderer.setRenderTarget(composerRenderTarget);
+        }
 
         if (typeof this.renderer.compileAsync === "function") {
           await this.renderer.compileAsync(this.scene, this.camera);
@@ -914,22 +913,20 @@ try {
       }
 
       console.log(
-  `[GPU DIAG] Компиляция шейдеров: ${(performance.now() - shaderStart).toFixed(1)} ms`
-);
+        `[GPU DIAG] Компиляция шейдеров: ${(performance.now() - shaderStart).toFixed(1)} ms`,
+      );
 
-   
-this.renderer.info.reset();
+      this.renderer.info.reset();
 
-const renderStart = performance.now();
+      const renderStart = performance.now();
 
-this.composer.render();
+      this.composer.render();
 
-console.log(
-  `[GPU DIAG] Подготовительный рендер: ${(performance.now() - renderStart).toFixed(1)} ms`
-);
+      console.log(
+        `[GPU DIAG] Подготовительный рендер: ${(performance.now() - renderStart).toFixed(1)} ms`,
+      );
 
-await nextFrame();
-
+      await nextFrame();
     };
 
     const runStage = async (label, percentBefore, percentAfter, task) => {
@@ -1417,46 +1414,44 @@ await nextFrame();
   }
 
   resetRoom1Tutorial() {
-  // ==========================================
-  // ОБУЧЕНИЕ ROOM 1 — СТАРТ С ЭТАПА 1
-  // ==========================================
+    // ==========================================
+    // ОБУЧЕНИЕ ROOM 1 — СТАРТ С ЭТАПА 1
+    // ==========================================
 
-  this.room1Tutorial.step = 1;
-  this.room1Tutorial.state = "collecting";
+    this.room1Tutorial.step = 1;
+    this.room1Tutorial.state = "collecting";
 
-  this.room1Tutorial.collected = 0;
-  this.room1Tutorial.targetCount = 0;
+    this.room1Tutorial.collected = 0;
+    this.room1Tutorial.targetCount = 0;
 
-  this.room1Tutorial.transitionTimer = 0;
-  this.room1Tutorial.stage4Solved = false;
+    this.room1Tutorial.transitionTimer = 0;
+    this.room1Tutorial.stage4Solved = false;
 
-  this.room1Tutorial.stage3CurrentShelfIndex = 0;
-  this.room1Tutorial.stage3PendingShelfIndex = -1;
+    this.room1Tutorial.stage3CurrentShelfIndex = 0;
+    this.room1Tutorial.stage3PendingShelfIndex = -1;
 
-  // Сбрасываем анимации.
-  const animation =
-    this.room1Tutorial.platformAnimation;
+    // Сбрасываем анимации.
+    const animation = this.room1Tutorial.platformAnimation;
 
-  animation.active = false;
-  animation.time = 0;
-  animation.direction = "forward";
-  animation.platforms = [];
-  animation.completionAction = null;
+    animation.active = false;
+    animation.time = 0;
+    animation.direction = "forward";
+    animation.platforms = [];
+    animation.completionAction = null;
 
-  this.room1Tutorial.stage4Transition.time = 0;
-  this.room1Tutorial.stage5Transition.time = 0;
-  this.room1Tutorial.stage5ShelvesAnimation.time = 0;
+    this.room1Tutorial.stage4Transition.time = 0;
+    this.room1Tutorial.stage5Transition.time = 0;
+    this.room1Tutorial.stage5ShelvesAnimation.time = 0;
 
-  if (!this.levelBuilder) {
-    return;
-  }
-
+    if (!this.levelBuilder) {
+      return;
+    }
 
     // ==========================================
     // ВРЕМЕННЫЙ ТЕСТОВЫЙ ЗАПУСК С ЭТАПА 5
     // ==========================================
 
-    const TEST_START_AT_STAGE_5 = true;
+    const TEST_START_AT_STAGE_5 = false;
 
     if (TEST_START_AT_STAGE_5) {
       const builder = this.levelBuilder;
@@ -1502,21 +1497,16 @@ await nextFrame();
       // Верхняя остаётся спрятанной.
       for (const shelf of builder.room1TutorialStage5Shelves) {
         const isLower =
-          shelf.name === "LowerLeft" ||
-          shelf.name === "LowerRight";
+          shelf.name === "LowerLeft" || shelf.name === "LowerRight";
 
-        builder.setRoom1TutorialPlatformProgress(
-          shelf,
-          isLower ? 1 : 0
-        );
+        builder.setRoom1TutorialPlatformProgress(shelf, isLower ? 1 : 0);
       }
 
       this.room1Tutorial.step = 5;
       this.room1Tutorial.state = "collecting";
-      this.room1Tutorial.targetCount =
-        builder.room1TutorialMarkers.filter(
-          marker => marker.userData.stage5Role
-        ).length;
+      this.room1Tutorial.targetCount = builder.room1TutorialMarkers.filter(
+        (marker) => marker.userData.stage5Role,
+      ).length;
 
       console.log("[TEST] Room 1 started directly at Stage 5.");
     } else {
@@ -1527,9 +1517,8 @@ await nextFrame();
       this.playerController.isLocked = false;
     }
 
-
-  console.log("[ROOM 1] Tutorial reset to Stage 1.");
-}
+    console.log("[ROOM 1] Tutorial reset to Stage 1.");
+  }
 
   // ==========================================
   // ОБЩИЙ ЗАПУСК АНИМАЦИИ ПЛАТФОРМ ROOM 1
@@ -1553,16 +1542,14 @@ await nextFrame();
     animation.platforms = Array.isArray(platforms) ? platforms : [];
 
     if (direction === "forward") {
-  for (const platform of animation.platforms) {
-    if (platform?.kind !== "wallShelf") {
-      continue;
-    }
+      for (const platform of animation.platforms) {
+        if (platform?.kind !== "wallShelf") {
+          continue;
+        }
 
-    audioManager?.playShelfMove(
-      0.42,
-    );
-  }
-}
+        audioManager?.playShelfMove(0.42);
+      }
+    }
 
     animation.completionAction = completionAction;
   }
@@ -1711,99 +1698,73 @@ await nextFrame();
     }
 
     // ==========================================
-// ЭТАП 5 — ФИНАЛЬНЫЕ ТРИ МАРКЕРА
-// ==========================================
+    // ЭТАП 5 — ФИНАЛЬНЫЕ ТРИ МАРКЕРА
+    // ==========================================
 
-if (this.room1Tutorial.step === 5) {
-  const markers =
-    this.levelBuilder
-      ?.room1TutorialMarkers || [];
+    if (this.room1Tutorial.step === 5) {
+      const markers = this.levelBuilder?.room1TutorialMarkers || [];
 
-  const role =
-    marker.userData.stage5Role;
+      const role = marker.userData.stage5Role;
 
-  // ------------------------------------------
-  // СОБРАН ОДИН ИЗ ДВУХ НИЖНИХ
-  // ------------------------------------------
+      // ------------------------------------------
+      // СОБРАН ОДИН ИЗ ДВУХ НИЖНИХ
+      // ------------------------------------------
 
-  if (
-    role === "lowerLeft" ||
-    role === "lowerRight"
-  ) {
-    const lowerMarkers =
-      markers.filter(
-        (item) =>
-          item.userData.stage5Role ===
-            "lowerLeft" ||
-          item.userData.stage5Role ===
-            "lowerRight",
-      );
+      if (role === "lowerLeft" || role === "lowerRight") {
+        const lowerMarkers = markers.filter(
+          (item) =>
+            item.userData.stage5Role === "lowerLeft" ||
+            item.userData.stage5Role === "lowerRight",
+        );
 
-    const lowerCollected =
-      lowerMarkers.filter(
-        (item) =>
-          item.userData.collected === true,
-      ).length;
+        const lowerCollected = lowerMarkers.filter(
+          (item) => item.userData.collected === true,
+        ).length;
 
-    console.log(
-      `[ROOM 1] Stage 5: lower markers ${lowerCollected}/2.`,
-    );
+        console.log(`[ROOM 1] Stage 5: lower markers ${lowerCollected}/2.`);
 
-    // Оба нижних собраны —
-    // включаем верхний.
-if (lowerCollected >= 2) {
-  const upperShelf =
-    this.levelBuilder
-      ?.room1TutorialStage5Shelves
-      ?.find(
-        (shelf) =>
-          shelf.name ===
-          "UpperCenter",
-      );
+        // Оба нижних собраны —
+        // включаем верхний.
+        if (lowerCollected >= 2) {
+          const upperShelf =
+            this.levelBuilder?.room1TutorialStage5Shelves?.find(
+              (shelf) => shelf.name === "UpperCenter",
+            );
 
-  if (upperShelf) {
-    this.room1Tutorial.state =
-      "stage5_upper_shelf_opening";
+          if (upperShelf) {
+            this.room1Tutorial.state = "stage5_upper_shelf_opening";
 
-    this.room1Tutorial
-      .stage5ShelvesAnimation.time = 0;
+            this.room1Tutorial.stage5ShelvesAnimation.time = 0;
 
-    upperShelf.stage5SoundPlayed =
-      false;
+            upperShelf.stage5SoundPlayed = false;
 
-    if (this.playerController) {
-      this.playerController.isLocked =
-        true;
+            if (this.playerController) {
+              this.playerController.isLocked = true;
+            }
+
+            console.log("[ROOM 1] Stage 5: upper shelf opening.");
+          }
+        }
+
+        return;
+      }
+
+      // ------------------------------------------
+      // СОБРАН ВЕРХНИЙ МАРКЕР
+      // ------------------------------------------
+
+      if (role === "upper") {
+        this.room1Tutorial.state = "finished";
+
+        this.unlockExitElevator(1);
+
+        console.log("[ROOM 1] Stage 5 completed. Exit elevator unlocked.");
+
+        return;
+      }
+
+      return;
     }
-
-    console.log(
-      "[ROOM 1] Stage 5: upper shelf opening.",
-    );
-  }
-}
-
-    return;
-  }
-
-  // ------------------------------------------
-  // СОБРАН ВЕРХНИЙ МАРКЕР
-  // ------------------------------------------
-
-  if (role === "upper") {
-    this.room1Tutorial.state =
-      "finished";
-
-    this.unlockExitElevator(1);
-
-    console.log(
-      "[ROOM 1] Stage 5 completed. Exit elevator unlocked.",
-    );
-
-    return;
-  }
-
-  return;
-}
 
     console.log(
       `[ROOM 1] Collected ${this.room1Tutorial.collected}/${this.room1Tutorial.targetCount}`,
@@ -2031,16 +1992,11 @@ if (lowerCollected >= 2) {
         const shelfStartTime = index * transition.shelfDelay;
 
         const localTime = time - shelfStartTime;
-        if (
-  localTime >= 0 &&
-  !shelf.stage3RetractSoundPlayed
-) {
-  shelf.stage3RetractSoundPlayed = true;
+        if (localTime >= 0 && !shelf.stage3RetractSoundPlayed) {
+          shelf.stage3RetractSoundPlayed = true;
 
-  audioManager?.playShelfMove(
-    0.42,
-  );
-}
+          audioManager?.playShelfMove(0.42);
+        }
 
         const rawProgress = localTime / transition.shelfDuration;
 
@@ -2104,274 +2060,176 @@ if (lowerCollected >= 2) {
       return;
     }
 
-// ==========================================
-// ПЕРЕХОД 4 → 5
-// Бордюр уходит вниз,
-// цветные зоны плавно исчезают.
-// ==========================================
+    // ==========================================
+    // ПЕРЕХОД 4 → 5
+    // Бордюр уходит вниз,
+    // цветные зоны плавно исчезают.
+    // ==========================================
 
-if (
-  tutorial.state ===
-  "stage4_to_5"
-) {
-  const transition =
-    tutorial.stage5Transition;
+    if (tutorial.state === "stage4_to_5") {
+      const transition = tutorial.stage5Transition;
 
-  transition.time += dt;
+      transition.time += dt;
 
-  const rawProgress =
-    transition.time /
-    transition.duration;
+      const rawProgress = transition.time / transition.duration;
 
-  const progress =
-    THREE.MathUtils.clamp(
-      rawProgress,
-      0,
-      1,
-    );
+      const progress = THREE.MathUtils.clamp(rawProgress, 0, 1);
 
-  const eased =
-    progress *
-    progress *
-    (3 - 2 * progress);
+      const eased = progress * progress * (3 - 2 * progress);
 
-  // ------------------------------------------
-  // БОРДЮР ОПУСКАЕТСЯ
-  // ------------------------------------------
+   
+      // ------------------------------------------
+      // БОРДЮР ОПУСКАЕТСЯ
+      // ------------------------------------------
 
-  const borders =
-    this.levelBuilder
-      .room1TutorialStage4Borders || [];
+      const borders = this.levelBuilder.room1TutorialStage4Borders || [];
 
-  const borderProgress =
-    1 - eased;
+      const borderProgress = 1 - eased;
 
-  for (const border of borders) {
-    this.levelBuilder
-      .setRoom1TutorialPlatformProgress(
-        border,
-        borderProgress,
-      );
-  }
+      for (const border of borders) {
+        this.levelBuilder.setRoom1TutorialPlatformProgress(
+          border,
+          borderProgress,
+        );
+      }
 
-  // ------------------------------------------
-  // ЦВЕТНЫЕ ЗОНЫ ГАСНУТ
-  // ------------------------------------------
+      // Будим кубы каждый кадр опускания бордюра
+      const stage4Cubes = this.levelBuilder.room1TutorialStage4Cubes || [];
+      for (const cube of stage4Cubes) {
+        if (cube?.body) {
+          cube.body.wakeUp();
+        }
+      }
 
-  this.levelBuilder
-    .setRoom1TutorialStage4TestPlatformProgress(
-      1 - eased,
-    );
+      // ------------------------------------------
+      // ЦВЕТНЫЕ ЗОНЫ ГАСНУТ
+      // ------------------------------------------
 
-  // ------------------------------------------
-  // ПЕРЕХОД ЗАВЕРШЁН
-  // ------------------------------------------
+      this.levelBuilder.setRoom1TutorialStage4TestPlatformProgress(1 - eased);
 
-if (progress >= 1) {
-  this.levelBuilder
-    .createRoom1TutorialStage5Shelves();
+      // ------------------------------------------
+      // ПЕРЕХОД ЗАВЕРШЁН
+      // ------------------------------------------
 
-  tutorial.state =
-    "stage5_shelves_opening";
+      if (progress >= 1) {
+        this.levelBuilder.createRoom1TutorialStage5Shelves();
 
-  tutorial.stage5ShelvesAnimation.time = 0;
+        tutorial.state = "stage5_shelves_opening";
 
-  if (this.playerController) {
-    this.playerController.isLocked = true;
-  }
+        tutorial.stage5ShelvesAnimation.time = 0;
 
-  console.log(
-    "[ROOM 1] Stage 5 shelves opening.",
-  );
-}
+        if (this.playerController) {
+          this.playerController.isLocked = true;
+        }
 
-  return;
-}
+        console.log("[ROOM 1] Stage 5 shelves opening.");
+      }
 
-// ==========================================
-// ЭТАП 5 — ПОЛКИ ВЫЕЗЖАЮТ ПО ОЧЕРЕДИ
-// ==========================================
-
-if (
-  tutorial.state ===
-  "stage5_shelves_opening"
-) {
-  const animation =
-    tutorial.stage5ShelvesAnimation;
-
-  animation.time += dt;
-
-const allShelves =
-  this.levelBuilder
-    .room1TutorialStage5Shelves || [];
-
-const shelves =
-  allShelves.filter(
-    (shelf) =>
-      shelf.name === "LowerLeft" ||
-      shelf.name === "LowerRight",
-  );
-
-  for (
-    let index = 0;
-    index < shelves.length;
-    index++
-  ) {
-    const shelf = shelves[index];
-
-    const startTime =
-      index * animation.shelfDelay;
-
-    const localTime =
-      animation.time - startTime;
-
-      if (
-  localTime >= 0 &&
-  !shelf.stage5SoundPlayed
-) {
-  shelf.stage5SoundPlayed = true;
-
-  audioManager?.playShelfMove(
-    0.42,
-  );
-}
-
-    const rawProgress =
-      localTime /
-      animation.shelfDuration;
-
-    const progress =
-      THREE.MathUtils.clamp(
-        rawProgress,
-        0,
-        1,
-      );
-
-    const eased =
-      progress *
-      progress *
-      (3 - 2 * progress);
-
-    this.levelBuilder
-      .setRoom1TutorialPlatformProgress(
-        shelf,
-        eased,
-      );
-  }
-
-  const finishTime =
-    shelves.length > 0
-      ? (shelves.length - 1) *
-          animation.shelfDelay +
-        animation.shelfDuration
-      : 0;
-
-  if (
-    animation.time >= finishTime
-  ) {
-  tutorial.state =
-  "collecting";
-
-    if (this.playerController) {
-      this.playerController.isLocked =
-        false;
+      return;
     }
 
-    console.log(
-      "[ROOM 1] Stage 5 shelves ready.",
-    );
-  }
+    // ==========================================
+    // ЭТАП 5 — ПОЛКИ ВЫЕЗЖАЮТ ПО ОЧЕРЕДИ
+    // ==========================================
 
-  return;
-}
+    if (tutorial.state === "stage5_shelves_opening") {
+      const animation = tutorial.stage5ShelvesAnimation;
 
-// ==========================================
-// ЭТАП 5 — ВЫЕЗЖАЕТ ВЕРХНЯЯ ПОЛКА
-// ==========================================
+      animation.time += dt;
 
-if (
-  tutorial.state ===
-  "stage5_upper_shelf_opening"
-) {
-  const animation =
-    tutorial.stage5ShelvesAnimation;
+      const allShelves = this.levelBuilder.room1TutorialStage5Shelves || [];
 
-  animation.time += dt;
-
-  const upperShelf =
-    this.levelBuilder
-      .room1TutorialStage5Shelves
-      ?.find(
-        (shelf) =>
-          shelf.name ===
-          "UpperCenter",
+      const shelves = allShelves.filter(
+        (shelf) => shelf.name === "LowerLeft" || shelf.name === "LowerRight",
       );
 
-  if (!upperShelf) {
-    return;
-  }
+      for (let index = 0; index < shelves.length; index++) {
+        const shelf = shelves[index];
 
-  if (
-    !upperShelf.stage5SoundPlayed
-  ) {
-    upperShelf.stage5SoundPlayed =
-      true;
+        const startTime = index * animation.shelfDelay;
 
-    audioManager?.playShelfMove(
-      0.42,
-    );
-  }
+        const localTime = animation.time - startTime;
 
-  const rawProgress =
-    animation.time /
-    animation.shelfDuration;
+        if (localTime >= 0 && !shelf.stage5SoundPlayed) {
+          shelf.stage5SoundPlayed = true;
 
-  const progress =
-    THREE.MathUtils.clamp(
-      rawProgress,
-      0,
-      1,
-    );
+          audioManager?.playShelfMove(0.42);
+        }
 
-  const eased =
-    progress *
-    progress *
-    (3 - 2 * progress);
+        const rawProgress = localTime / animation.shelfDuration;
 
-  this.levelBuilder
-    .setRoom1TutorialPlatformProgress(
-      upperShelf,
-      eased,
-    );
+        const progress = THREE.MathUtils.clamp(rawProgress, 0, 1);
 
-  if (progress >= 1) {
-    const upperMarker =
-      upperShelf.marker;
+        this.levelBuilder.setRoom1TutorialPlatformProgress(shelf, progress);
+      }
 
-    if (
-      upperMarker &&
-      !upperMarker.userData.collected
-    ) {
-      upperMarker.visible = true;
-      upperMarker.userData.active =
-        true;
+      const finishTime =
+        shelves.length > 0
+          ? (shelves.length - 1) * animation.shelfDelay +
+            animation.shelfDuration
+          : 0;
+
+      if (animation.time >= finishTime) {
+        tutorial.state = "collecting";
+
+        if (this.playerController) {
+          this.playerController.isLocked = false;
+        }
+
+        console.log("[ROOM 1] Stage 5 shelves ready.");
+      }
+
+      return;
     }
 
-    tutorial.state =
-      "collecting";
+    // ==========================================
+    // ЭТАП 5 — ВЫЕЗЖАЕТ ВЕРХНЯЯ ПОЛКА
+    // ==========================================
 
-    if (this.playerController) {
-      this.playerController.isLocked =
-        false;
+    if (tutorial.state === "stage5_upper_shelf_opening") {
+      const animation = tutorial.stage5ShelvesAnimation;
+
+      animation.time += dt;
+
+      const upperShelf = this.levelBuilder.room1TutorialStage5Shelves?.find(
+        (shelf) => shelf.name === "UpperCenter",
+      );
+
+      if (!upperShelf) {
+        return;
+      }
+
+      if (!upperShelf.stage5SoundPlayed) {
+        upperShelf.stage5SoundPlayed = true;
+
+        audioManager?.playShelfMove(0.42);
+      }
+
+      const rawProgress = animation.time / animation.shelfDuration;
+
+      const progress = THREE.MathUtils.clamp(rawProgress, 0, 1);
+
+      this.levelBuilder.setRoom1TutorialPlatformProgress(upperShelf, progress);
+
+      if (progress >= 1) {
+        const upperMarker = upperShelf.marker;
+
+        if (upperMarker && !upperMarker.userData.collected) {
+          upperMarker.visible = true;
+          upperMarker.userData.active = true;
+        }
+
+        tutorial.state = "collecting";
+
+        if (this.playerController) {
+          this.playerController.isLocked = false;
+        }
+
+        console.log("[ROOM 1] Stage 5: upper shelf ready.");
+      }
+
+      return;
     }
-
-    console.log(
-      "[ROOM 1] Stage 5: upper shelf ready.",
-    );
-  }
-
-  return;
-}
 
     // ==========================================
     // ДОКАТЫВАНИЕ К ЦЕНТРУ ЗЕЛЁНОГО МАРКЕРА
@@ -2490,33 +2348,46 @@ if (
           return;
         }
 
-// ==========================================
-// ОСОБЫЙ ПЕРЕХОД 4 → 5
-// Опускаем бордюр и гасим цветные зоны.
-// Кубы остаются в комнате.
-// ==========================================
+        // ==========================================
+        // ОСОБЫЙ ПЕРЕХОД 4 → 5
+        // Опускаем бордюр и гасим цветные зоны.
+        // Кубы остаются в комнате.
+        // ==========================================
 
-if (
-  tutorial.step === 4 &&
-  nextStep === 5
-) {
-  tutorial.step = 5;
+        if (tutorial.step === 4 && nextStep === 5) {
+          tutorial.step = 5;
 
-  tutorial.state =
-    "stage4_to_5";
+          tutorial.state = "stage4_to_5";
 
-  tutorial.stage5Transition.time = 0;
+          tutorial.stage5Transition.time = 0;
 
-  if (this.playerController) {
-    this.playerController.isLocked = true;
-  }
 
-  console.log(
-    "[ROOM 1] Starting transition 4 -> 5.",
-  );
+          // При начале опускания убираем физическую опору.
+          // Визуально бордюры продолжат плавно уходить под пол.
+          const borders = this.levelBuilder.room1TutorialStage4Borders || [];
 
-  return;
-}
+          for (const border of borders) {
+            if (border.body) {
+              border.body.collisionFilterMask = 0;
+            }
+          }
+
+          // Пробуждаем кубы после отключения столкновений.
+          const cubes = this.levelBuilder.room1TutorialStage4Cubes || [];
+
+          for (const cube of cubes) {
+            cube.body?.wakeUp();
+          }
+
+
+          if (this.playerController) {
+            this.playerController.isLocked = true;
+          }
+
+          console.log("[ROOM 1] Starting transition 4 -> 5.");
+
+          return;
+        }
 
         // ==========================================
         // ОБЫЧНЫЙ ПЕРЕХОД
@@ -2793,100 +2664,97 @@ if (
     playerRef.body.velocity.set(0, 0, 0);
     playerRef.body.angularVelocity.set(0, 0, 0);
 
-   this.fadeScreen.style.opacity = "1";
+    this.fadeScreen.style.opacity = "1";
 
-setTimeout(() => {
+    setTimeout(() => {
+      setTimeout(async () => {
+        // Начинается настоящая подготовка следующего сектора.
+        const overlay = document.getElementById("sector-transfer-overlay");
 
-setTimeout(async () => {
-  // Начинается настоящая подготовка следующего сектора.
-  const overlay = document.getElementById("sector-transfer-overlay");
+        if (overlay) {
+          const source = document.getElementById("sector-transfer-source");
+          const target = document.getElementById("sector-transfer-target");
 
-  if (overlay) {
-    const source = document.getElementById("sector-transfer-source");
-    const target = document.getElementById("sector-transfer-target");
+          if (source) source.textContent = this.currentLevelId;
+          if (target) target.textContent = nextLevelId;
 
-    if (source) source.textContent = this.currentLevelId;
-    if (target) target.textContent = nextLevelId;
-
-    overlay.classList.add("is-visible");
-    overlay.setAttribute("aria-hidden", "false");
-  }
-
-  // Даём браузеру отрисовать стрелку перед тяжёлой работой.
-  await new Promise((resolve) => {
-    requestAnimationFrame(() => {
-      requestAnimationFrame(resolve);
-    });
-  });
-  
-  // ДИАГНОСТИКА: ждём первый рендер новой комнаты.
-this.roomFirstRenderStart = performance.now();
-this.roomFirstRenderPending = nextLevelId;
-
-      // В темноте строим следующий уровень.
-      const roomBuildStart = performance.now();
-
-      this.levelBuilder.buildRoom(nextLevelId);
-
-      console.log(
-        `[ROOM LOAD] Построение Room ${nextLevelId}: ${Math.round(
-          performance.now() - roomBuildStart
-        )} ms`
-      );
-
-      this.loadLevel(nextLevelId);
-
-
-
-      // Сбрасываем лифт и ставим игрока в стартовую позицию нового уровня.
-      this.resetElevatorForLevel(nextLevelId);
-      this.resetPlayerForLevel(nextLevelId);
-      this.resetCameraForLevel(nextLevelId);
-
-      // Подготавливаем матрицы и шейдеры новой комнаты,
-      // пока экран ещё полностью чёрный.
-      this.scene.updateMatrixWorld(true);
-      this.camera.updateMatrixWorld(true);
-      // Временно отключено для проверки стартового прогрева.
-      // this.renderer.compile(this.scene, this.camera);
-
-      if (this.cameraController) {
-        this.cameraController.invalidateWallsCache();
-        this.cameraController.currentZoom = 15.0;
-        this.cameraController.targetZoom = 15.0;
-      }
-
-      if (nextLevelId > 1 && this.levelBuilder) {
-        // Двери прибытия должны быть закрыты уже в первом видимом кадре.
-        // resetElevatorForLevel() оставляет выходную сторону открытой,
-        // поэтому сбрасываем не только target, но и текущее состояние.
-        this.levelBuilder.closeElevator(arrivalDoorId);
-
-        const arrivalElevator =
-          this.levelBuilder.getRoomElevator?.(arrivalDoorId);
-
-        if (arrivalElevator) {
-          arrivalElevator.openState = 0;
-          arrivalElevator.targetOpenState = 0;
+          overlay.classList.add("is-visible");
+          overlay.setAttribute("aria-hidden", "false");
         }
 
-        // Немедленно применяем закрытое положение к мешам и коллайдерам,
+        // Даём браузеру отрисовать стрелку перед тяжёлой работой.
+        await new Promise((resolve) => {
+          requestAnimationFrame(() => {
+            requestAnimationFrame(resolve);
+          });
+        });
+
+        // ДИАГНОСТИКА: ждём первый рендер новой комнаты.
+        this.roomFirstRenderStart = performance.now();
+        this.roomFirstRenderPending = nextLevelId;
+
+        // В темноте строим следующий уровень.
+        const roomBuildStart = performance.now();
+
+        this.levelBuilder.buildRoom(nextLevelId);
+
+        console.log(
+          `[ROOM LOAD] Построение Room ${nextLevelId}: ${Math.round(
+            performance.now() - roomBuildStart,
+          )} ms`,
+        );
+
+        this.loadLevel(nextLevelId);
+
+        // Сбрасываем лифт и ставим игрока в стартовую позицию нового уровня.
+        this.resetElevatorForLevel(nextLevelId);
+        this.resetPlayerForLevel(nextLevelId);
+        this.resetCameraForLevel(nextLevelId);
+
+        // Подготавливаем матрицы и шейдеры новой комнаты,
         // пока экран ещё полностью чёрный.
-        this.levelBuilder.updateDoors(0);
-      }
-      this.elevatorPhase = "opening_doors";
+        this.scene.updateMatrixWorld(true);
+        this.camera.updateMatrixWorld(true);
+        // Временно отключено для проверки стартового прогрева.
+        // this.renderer.compile(this.scene, this.camera);
 
-  requestAnimationFrame(() => {
-    const overlay = document.getElementById("sector-transfer-overlay");
+        if (this.cameraController) {
+          this.cameraController.invalidateWallsCache();
+          this.cameraController.currentZoom = 15.0;
+          this.cameraController.targetZoom = 15.0;
+        }
 
-    if (overlay) {
-      overlay.classList.remove("is-visible");
-      overlay.setAttribute("aria-hidden", "true");
-    }
+        if (nextLevelId > 1 && this.levelBuilder) {
+          // Двери прибытия должны быть закрыты уже в первом видимом кадре.
+          // resetElevatorForLevel() оставляет выходную сторону открытой,
+          // поэтому сбрасываем не только target, но и текущее состояние.
+          this.levelBuilder.closeElevator(arrivalDoorId);
 
-    this.fadeScreen.style.opacity = "0";
-  });
-});
+          const arrivalElevator =
+            this.levelBuilder.getRoomElevator?.(arrivalDoorId);
+
+          if (arrivalElevator) {
+            arrivalElevator.openState = 0;
+            arrivalElevator.targetOpenState = 0;
+          }
+
+          // Немедленно применяем закрытое положение к мешам и коллайдерам,
+          // пока экран ещё полностью чёрный.
+          this.levelBuilder.updateDoors(0);
+        }
+        this.elevatorPhase = "opening_doors";
+
+        requestAnimationFrame(() => {
+          const overlay = document.getElementById("sector-transfer-overlay");
+
+          if (overlay) {
+            overlay.classList.remove("is-visible");
+            overlay.setAttribute("aria-hidden", "true");
+          }
+
+          this.fadeScreen.style.opacity = "0";
+        });
+      });
 
       setTimeout(() => {
         if (this.levelBuilder) {
@@ -2924,10 +2792,10 @@ this.roomFirstRenderPending = nextLevelId;
 
     const overlay = document.getElementById("sector-transfer-overlay");
 
-if (overlay) {
-  overlay.classList.remove("is-visible");
-  overlay.setAttribute("aria-hidden", "true");
-}
+    if (overlay) {
+      overlay.classList.remove("is-visible");
+      overlay.setAttribute("aria-hidden", "true");
+    }
 
     if (this.playerController) {
       this.playerController.isLocked = false;
@@ -4373,33 +4241,31 @@ if (overlay) {
     }
     // ========================================================
 
-   
-if (!this.isPreparingGame) {
-  const measuringRoom = this.roomFirstRenderPending;
+    if (!this.isPreparingGame) {
+      const measuringRoom = this.roomFirstRenderPending;
 
-  if (measuringRoom) {
-    const renderStart = performance.now();
+      if (measuringRoom) {
+        const renderStart = performance.now();
 
-    this.composer.render();
+        this.composer.render();
 
-    const renderEnd = performance.now();
+        const renderEnd = performance.now();
 
-    console.log(
-      `[ROOM RENDER] Room ${measuringRoom}: ` +
-      `первый вызов render() — ${(renderEnd - renderStart).toFixed(1)} ms`
-    );
+        console.log(
+          `[ROOM RENDER] Room ${measuringRoom}: ` +
+            `первый вызов render() — ${(renderEnd - renderStart).toFixed(1)} ms`,
+        );
 
-    console.log(
-      `[ROOM RENDER] От начала перестройки до первого render(): ` +
-      `${(renderEnd - this.roomFirstRenderStart).toFixed(1)} ms`
-    );
+        console.log(
+          `[ROOM RENDER] От начала перестройки до первого render(): ` +
+            `${(renderEnd - this.roomFirstRenderStart).toFixed(1)} ms`,
+        );
 
-    this.roomFirstRenderPending = null;
-  } else {
-    this.composer.render();
-  }
-}
-
+        this.roomFirstRenderPending = null;
+      } else {
+        this.composer.render();
+      }
+    }
   }
 
   updateEnvironment(dt, timeSec) {
